@@ -27,7 +27,7 @@ apps_dict = {"Update Tool": link0, "Weather Tool": link1,
 	     "Universal Helper": link12, "Universal Configuration Tool": link13}
 
 print("\nTool Version: 1.6\n\nWelcome to the emergency application tool. Or E.A.T.\nThis tool has been called because\nA: You are using it directly\nB: The application installer has failed to connect to a server\nOr C: The application installer does not exist.\nLets go ahead and look at your options for install.\nWait about 10 seconds while i grab those.\n")
-time.sleep(1)
+time.sleep(12)
 m = 0
 for name, trash in apps_dict.items():
 	print(f"{m}. {name}")
