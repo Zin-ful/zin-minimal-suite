@@ -2,6 +2,8 @@
 
 import requests
 import time
+success = 2
+
 link0 = "https://raw.githubusercontent.com/Zin-ful/zin-minimal-suite/refs/heads/main/Universal%20Tools/updater.py"
 link1 = "https://raw.githubusercontent.com/Zin-ful/zin-minimal-suite/refs/heads/main/zweather/weathertool.py"
 link2 = "https://raw.githubusercontent.com/Zin-ful/zin-minimal-suite/refs/heads/main/zweather/weathertool-backgroundproc.py"
@@ -24,41 +26,51 @@ apps_dict = {"Update Tool": link0, "Weather Tool": link1,
 	     "Handler": link9, "Application Server": link10, "Application Retreiver": link11,
 	     "Universal Helper": link12, "Universal Configuration Tool": link13}
 
-print("Tool Version: 1.6\nWelcome to the emergency application tool. Or E.A.T.\nThis tool has been called because A: You are using it directly\nB: The application installer has failed to connect to a server\nOr C: The application installer does not exist.\nLets go ahead and look at your options for install.\nWait about 10 seconds while i grab those.")
-time.sleep(10)
+print("\nTool Version: 1.6\n\nWelcome to the emergency application tool. Or E.A.T.\nThis tool has been called because\nA: You are using it directly\nB: The application installer has failed to connect to a server\nOr C: The application installer does not exist.\nLets go ahead and look at your options for install.\nWait about 10 seconds while i grab those.\n")
+time.sleep(1)
 m = 0
 for name, trash in apps_dict.items():
 	print(f"{m}. {name}")
-	m+=1
+	m += 1
 print("What would you like to retrieve?")
 
 def updateme(link, name):
+	global success
 	response = requests.get(link)
 	errors = response.raise_for_status()
 	if response.status_code == 200:
-		with open(name, "wb") as file:
+		with open(name+".py", "wb") as file:
 			file.write(response.content)
 	elif response.status_code == 400:
 		print(f"\n****Err: {response.status_code}, code 400 points to the link being incorrect or it could be a server-side issue")
+		return 0
 	elif response.status_code == 404:
 		print(f"\n****Err: {response.status_code}, code 404 points to the link/file being unavalible or the site is down/no longer maintained")
+		return 0
 	elif response.status_code == 408:
 		print(f"\n****Err: {response.status_code}, code 408 points to your request not reaching the site before it timed out")
+		return 0
 	else:
 		print(f"\n****Err: {response.status_code}")
+		return 0
 	print("updated!!")
+	return 1
 while True:
 	inp = input(">>> ")
 	if "exit" in inp:
 		exit()
 	for i, name in numbertoname.items():
 		if inp in i:
-			inp = int(inp)
-			updateme(apps_dict[numbertoname[inp]], numbertoname[inp])
-			break
+			success = updateme(apps_dict[numbertoname[inp]], numbertoname[inp])
 	for name, trash in apps_dict.items():
 		if inp == name:
-			updateme(apps_dict[inp], name)
-			break
+			success = updateme(apps_dict[inp], name)
+	if success = 1:
+		break
+	elif success = 2:
+		print("Sorry but i dont think thats an option.")
+	elif not success:
+		print("Seems like an error has occurred, try again please")
+	
 	
 
