@@ -27,7 +27,7 @@ apps_dict = {"Update Tool": link0, "Weather Tool": link1,
 print("Tool Version: 1.6\nWelcome to the emergency application tool. Or E.A.T.\nThis tool has been called because A: You are using it directly\nB: The application installer has failed to connect to a server\nOr C: The application installer does not exist.\nLets go ahead and look at your options for install.\nWait about 10 seconds while i grab those.")
 time.sleep(10)
 m = 0
-for name, trash in apps_dict:
+for name, trash in apps_dict.items():
 	print(f"{m}. {name}")
 print("What would you like to retrieve?")
 
@@ -53,5 +53,11 @@ while True:
 	for i, name in numbers_list:
 		if inp in i:
 			inp = int(inp)
+			updateme(apps_dict[(numbertoname[inp]], numbertoname[inp])
+			break
+	for name, trash in apps_dict.items():
+		if inp == name:
+			updateme(apps_dict[inp], name)
+			break
 	
 
