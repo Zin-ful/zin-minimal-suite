@@ -53,7 +53,7 @@ while True:
 	for i, name in numbers_list:
 		if inp in i:
 			inp = int(inp)
-			updateme(apps_dict[(numbertoname[inp]], numbertoname[inp])
+			updateme(apps_dict[numbertoname[inp]], numbertoname[inp])
 			break
 	for name, trash in apps_dict.items():
 		if inp == name:
