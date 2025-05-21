@@ -51,7 +51,7 @@ while True:
 	inp = input(">>> ")
 	if "exit" in inp:
 		exit()
-	for i, name in numbers_list:
+	for i, name in numbertoname:
 		if inp in i:
 			inp = int(inp)
 			updateme(apps_dict[numbertoname[inp]], numbertoname[inp])
