@@ -65,9 +65,9 @@ while True:
 	for name, trash in apps_dict.items():
 		if inp == name:
 			success = updateme(apps_dict[inp], name)
-	if success = 1:
+	if success == 1:
 		break
-	elif success = 2:
+	elif success == 2:
 		print("Sorry but i dont think thats an option.")
 	elif not success:
 		print("Seems like an error has occurred, try again please")
