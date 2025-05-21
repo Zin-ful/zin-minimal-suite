@@ -29,6 +29,7 @@ time.sleep(10)
 m = 0
 for name, trash in apps_dict.items():
 	print(f"{m}. {name}")
+	m+=1
 print("What would you like to retrieve?")
 
 def updateme(link, name):
