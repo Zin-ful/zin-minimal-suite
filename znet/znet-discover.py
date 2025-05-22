@@ -39,7 +39,7 @@ while True:
 		exit()
 	if " " in inp:
 		cmd, ip = inp.split(" ", 1)
-		ip.strip()
+		ip = ip.strip()
 	if "-start" in ip:
 		ip, subnet = ip.split(" -start ")
 		if " " in subnet:
@@ -54,13 +54,13 @@ while True:
 	if "-wait" in ip:
 		ip, wait = ip.split(" -wait ")
 		print(ip, wait)
-		if " " in speed:
+		if " " in wait:
 			wait, cache = wait.split(" ", 1)
 			ip = ip + " " + cache
 	ip = ip.strip()
-	if not speed or speed == '' or speed == " ":
+	if not speed or '' in speed or speed == " ":
 		speed = "0.1"
-	if not wait or wait == '' or wait == " ":
+	if not wait or '' in wait or wait == " ":
 		wait = "0.02"
 	if float(speed) < 0.1:
 		speed = "0.1"
