@@ -58,14 +58,20 @@ while True:
 			wait, cache = wait.split(" ", 1)
 			ip = ip + " " + cache
 	ip = ip.strip()
-	if not speed or '' in speed or speed == " ":
+	if not speed:
 		speed = "0.1"
-	if not wait or '' in wait or wait == " ":
+	if not wait:
 		wait = "0.02"
-	if float(speed) < 0.1:
-		speed = "0.1"
-	if float(wait) < 0.02:
-		wait = "0.02"
+	try:
+		if float(speed) < 0.1:
+			speed = "0.1"
+	except:
+		pass
+	try:
+		if float(wait) < 0.02:
+			wait = "0.02"
+	except:
+		pass
 	print(f"probing {ip}, options: speed={speed} wait={wait} subnet={subnet}")
 	time.sleep(1)
 	xcute = cmds.get(cmd)
