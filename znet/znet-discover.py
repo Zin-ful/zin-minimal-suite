@@ -58,15 +58,13 @@ while True:
 			wait, cache = wait.split(" ", 1)
 			ip = ip + " " + cache
 	ip = ip.strip()
-	if speed and speed != "" or speed != " ":
-		if float(speed) < 0.1:
-			speed = "0.1"
-	if wait and wait != "" or wait != " ":
-		if float(wait) < 0.02:
-			wait = "0.02"
 	if not speed:
 		speed = "0.1"
 	if not wait:
+		wait = "0.02"
+	if float(speed) < 0.1:
+		speed = "0.1"
+	if float(wait) < 0.02:
 		wait = "0.02"
 	print(f"probing {ip}, options: speed={speed} wait={wait} subnet={subnet}")
 	time.sleep(1)
