@@ -6,6 +6,10 @@ def locateall(ip, subnet, speed, wait):
 		time.sleep(2)
 		ips = []
 		oct1, oct2, oct3, oct4 = ip.split(".")
+		if not speed:
+			speed = "0.1"
+		if not wait:
+			wait = "0.02"	
 		i = 1
 		while i < 254:
 			try:
