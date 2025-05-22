@@ -58,10 +58,10 @@ while True:
 			wait, cache = wait.split(" ", 1)
 			ip = ip + " " + cache
 	ip = ip.strip()
-	if speed or speed == "" or speed == " ":
+	if speed and speed != "" or speed != " ":
 		if float(speed) < 0.1:
 			speed = "0.1"
-	if wait or wait == "" or wait ==" ":
+	if wait and wait != "" or wait != " ":
 		if float(wait) < 0.02:
 			wait = "0.02"
 	if not speed:
