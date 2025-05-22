@@ -31,9 +31,9 @@ cmds = {"sweep": locateall, "megasweep": locatesubs, "target": target,}
 while True:
 	print("commands:\ntarget (ip)\nsweep (ip)\nmegasweep (ip) -start (starting subnet)")
 	print("if you want to put options:\n-start\n-speed\n-wait")
-	speed = ""
-	wait = ""
-	subnet = ""
+	speed = ''
+	wait = ''
+	subnet = ''
 	inp = input(">>> ")
 	if "exit" in inp:
 		exit()
