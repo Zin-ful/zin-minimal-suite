@@ -65,7 +65,7 @@ while True:
 	if speed:
 		if float(speed) < 0.1:
 			speed = "0.1"
-	if speed:
+	if wait:
 		if float(wait) < 0.01:
 			wait = "0.01"
 	print(f"probing {ip}, options: speed={speed} wait={wait} subnet={subnet}")
