@@ -4,6 +4,9 @@ from curses.textpad import Textbox
 import os
 import threading
 import time
+import subprocess
+import signal
+
 pos = 0
 sx = 0
 lvl = 0
@@ -12,7 +15,7 @@ cur_dir = os.path.dirname(os.path.abspath(__file__))
 files_in_path = os.listdir(cur_dir)
 SELECT = None
 data = None
-
+hidden = 1
 def main(stdscr):
     global SELECT, height, width
     curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_WHITE)
@@ -37,6 +40,10 @@ def list_file(win, delay):
     sx = 0
     pos = 0
     lvl = 0
+    for item in files_in_path.copy():
+        if item[0] == "." and hidden:
+            files_in_path.remove(item)
+
     for item in files_in_path:
         if x >= width - 5:
             return
@@ -73,6 +80,8 @@ def inps(win):
             origin = pos
             menu(win)
             origin = 0
+        elif key == ord('\x1b'):
+            exit()
 
 def menu(win):
     global pos, menu_win
@@ -89,20 +98,20 @@ def menu(win):
                 cache = len(i)
 
     pos = 0
-    win["menu"].addstr(origin - offset, sx + cache, " Copy ", curses.COLOR_WHITE)
-    win["menu"].addstr(origin + 1 - offset, sx + cache, " Paste ", curses.COLOR_WHITE)
-    win["menu"].addstr(origin + 2 - offset, sx + cache, " Delete ", curses.COLOR_WHITE)
-    win["menu"].addstr(origin + 3 - offset, sx + cache, " Edit ", curses.COLOR_WHITE)
-    win["menu"].addstr(origin + 4 - offset, sx + cache, " Read ", curses.COLOR_WHITE)
-    options = [" Copy ", " Paste ", " Delete ", " Edit ", " Read "]
+    win["menu"].addstr(origin - offset, sx + cache, "Copy ", curses.COLOR_WHITE)
+    win["menu"].addstr(origin + 1 - offset, sx + cache, "Paste ", curses.COLOR_WHITE)
+    win["menu"].addstr(origin + 2 - offset, sx + cache, "Delete ", curses.COLOR_WHITE)
+    win["menu"].addstr(origin + 3 - offset, sx + cache, "Edit ", curses.COLOR_WHITE)
+    win["menu"].addstr(origin + 4 - offset, sx + cache, "Read ", curses.COLOR_WHITE)
+    options = ["Copy ", "Paste ", "Delete ", "Edit ", "Read "]
     x = 0
     while True:
         if x:
-            win["menu"].addstr(origin - offset, sx + cache, "      ", curses.COLOR_WHITE)
-            win["menu"].addstr(origin + 1 - offset, sx + cache, "       ", curses.COLOR_WHITE)
-            win["menu"].addstr(origin + 2 - offset, sx + cache, "        ", curses.COLOR_WHITE)
-            win["menu"].addstr(origin + 3 - offset, sx + cache, "      ", curses.COLOR_WHITE)
-            win["menu"].addstr(origin + 4 - offset, sx + cache , "      ", curses.COLOR_WHITE)
+            win["menu"].addstr(origin - offset, sx + cache, "     ", curses.COLOR_WHITE)
+            win["menu"].addstr(origin + 1 - offset, sx + cache, "      ", curses.COLOR_WHITE)
+            win["menu"].addstr(origin + 2 - offset, sx + cache, "       ", curses.COLOR_WHITE)
+            win["menu"].addstr(origin + 3 - offset, sx + cache, "     ", curses.COLOR_WHITE)
+            win["menu"].addstr(origin + 4 - offset, sx + cache , "     ", curses.COLOR_WHITE)
             win["menu"].refresh()
             pos = origin
             return
@@ -117,6 +126,7 @@ def menu(win):
             xcute = actions.get(options[pos])
             if xcute:
                 xcute(win)
+                exit()
                 x = 1
 
 def select(win, inp, subwin, word_list, xoffset):
@@ -169,8 +179,17 @@ def select(win, inp, subwin, word_list, xoffset):
     win[subwin].refresh()
 
 def edit(win):
-    return
-
+    origint = signal.getsignal(signal.SIGINT)
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    try:
+        subprocess.call(["sudo", "nano", f"{cur_dir}/{files_in_path[origin]}"])
+    finally:
+        signal.signal(signal.SIGINT, origint)
+        time.sleep(0.2)
+        win["main"].clear()
+        win["main"].refresh()
+        list_file(win, 0.02)
+        inps(win)
 def copy(win):
     global data, data_name
     data_name = files_in_path[origin]
@@ -189,7 +208,7 @@ def paste(win):
         file.write(data)
     list_file(win, 0.002)
 
-actions = {" Copy ": copy, " Paste ": paste, " Delete ": delete, " Edit ": edit, " Read ": rd}
+actions = {"Copy ": copy, "Paste ": paste, "Delete ": delete, "Edit ": edit, "Read ": rd}
 
 def move(inp):
     rev_dir = os.path.dirname(f"{cur_dir}..")
