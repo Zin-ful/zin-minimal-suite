@@ -76,31 +76,31 @@ def update(screens):
             year, month, day = now.split("-")
             day, times = day.split(" ")
             hour, mins, secs = times.split(":")
-            if int(hour) < 12 and int(hour) > 4:
+            if int(hour) < 12 and int(hour) > 4 and int(mins) > 0:
                 morning = True
                 noon = False
                 afternoon = False
                 evening = False
                 night = False
-            elif int(hour) > 12 and int(hour) < 14:
+            elif int(hour) > 12 and int(hour) < 14 and int(mins) > 0:
                 morning = False
                 noon = True
                 afternoon = False
                 evening = False
                 night = False
-            elif int(hour) > 14 and int(hour) < 18:
+            elif int(hour) > 14 and int(hour) < 18 and int(mins) > 0:
                 morning = False
                 noon = False
                 afternoon = True
                 evening = False
                 night = False
-            elif int(hour) > 18 and int(hour) < 22:
+            elif int(hour) > 18 and int(hour) < 22 and int(mins) > 0:
                 morning = False
                 noon = False
                 afternoon = False
                 evening = True
                 night = False
-            elif int(hour) > 22:
+            elif int(hour) > 22 and int(mins) > 0:
                 noon = False
                 morning = False
                 afternoon = False
