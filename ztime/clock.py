@@ -64,6 +64,8 @@ def main(stdscr):
         i += 1
     clock = task.Thread(target=update, args=[screens,])
     clock.start()
+    inps(screens)
+
 def update(screens):
     morning = False
     noon = False
@@ -152,6 +154,12 @@ def update(screens):
                         times, msg = item.split("=")
                         msgs[times] = msg
                 time.sleep(0.5)
+
+def inps(screens):
+    while True:
+	    key = screens["main"].getch()
+	    if key == ord('\x1b'):
+		    exit()
 
 def select(key, screens):
     global pos
