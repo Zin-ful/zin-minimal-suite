@@ -8,10 +8,12 @@ link0 = "https://raw.githubusercontent.com/Zin-ful/zin-minimal-suite/refs/heads/
 link1 = "https://raw.githubusercontent.com/Zin-ful/zin-minimal-suite/refs/heads/main/zweather/guiweather.py"
 link2 = "https://raw.githubusercontent.com/Zin-ful/zin-minimal-suite/refs/heads/main/zbrowse/zbrowse.py"
 link3 = "https://raw.githubusercontent.com/Zin-ful/zin-minimal-suite/refs/heads/main/main.py"
+link4 = "https://raw.githubusercontent.com/Zin-ful/zin-minimal-suite/refs/heads/main/ztime/clock.py"
+link5 = "https://raw.githubusercontent.com/Zin-ful/zin-minimal-suite/refs/heads/main/Universal%20Tools/uniconfig.py"
 
-numbertoname = {"0": "updater", "1": "guiweather", "2": "zbrowse", "3": "main"}
+numbertoname = {"0": "updater", "1": "guiweather", "2": "zbrowse", "3": "main", "4": "clock", "5": "uniconfig",}
 apps_dict = {"updater": link0, "guiweather": link1, 
-	     "zbrowse": link2, "main": link3}
+	     "zbrowse": link2, "main": link3, "clock": link4, "uniconfig": link5}
 
 print("\nTool Version: 1.0\n\nWelcome to the special application tool.")
 time.sleep(2)
@@ -42,6 +44,7 @@ def updateme(link, name):
 		return 0
 	print("updated!!")
 	return 1
+
 while True:
 	inp = input(">>> ")
 	if "exit" in inp:
