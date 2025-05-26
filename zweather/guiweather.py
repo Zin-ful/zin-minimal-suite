@@ -30,6 +30,13 @@ alert_details = []
 alert_link = {}
 screens = {}
 colors = {}
+water = ["water", "rain", "flood", "fog", "hydro"]
+storm = ["spark", "light", "thunder", "storm", "wind"]
+fire = ["heat", "dry"]
+intense = ["catastrophic", "blizzard", "fire", "tornado", "hurri", "typhoon"]
+
+pickcolor = [water, storm, fire, intense]
+
 fetch_cmd = ["curl", "-s", url]
 pos = 0
 offset = 1
@@ -52,11 +59,20 @@ fetch_time = 0
 done = 0
 
 def main(stdscr):
-    global height, width, colors, screens
+    global height, width, colors, default, screens, pickcolor
     height, width = stdscr.getmaxyx()
     curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_WHITE)
+    curses.init_pair(2, curses.COLOR_BLUE, curses.COLOR_BLACK)
+    curses.init_pair(3, curses.COLOR_YELLOW, curses.COLOR_WHITE)
+    curses.init_pair(4, curses.COLOR_RED, curses.COLOR_BLACK)
+    curses.init_pair(5, curses.COLOR_BLACK, curses.COLOR_RED)
+    curses.init_pair(6, curses.COLOR_WHITE, curses.COLOR_BLACK)
     highlight = curses.color_pair(1)
-
+    wet = curses.color_pair(2)
+    spark = curses.color_pair(3)
+    heat = curses.color_pair(4)
+    bad = curses.color_pair(5)
+    default = curses.color_pair(6)
     stdscr.clear()
     stdscr.refresh()
     top_bar = curses.newwin(0, width, 0, 0)
@@ -68,7 +84,7 @@ def main(stdscr):
     screens.update({"box": user_input})
     screens.update({"text": tbox})
     screens.update({"source": stdscr})
-    colors.update({"highlight": highlight})
+    colors.update({"highlight": highlight, "water": wet, "spark": spark, "heat": heat, "catastrophic": bad})
     get_alert(screens, colors, None)
     print_list(screens, colors, alert_list, 1)
     inps(screens, colors)
@@ -107,7 +123,14 @@ def select(screens, colors, key):
         if pos <= 0:
             pos = 0
         back = -1
-    screens["main"].addstr(pos + offset - back, 0, alert_list[pos - back])
+    for item in pickcolor:
+        for content in item:
+            if content.lower() in alert_list[pos - back].lower():
+                prevcolor = colors[item[0]]
+                break
+            else:
+                prevcolor = default
+    screens["main"].addstr(pos + offset - back, 0, alert_list[pos - back], prevcolor)
     screens["main"].addstr(pos + offset, 0, alert_list[pos], colors["highlight"])
 
 def examine(screens, colors):
@@ -241,6 +264,12 @@ def get_alert(screens, colors, param):
         if not alert_data:
             screens["main"].addstr(y, 0, f"NO ALERTS FOR {parameters['state']}, YAYYYY :DDD")
             screens["main"].refresh()
+            while True:
+                key = screens["main"].getch()
+                if key == ord('\x1b'):
+                    done = 1
+                    time_thread.join()
+                    exit()
         else:
             screens["top"].addstr(0, width // 2 + width // 4, f"!!{len(alert_data)} ALERTS FOR {parameters['state']} FOUND..")
             screens["top"].refresh()
