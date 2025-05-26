@@ -15,6 +15,10 @@ PORT = 12345
 header_size = 100 #zfill
 config_path = '/etc/zfile_srvr'
 user_path = '/etc/zfile_srvr/users'
+root_usr = ""
+root_padd = ""
+
+admin_params = {"user": root_usr, "pass": root_psw}
 ack = 'ACK'
 recv_cmd = b''
 logged_in = False
@@ -23,8 +27,7 @@ client_conn = netcom.socket(ipv4, tcp) #creates and defines sock obj
 client_conn.setsockopt(netcom.SOL_SOCKET, netcom.SO_REUSEADDR, 1)
 client_conn.bind((IP,  PORT)) #temp
 
-check_admin = os.listdir(user_path)
-if "admin.json" in check_admin:
+if "admin.conf" in os.listdir(user_path):
     print("admin exists")
 else:
     while True:
@@ -40,15 +43,13 @@ else:
         else:
             root_usr = "admin"
             root_psw = "root"
-        with open(f"{user_path}/admin.json", "w") as file:
-            data = {"/admin": {"user": root_usr, "password": root_psw, "priv": "1"}}
-            json.dump(data, file)
+        with open(f"{user_path}/admin.conf", "w") as file:
+            for name, item in admin_params:
+                file.write(f"{name}={item}")
         break
 
 
 #check for OS version
-def get_software():
-    return
 
 def do_connect():
     while True:
