@@ -7,6 +7,9 @@ import time
 import subprocess
 import signal
 
+data_name = ""
+data_path = ""
+
 pos = 0
 sx = 0
 lvl = 0
@@ -16,6 +19,12 @@ files_in_path = os.listdir(cur_dir)
 SELECT = None
 data = None
 hidden = 1
+chunk_size = 4192
+conf_path = "/etc/zbrowse"
+
+if "zbrowse" not in os.listdir("/etc"):
+    os.makedirs(conf_path, exist_ok=True)
+
 def main(stdscr):
     global SELECT, height, width
     curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_WHITE)
@@ -31,7 +40,8 @@ def main(stdscr):
     inps(win)
 
 def list_file(win, delay):
-    global files_in_path, pos, sx, lvl
+    global origin, files_in_path, pos, sx, lvl
+    time.sleep(0.1)
     win["files"].clear()
     files_in_path = os.listdir(cur_dir)
     i = 0
@@ -126,7 +136,6 @@ def menu(win):
             xcute = actions.get(options[pos])
             if xcute:
                 xcute(win)
-                exit()
                 x = 1
 
 def select(win, inp, subwin, word_list, xoffset):
@@ -179,6 +188,8 @@ def select(win, inp, subwin, word_list, xoffset):
     win[subwin].refresh()
 
 def edit(win):
+    global origin
+    origin = 0
     origint = signal.getsignal(signal.SIGINT)
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     try:
@@ -191,22 +202,36 @@ def edit(win):
         list_file(win, 0.02)
         inps(win)
 def copy(win):
-    global data, data_name
+    global data_name, data_path
     data_name = files_in_path[origin]
-    if not os.path.isdir(f"{cur_dir}/{files_in_path[origin]}"):
-        with open(f"{cur_dir}/{files_in_path[origin]}", "r") as file:
-            data = file.read()
+    data_path = f"{cur_dir}/{files_in_path[origin]}"
+    with open("errlog.txt", "w") as file:
+        file.write(f"{data_name}\n{data_path}\n")
+def paste(win):
+    count = 1
+    file_name = data_name
+    for item in files_in_path:
+        if item == file_name:
+            file_name = f"{data_name.replace('_cpy{count-1}', '')}_cpy{count}"
+            count += 1
+
+    with open(data_path, "rb") as filer:
+        filer.seek(0, 2)
+        file_size = filer.tell()
+        filer.seek(0)
+        with open(f"{cur_dir}/{file_name}", "wb") as filew:
+            while True:
+                chunk = filer.read(chunk_size)
+                if not chunk:
+                    break
+                filew.write(chunk)
+    list_file(win, 0.002)
 
 def rd(win):
     return
 
 def delete(win):
     return
-
-def paste(win):
-    with open(f"{cur_dir}/{data_name}_copy", "w") as file:
-        file.write(data)
-    list_file(win, 0.002)
 
 actions = {"Copy ": copy, "Paste ": paste, "Delete ": delete, "Edit ": edit, "Read ": rd}
 
