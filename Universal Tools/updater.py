@@ -9,22 +9,31 @@ link1 = "https://raw.githubusercontent.com/Zin-ful/zin-minimal-suite/refs/heads/
 link2 = "https://raw.githubusercontent.com/Zin-ful/zin-minimal-suite/refs/heads/main/zweather/weathertool-backgroundproc.py"
 link3 = "https://raw.githubusercontent.com/Zin-ful/zin-minimal-suite/refs/heads/main/zweather/linux-weathertool.py"
 link4 = "https://raw.githubusercontent.com/Zin-ful/zin-minimal-suite/refs/heads/main/zbrowse/zbrowse.py"
-link5 = "https://raw.githubusercontent.com/Zin-ful/zin-minimal-suite/refs/heads/main/ztalk/ztext/message_intelligent.py"
-link6 = "https://raw.githubusercontent.com/Zin-ful/zin-minimal-suite/refs/heads/main/ztalk/ztext_srvr/message_server.py"
+link5 = "https://raw.githubusercontent.com/Zin-ful/zin-minimal-suite/refs/heads/main/ztalk/ztext/msg.py"
+link6 = "https://raw.githubusercontent.com/Zin-ful/zin-minimal-suite/refs/heads/main/ztalk/ztext_srvr/messagesrv.py"
 link7 = "https://raw.githubusercontent.com/Zin-ful/zin-minimal-suite/refs/heads/main/zfile/client/client.py"
 link8 = "https://raw.githubusercontent.com/Zin-ful/zin-minimal-suite/refs/heads/main/zfile/server/server.py"
 link9 = "https://raw.githubusercontent.com/Zin-ful/zin-minimal-suite/refs/heads/main/zfile/server/handle_cmd.py"
 link10 = "https://raw.githubusercontent.com/Zin-ful/zin-minimal-suite/refs/heads/main/zapp/server/zapp_server.py"
 link11 = "https://raw.githubusercontent.com/Zin-ful/zin-minimal-suite/refs/heads/main/zapp/client/zget.py"
-link12 = "https://raw.githubusercontent.com/Zin-ful/zin-minimal-suite/refs/heads/main/Universal%20Tools/Uniconfig.py"
-link13 = "https://raw.githubusercontent.com/Zin-ful/zin-minimal-suite/refs/heads/main/Universal%20Tools/Unihelp.py"
-numbertoname = {"0": "Update Tool", "1": "Weather Tool", "2": "Weather Tool (Background)", "3": "Weather Tool (linux)", "4": "File Browser", "5": "Messenger", "6": "Messenger Server", "7": "Cloud Storage Client", "8": "Cloud Storage Server (Depends on handler)", "9": "Handler", "10":"Application Server", "11": "Application Retreiver", "12": "Universal Helper", "13": "Universal Configuration Tool"}
-apps_dict = {"Update Tool": link0, "Weather Tool": link1, 
-	     "Weather Tool (Background)": link2, "Weather Tool (linux)": link3, 
-	     "File Browser": link4, "Messenger": link5, "Messenger Server": link6, 
-	     "Cloud Storage Client": link7, "Cloud Storage Server (Depends on handler)": link8, 
-	     "Handler": link9, "Application Server": link10, "Application Retreiver": link11,
-	     "Universal Helper": link12, "Universal Configuration Tool": link13}
+link12 = "https://raw.githubusercontent.com/Zin-ful/zin-minimal-suite/refs/heads/main/Universal%20Tools/uniconfig.py"
+link13 = "https://raw.githubusercontent.com/Zin-ful/zin-minimal-suite/refs/heads/main/Universal%20Tools/unihelp.py"
+link14 = "https://raw.githubusercontent.com/Zin-ful/zin-minimal-suite/refs/heads/main/znet/keyget.py"
+link15 = "https://raw.githubusercontent.com/Zin-ful/zin-minimal-suite/refs/heads/main/znet/keygetsrv.py"
+link16 = "https://raw.githubusercontent.com/Zin-ful/zin-minimal-suite/refs/heads/main/zbrowse/usbctrl.py"
+link17 = "https://raw.githubusercontent.com/Zin-ful/zin-minimal-suite/refs/heads/main/games/oneturnfight.py"
+
+
+
+numbertoname = {"0": "updater", "1": "weathertool", "2": "weathertoolbg", "3": "linux-weathertool", 
+		"4": "browse", "5": "msg", "6": "msgsrv", "7": "clientstore", "8": "serverstore", 
+		"9": "handle_cmd", "10":"zapp", "11": "zget", "12": "unihelp", "13": "uniconf", "14": "keyget", "15":"keygetsrv", "16":"usbctrl", "17":"oneturnfight"}
+apps_dict = {"updater": link0, "weathertool": link1, 
+	     "weathertoolbg": link2, "linux-weathertool": link3, 
+	     "browse": link4, "msg": link5, "msgsrv": link6, 
+	     "clientstore": link7, "serverstore": link8, 
+	     "handle_cmd": link9, "zapp": link10, "zget": link11,
+	     "unihelp": link12, "uniconf": link13, "keyget": link14, "keygetsrv": link15, "usbctrl":link16 , "oneturnfight": link17}
 
 print("\nTool Version: 1.6\n\nWelcome to the emergency application tool. Or E.A.T.\nThis tool has been called because\nA: You are using it directly\nB: The application installer has failed to connect to a server\nOr C: The application installer does not exist.\nLets go ahead and look at your options for install.\nWait about 10 seconds while i grab those.\n")
 time.sleep(12)
