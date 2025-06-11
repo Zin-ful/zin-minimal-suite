@@ -71,7 +71,7 @@ def list_file(win, delay, rst):
         i += 1
         y += 1
         if y >= height - height // 10:
-            x += width // 3
+            x += width // 3 #if statement makes zero sense
             y = 0
         time.sleep(delay)
         win["files"].refresh()
