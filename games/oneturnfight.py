@@ -214,7 +214,7 @@ def savestat():
 		print("Leveled up!")
 	with open(f"{conf_path}/local_player.conf", "w") as file:
 		for name, val in stats.items():
-			file.write(f"{name}={val}\n".encode("utf-8"))
+			file.write(f"{name}={str(val)}\n".encode("utf-8"))
 		
 cmds = {"fight": localfight, "login": online}
 
