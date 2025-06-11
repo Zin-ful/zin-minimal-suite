@@ -16,6 +16,8 @@ lvl = 0
 origin = 0
 num = 0
 
+ylimit = 5
+
 cur_dir = os.path.dirname(os.path.abspath(__file__))
 files_in_path = os.listdir(cur_dir)
 SELECT = None
@@ -60,12 +62,12 @@ def list_file(win, delay, rst):
         if item[0] == "." and hidden:
             files_in_path.remove(item)
     for item in files_in_path:
-        if num * (height - 4) + i >= len(files_in_path):
+        if num * (height - ylimit) + i >= len(files_in_path):
             break
         if x >= width - 5:
             return
         else:
-            win["files"].addstr(y, x, files_in_path[num * (height - 4) + i], curses.COLOR_WHITE)
+            win["files"].addstr(y, x, files_in_path[num * (height - ylimit) + i], curses.COLOR_WHITE)
         i += 1
         y += 1
         if y >= height - height // 10:
@@ -75,7 +77,7 @@ def list_file(win, delay, rst):
         win["files"].refresh()
 
 def log(string):
-    with open("log.txt", "a") as file:
+    with open("log.txt", "w") as file:
         file.write(f"START: {string} {pos} {lvl}\n")
         for i in files_in_path:
             file.write(f"{i}\n")
@@ -158,7 +160,7 @@ def select(win, inp, subwin, word_list, xoffset):
         offset = -1
         pos -= 1
     prevlen = ""
-    if pos >= height - 4 and len(word_list) > height - 4 and subwin == "files":
+    if pos >= height - ylimit and len(word_list) > height - ylimit and subwin == "files":
         pos = 0
         lvl += 1
         sx += width // 3
@@ -186,7 +188,7 @@ def select(win, inp, subwin, word_list, xoffset):
     for i in word_list[pos]:
         prevlen += " "
     if lvl:
-        lvl_offset = (height - 4) * lvl
+        lvl_offset = (height - ylimit) * lvl
     else:
         lvl_offset = 0
     if pos + lvl_offset >= len(files_in_path) and subwin == "files":
@@ -194,7 +196,7 @@ def select(win, inp, subwin, word_list, xoffset):
     final_pos = origin + pos - offset
     if subwin == "files":
         if pos > -1:
-            if  final_pos >= height - 4 or final_pos >= len(files_in_path):
+            if  final_pos >= height - ylimit or final_pos >= len(files_in_path):
                 pass
             else:
                 win[subwin].addstr(final_pos, sx + xoffset, prevlen, curses.COLOR_BLACK)
@@ -277,11 +279,11 @@ def move(inp):
             forw_dir = cur_dir + files_in_path[num * sx + pos]
         else:
             if not num and sx:
-                calc = (lvl * (height - 4)) + pos
+                calc = (lvl * (height - ylimit)) + pos
                 forw_dir = cur_dir + "/" + files_in_path[calc]
                 log(f"CHECK ME {cur_dir + '/' + files_in_path[calc]}")
             else:
-                calc = (lvl * (height - 4)) + pos
+                calc = (lvl * (height - ylimit)) + pos
                 forw_dir = cur_dir + "/" + files_in_path[calc]
                 log(f"CHECK ME {cur_dir + '/' + files_in_path[calc]} {calc}")
     if inp == ord("a"):
