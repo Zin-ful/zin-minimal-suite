@@ -172,12 +172,12 @@ def select(win, inp, subwin, word_list, xoffset):
             list_file(win, 0.002, 0)
     elif pos == -1 and lvl >= 1 and subwin == "files":
         sx -= width // 3
-        pos = height - 5
+        pos = height - ylimit - 1
         lvl -= 1
         if sx < 0 and num:
             num -= 3
             list_file(win, 0.002, 0)
-            sx = (width - width // 3) - 2
+            sx = (width - width // 3)
 
     if pos <= 0:
         offset = 0
