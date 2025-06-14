@@ -9,7 +9,7 @@ more advanced projects are stored elsewhere and are usually written in C
 For use on CLI systems, early in dev so dont expect a ton for a bit
 
 Currently the working curses programs are:
-msg.py\n
+msg.py
 main.py
 uniconfig.py
 zbrowse.py (not stable)
