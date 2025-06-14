@@ -168,9 +168,13 @@ def messenger(client_socket, addr):
     #print(f"user connected: {addr}")
     with clients_lock:
         users.append(client_socket)
-    for user in users:
-        msg = f"server.message.from.server.users: {len(users)} !\n###########\nSYSTEM MESSAGE: user connected: {addr}\n###########\n"
-        user.sendall(msg.encode("utf-8"))
+    startmsg = f"server.message.from.server.users: {len(users)} !###########\nSYSTEM MESSAGE: user connected: {addr}\n###########"
+    for other_client in users:
+        if other_client != client_socket:
+            try:
+                other_client.sendall(startmsg.encode("utf-8"))
+            except Exception as e:
+                pass
     try:
         while True:
             msg = client_socket.recv(2048)
@@ -206,14 +210,10 @@ def messenger(client_socket, addr):
         pass
         #print(f"message recv failed: {e}")
     finally:
-        for user in users:
-            #del users_name[user_id]
-            try:
-                user.sendall(f"server.message.from.server.users: -1 !\n###########\nSYSTEM MESSAGE: user DISconnected: {addr}\n###########\n".encode("utf-8"))
-            except BrokenPipeError:
-                pass
-                #print("no clients")
-        #print("connection closed")
+        try:
+            user.sendall(f"server.message.from.server.users: -1 !###########\nSYSTEM MESSAGE: user DISconnected: {addr}\n###########".encode("utf-8"))
+        except BrokenPipeError:
+            pass
         with clients_lock:
             users.remove(client_socket)
         client_socket.close()
