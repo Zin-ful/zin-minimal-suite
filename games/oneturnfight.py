@@ -12,7 +12,7 @@ username = ""
 password = ""
 ipaddr = None
 port = None
-auto = 1
+auto = 0
 auth = {"user": username, "pass": password, "ip": ipaddr, "port": port}
 
 botnames = ["john doe", "vinny krob", "bill starch", "tim stronk", "jim giggs", "shik steam", "devin"]
