@@ -8,6 +8,8 @@ import curses
 from curses import wrapper
 from curses.textpad import Textbox
 import sys
+
+session_usr = []
 conf_path = "/etc/ztext"
 username = "none"
 alias = "none"
@@ -23,8 +25,12 @@ msg = ''
 y = 0
 server = ''
 qkeys = {}
+pause = 0
 
 attr_dict = {"ipaddr": ip, "name": username, "autoconnect": autoconn, "idaddr": ipid, "alias":alias}
+
+if "phonebook" not in os.listdir("/etc"):
+    os.makedirs("/etc/phonebook", exist_ok=True)
 
 def main(stdscr):
     global msg, ERASE, TUT, HIGHLIGHT_1, HIGHLIGHT_2, HIGHLIGHT_3, HIGHLIGHT_4, FROM_SERVER, height, width, network, security, users, message_thread, update_thread
@@ -71,12 +77,13 @@ def main(stdscr):
 
 def update(stdscr, top_win, show_chat, user_input):
     global security, network, users, inp, msg
-    time.sleep(1)
-    top_win.addstr(0, width // 2 - (len(security) // 2), security, HIGHLIGHT_2)
-    top_win.addstr(0, width - width // 3, "              ", HIGHLIGHT_1)
-    top_win.addstr(0, (width - (width // 4)) - (len(network) // 2), network, HIGHLIGHT_2)
-    top_win.addstr(0, width // 7, str(users), HIGHLIGHT_1)
-    top_win.refresh()
+    while True:
+        time.sleep(1)
+        top_win.addstr(0, width // 2 - (len(security) // 2), security, HIGHLIGHT_2)
+        top_win.addstr(0, width - width // 3, "              ", HIGHLIGHT_1)
+        top_win.addstr(0, (width - (width // 4)) - (len(network) // 2), network, HIGHLIGHT_2)
+        top_win.addstr(0, width // 7, str(len(session_usr)), HIGHLIGHT_1)
+        top_win.refresh()
 
 def clearchk(show_chat):
     global y
@@ -92,9 +99,18 @@ def message_recv(show_chat):
     while True:
         num = 0
         msg = server.recv(2048)
+        if pause:
+            continue
         if msg:
             msg = msg.decode("utf-8")
             y += 1
+            if "@" in msg:
+                recvusr, msg = msg.split(":", 1)
+                recvusr = recvusr.strip("@").strip()
+                if recvusr not in session_usr:
+                    session_usr.append(recvusr)
+                msg = f"{getnick(recvusr)}{msg}"
+
             for i in msg:
                 if i == '\n':
                     num += 1
@@ -109,10 +125,153 @@ def message_recv(show_chat):
                 show_chat.addstr(y, x, msg, FROM_SERVER)
             else:
                 show_chat.addstr(y, x, msg, HIGHLIGHT_3)
-        y += num
+        if num != 1:
+            y += num
         clearchk(show_chat)
         show_chat.refresh()
 
+def getnick(name):
+    if "@" in name:
+        name = name.strip("@")
+    if f"{name}.txt" not in os.listdir("/etc/phonebook"):
+        return f"@{name}:"
+    with open(f"/etc/phonebook/{name}.txt", "r") as file:
+        data = file.readlines()
+        for item in data:
+            if "nickname:" in item:
+                item = item.strip("nickname:").strip()
+                return f"@{item}:"
+    return f"@{name}:"
+
+def query(stdscr, show_chat, tbox, user_input):
+    global y
+    success = 0
+    user_input.clear()
+    user_input.refresh()
+    clr(None, show_chat, None, None)
+    show_chat.addstr(y, 0, "Users:", HIGHLIGHT_1)
+    y += 1
+    names = os.listdir("/etc/phonebook")
+    for name in names:
+        show_chat.addstr(y, 0, name.strip(".txt"), HIGHLIGHT_1)
+        y += 1
+    y += 1
+    show_chat.addstr(y, 0, "Whos contact would you like to view?", HIGHLIGHT_1)
+    show_chat.refresh()
+    inp = tbox.edit().strip()
+    if inp:
+        user_input.clear()
+        user_input.refresh()
+        clr(None, show_chat, None, None)
+        for item in names:
+            if inp.lower() == item.strip(".txt").lower() or inp.strip("@").lower() == item.strip(".py").strip("@").lower():
+                with open(f"/etc/phonebook/{item}", "r") as file:
+                    data = file.readlines()
+                    for item in data:
+                        show_chat.addstr(y, 0, item, HIGHLIGHT_1)
+                        y += 1
+                y += 1
+                show_chat.addstr(y, 0, "Press enter to continue", HIGHLIGHT_1)
+                success = 1
+                show_chat.refresh()
+                inp = tbox.edit().strip()
+                if inp:
+                    user_input.clear()
+                    user_input.refresh()
+    if not success:
+        show_chat.addstr(y + 1, 0, "User does not exist", HIGHLIGHT_1)
+        show_chat.refresh()
+        time.sleep(1)
+    
+    clr(None, show_chat, None, None)
+                        
+    
+    
+def savenick(stdscr, show_chat, tbox, user_input):
+    global pause, y
+    if not session_usr:
+        return
+    success = 0
+    pause = 1
+    user_input.clear()
+    user_input.refresh()
+    clr(None, show_chat, None, None)
+    show_chat.addstr(y, 0, "Users:", HIGHLIGHT_1)
+    y += 1
+    for name in session_usr:
+        show_chat.addstr(y, 0, name, HIGHLIGHT_1)
+        y += 1
+    y += 1
+    show_chat.addstr(y, 0, "Who would you like to add to your contacts?", HIGHLIGHT_1)
+    show_chat.refresh()
+    inp = tbox.edit().strip()
+    if inp:
+        user_input.clear()
+        user_input.refresh()
+        clr(None, show_chat, None, None)
+        for name in session_usr:
+            if inp.lower() == name.lower() or name.strip("@").lower() == inp.strip("@").lower():
+                data = []
+                show_chat.addstr(y, 0, "Were going to fill out information for this user.", HIGHLIGHT_1)
+                y += 1
+                show_chat.addstr(y, 0, "Name:", HIGHLIGHT_1)
+                show_chat.refresh()
+                inp = tbox.edit().strip()
+                if inp:
+                    if "@" in inp:
+                        inp = inp.strip("@")
+                    newname = inp
+                    data.append(inp)
+                clr(None, show_chat, None, None)
+                user_input.clear()
+                user_input.refresh()
+                
+                show_chat.addstr(y, 0, "Nickname:", HIGHLIGHT_1)
+                show_chat.refresh()
+                inp = tbox.edit().strip()
+                if inp:
+                    data.append(inp)
+                clr(None, show_chat, None, None)
+                user_input.clear()
+                user_input.refresh()
+                
+                show_chat.addstr(y, 0, "IP Address:", HIGHLIGHT_1)
+                show_chat.refresh()
+                inp = tbox.edit().strip()
+                if inp:
+                    data.append(inp)
+                clr(None, show_chat, None, None)
+                user_input.clear()
+                user_input.refresh()
+                
+                show_chat.addstr(y, 0, "Notes:", HIGHLIGHT_1)
+                show_chat.refresh()
+                inp = tbox.edit().strip()
+                if inp:
+                    data.append(inp)
+                clr(None, show_chat, None, None)
+                user_input.clear()
+                user_input.refresh()
+                
+                with open(f"/etc/phonebook/{newname}.txt", "w") as file:
+                    file.write(f"name: {data[0]}\n")
+                    file.write(f"nickname: {data[1]}\n")
+                    file.write(f"ip address: {data[2]}\n")
+                    file.write(f"notes: {data[3]}\n")
+                    success = 1
+    
+    user_input.clear()
+    user_input.refresh()
+    if success:
+        msg = "Writing to file, please wait..."
+    else:
+        msg = "User does not exist. Exiting..."
+    show_chat.addstr(y + 1, 0, msg, HIGHLIGHT_1)
+    show_chat.refresh()
+    time.sleep(1)
+    clr(None, show_chat, None, None)
+    pause = 0
+    
 
 def notrase(show_chat, inp, upd, yplus):
     i = 0
@@ -244,7 +403,7 @@ def importip(stdscr, show_chat, tbox, user_input):
     time.sleep(1)
     notrase(show_chat, msg, 1, 1)
 
-commands = {"#help": listcmd, "#exit": shutoff, "#change-user": changeuser, "#autoconnect":auto_conf, "#import-ip":importip, "#clear": clr}
+commands = {"#help": listcmd, "#exit": shutoff, "#query-user": query, "#add-user": savenick, "#change-user": changeuser, "#autoconnect":auto_conf, "#import-ip":importip, "#clear": clr}
 
 #$
 def message(tbox, user_input, top_win, show_chat, stdscr):
