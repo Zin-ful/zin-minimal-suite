@@ -137,6 +137,7 @@ def localfight(diff):
 	finalwrong = 0
 	
 	cachehp = stats["hp"]
+	
 	bonus = 0
 	ehealth = 0
 	eattack = 0
@@ -243,12 +244,14 @@ def localfight(diff):
 		hostile["hp"] -= score + int(stats["atk"])
 		if hostile["hp"] <= 0:
 			hostile_thread.join()
+			stats["hp"] = cachehp
 			win = 1
 			print(f"{hostile['name']} was defeated, you had {stats['hp']} health left")
 			after_fight(win, hostile, cachehp, finalright, finalwrong)
 			break
 		elif stats["hp"] <= 0:
 			hostile_thread.join()
+			stats["hp"] = cachehp
 			win = 0
 			print(f"you were defeated. Tallies:\nWords right: {finalright}\nWords wrong: {finalwrong}\nHealth: {stats['hp']}\nHostiles health: {hostile['hp']}")
 			after_fight(win, None, cachehp, finalright, finalwrong)
