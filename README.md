@@ -21,6 +21,8 @@ CLI only programs:
 oneturnfight.py (game)
 zapp.py + zget.py (app installer/srv)
 zfile client + srv (file transfer service)
+netdiscover
+keyget + srv
 
 the rest can be assumed to not work.
 
