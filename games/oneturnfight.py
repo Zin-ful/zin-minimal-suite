@@ -44,6 +44,8 @@ stats = {"hp": health, "pnt": points, "lvl": level, "xp": exp, "req": expreq, "a
 
 words = ["one","into","a","seat","flip","not","unset","nail","joke","laugh","enjoy","old","eye","file","bring","love","lie","sprawl","shook","rather","involved","time","right","there","left","tell","camera","before","more","over","flee","stand","rush","friend","address","of","emergecy","guy","got","down","couple", "hunt", "run","without","help","trace","old","year","state","car", "hands", "arrived", "anyone", "on", "this", "fall","high","try","burn","toss","lap","cant","did","do","too","to","two","flow","tan","brain","glove","county","had","come","here","room","work"]
 
+
+
 if "oneturnfight" not in os.listdir("/etc"):
 	os.makedirs(conf_path, exist_ok=True)
 if "local_scores.conf" not in os.listdir(conf_path):
@@ -71,9 +73,20 @@ else:
 		for item in load_auth:
 			item = item
 			name, val = item.split("=")
-			print(f"{name}={val}")
 			auth[name] = val	
-		
+
+if "otfwords.txt" in os.listdir() :
+	with open(f"otfwords.txt","r") as file:
+		addwords = file.readlines()
+		print(f"wordlist found: {len(addwords)}")
+		for item in addwords:
+			words.append(item.strip())
+elif "otfwords.txt" in os.listdir(conf_path):
+	with open(f"{conf_path}/otfwords.txt","r") as file:
+		addwords = file.readlines()
+		print(f"wordlist found: {len(addwords)}")
+		for item in addwords:
+			words.append(item.strip())	
 			
 def main():
 	print("Welcome to One Turn Fight, either fight locally or fight online!\n\nType 'login' to go online, otherwise type 'help' for more inormation")
@@ -372,6 +385,7 @@ def helpy():
 def getstat():
 	for name, val in stats.items():
 		print(f"{name}: {val}")
+	print(f"Wordlist size: {len(words)}")
 cmds = {"fight": localfight, "login": online, "help": helpy, "score": getscore, "stats": getstat}
 
 main()
