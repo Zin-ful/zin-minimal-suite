@@ -82,10 +82,15 @@ def inps(screens, colors):
             exit()
 def select(screens, colors, key):
     global pos
+
+    if current == apps_confs and not apps_confs:
+        return
+
     if key == ord("s"):
         pos += 1
         if pos >= len(current):
             pos = len(current) - 1
+            back = 0
         back = 1
         if pos <= 0:
             back = 0
