@@ -16,7 +16,7 @@ lvl = 0
 origin = 0
 num = 0
 
-ylimit = 5
+ylimit = 4
 
 cur_dir = os.path.dirname(os.path.abspath(__file__))
 files_in_path = os.listdir(cur_dir)
@@ -70,18 +70,19 @@ def list_file(win, delay, rst):
             win["files"].addstr(y, x, files_in_path[num * (height - ylimit) + i], curses.COLOR_WHITE)
         i += 1
         y += 1
-        if y >= height - height // 10:
-            x += width // 3 #if statement makes zero sense
+        if y >= height - ylimit:
+            x += width // 3
             y = 0
         time.sleep(delay)
         win["files"].refresh()
 
 def log(string):
-    with open("log.txt", "w") as file:
-        file.write(f"START: {string} {pos} {lvl}\n")
-        for i in files_in_path:
-            file.write(f"{i}\n")
-        file.write("END\n")
+    return
+    #with open("log.txt", "w") as file:
+        #file.write(f"START: {string} {pos} {lvl}\n")
+        #for i in files_in_path:
+            #file.write(f"{i}\n")
+        #file.write("END\n")
 
 def inps(win):
     global cur_dir, pos, origin
@@ -225,7 +226,9 @@ def edit(win):
         inps(win)
 def copy(win):
     global data_name, data_path
-    data_name = files_in_path[origin]
+    if lvl:
+        truepos = origin + (lvl * (height - ylimit))
+    data_name = files_in_path[truepos]
     data_path = f"{cur_dir}/{files_in_path[origin]}"
     with open("errlog.txt", "w") as file:
         file.write(f"{data_name}\n{data_path}\n")
