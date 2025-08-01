@@ -29,12 +29,12 @@ nights = ["jiiiiiglyy puuuufff jiggillyyyy puffff", "Everyones asleep? Would be 
 bar = ""
 
 if "ztime" not in os.listdir("/etc"):
-	os.makedirs(conf_path, exist_ok=True)
+    os.makedirs(conf_path, exist_ok=True)
 
 if "clock.conf" not in os.listdir(conf_path):
-	with open(f"{conf_path}/clock.conf", "w") as file:
-		for times, msg in msgs.items():
-		    file.write(f"{times}={msg}\n")
+    with open(f"{conf_path}/clock.conf", "w") as file:
+        for times, msg in msgs.items():
+            file.write(f"{times}={msg}\n")
 else:
     with open(f"{conf_path}/clock.conf", "r") as file:
         stuff = file.readlines()
@@ -64,7 +64,7 @@ def main(stdscr):
         i += 1
     clock = task.Thread(target=update, args=[screens,])
     clock.start()
-    inps(screens)
+    inps(screens, clock)
 
 def update(screens):
     morning = False
@@ -154,12 +154,16 @@ def update(screens):
                         times, msg = item.split("=")
                         msgs[times] = msg
                 time.sleep(0.5)
-
-def inps(screens):
+        if done:
+            break
+def inps(screens, clock):
     while True:
-	    key = screens["main"].getch()
-	    if key == ord('\x1b'):
-		    exit()
+        global done
+        key = screens["main"].getch()
+        if key == ord('\x1b'):
+            done = 1
+            clock.join()
+            exit()
 
 def select(key, screens):
     global pos
