@@ -1,13 +1,14 @@
 import pyaudio
-import threading
+import threading as task
 import time
 import subprocess
+import os
 import socket as  netcom
 from socket import AF_INET as ipv4
 from socket import SOCK_STREAM as tcp
 
 """call codes"""
-codes = {"call-start": "041", "call-end": "035", "err": "000"}
+codes = {"call-start": "001",  "call-confirmation": "002", "call-end": "003", "call-timeout": "004", "err": "000"}
 
 """recording status"""
 live = 1
@@ -27,10 +28,29 @@ server_ip = "127.0.0.1"
 server_port = 12345
 username = "none"
 server = netcom.socket(ipv4, tcp)
+incoming = False
 calling = False
+caller = None
+conf_dict = {"user": username}
+"""local conf"""
+conf_path = "/etc/zcall"
 print("\n\n")
 
-#with open()
+if not "zcall" in os.listdir("/etc"):
+    os.makedirs("/etc/zcall", exist_ok=True)
+if "zcall.conf" not in os.listdir(conf_path):
+    if conf_dict["user"] == "none":
+        inp = input("It looks like this is your first time using the program\nPlease enter your desired alias: ")
+        conf_dict["user"] = inp
+    with open(f"{conf_path}/zcall.conf", "w") as file:
+        for key, val in conf_dict.items():
+            file.write(f"{key}:{val}\n")
+else:
+    with open(f"{conf_path}/zcall.conf", "r") as file:
+        data = file.readlines()
+        for item in data:
+            key, val = item.split(":")
+            conf_dict[key] = val.strip("\n")
 
 """Utility"""
 def init_to_server():
@@ -39,7 +59,7 @@ def init_to_server():
         server.send("REQ".encode("utf-8"))
         reply = server.recv(3).decode("utf-8")
         if reply == "ACK":
-            server.send(f"{username}&{CHUNK}".encode("utf-8"))
+            server.send(f"{conf_dict['user']}&{CHUNK}".encode("utf-8"))
             ack = server.recv(3).decode("utf-8")
             if ack == "ACK":
                 pass
@@ -85,11 +105,15 @@ def discover():
     return device_in, device_out, indict, outdict
 
 def listen_for_call():
+    global incoming, caller
     while not calling:
-        call_attempt = server.recv(3)
-        if call_attempt == codes["start-call"]:
+        call_attempt = server.recv(CHUNK)
+        if call_attempt:
+            code, caller = call_attempt.split(":")
+        if code == codes["call-start"]:
             break
-    print("incoming call, type 'attempt accept' or '88' to accept")
+    incoming = True
+    print(f"incoming call from {caller}\ntype 'attempt accept' or '88' to accept\nto decline, type 'attempt reject' or '00'\n\n")
 
 def send_to_server(data):
     try:
@@ -103,10 +127,16 @@ def recv_from_server():
         return data
 def start_call():
     global live
-    to_call = input("who would you like to call?")
+    if not caller:
+        to_call = input("who would you like to call?")
+    else:
+        to_call = caller
     server.send(to_call.encode("utf-8"))
     live = 1
-
+    print("sent call request, waiting for response..")
+    confirm = server.recv(3)
+    confirm = confirm.decode("utf-8")
+    return confirm
 
 def record(audio_in):
     global live
@@ -156,23 +186,36 @@ def shell():
     stat = "stopped"
     while True:
         inp = input(f"\n({stat}) >>> ")
+        if incoming:
+            if inp == "88" or inp == "attempt accept":
+                send_to_server(codes["call-confirmation"])
+            elif inp == "88" or inp == "attempt accept":
+                send_to_server(codes["call-end"])
+            inp = "start"
+
         if "ex" in inp:
             live = 0
             break
-        if "restart" in inp:
+        elif "restart" in inp:
             audio_in, audio_out, in_devices, out_devices = discover()
             print("restarted. try 'start' again")
             live = 0
             stat = "stopped"
-        if "stop" in inp or "ex" in inp:
+        elif "stop" in inp:
             live = 0
             stat = "stopped"
-        if "start" in inp:
+        elif "start" in inp:
             calling = True
-            start_call()
+            confirm = start_call()
+            if confirm == codes["call-confirmation"]:
+                pass
+            elif confirm == codes["call-timeout"]:
+                print("call timed out, user isnt available or connected to the server")
+                continue
+
             stat = "running"
-            audin_thread = threading.Thread(target=record, args=(audio_in,))
-            audout_thread = threading.Thread(target=playback, args=(audio_out,))
+            audin_thread = task.Thread(target=record, args=(audio_in,))
+            audout_thread = task.Thread(target=playback, args=(audio_out,))
             if in_devices or audio_in:
                 try:
                     audin_thread.start()
