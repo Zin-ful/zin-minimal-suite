@@ -2,7 +2,6 @@ from socket import AF_INET as ipv4
 from socket import SOCK_STREAM as tcp
 import socket as netcom
 import sys
-import json
 import os
 import time
 import threading as task
@@ -16,7 +15,7 @@ header_size = 100 #zfill
 config_path = '/etc/zfile_srvr'
 user_path = '/etc/zfile_srvr/users'
 root_usr = ""
-root_padd = ""
+root_psw = ""
 
 admin_params = {"user": root_usr, "pass": root_psw}
 ack = 'ACK'
@@ -27,6 +26,10 @@ client_conn = netcom.socket(ipv4, tcp) #creates and defines sock obj
 client_conn.setsockopt(netcom.SOL_SOCKET, netcom.SO_REUSEADDR, 1)
 client_conn.bind((IP,  PORT)) #temp
 
+if "zfile_srvr" not in os.listdir("/etc"):
+    os.makedirs("/etc/zfile_srvr", exist_ok=True)
+if "users" not in os.listdir("/etc/zfile_srvr"):
+    os.makedirs("/etc/zfile_srvr/users", exist_ok=True)  
 if "admin.conf" in os.listdir(user_path):
     print("admin exists")
 else:
@@ -44,12 +47,34 @@ else:
             root_usr = "admin"
             root_psw = "root"
         with open(f"{user_path}/admin.conf", "w") as file:
-            for name, item in admin_params:
+            for name, item in admin_params.items():
                 file.write(f"{name}={item}")
         break
 
 
 #check for OS version
+def load(data):
+    name, user, passw = data.split(' ')
+    user_dict = {"name": name, "user": user, "pass": passw}
+    with open(f'{user_path}{name}.conf', "r") as file:
+        data = file.readlines()
+        for item in data:
+            key, val = item.split()
+            if user_dict[key] == val.strip['\n']:
+                pass
+            else:
+                return
+    #add ip to a white list
+    
+def save(data):
+    name, user, passw = data.split(' ')
+    user_dict = {"name": name, "user": user, "pass": passw}
+    with open(f'{user_path}{name}.conf', "w") as file:
+        for key, val in user_dict.items():
+            file.write(f"{key}:{val}\n")
+        
+
+
 
 def do_connect():
     while True:
@@ -143,7 +168,7 @@ def login(conn):
         recv_cmd = recv_cmd.decode("utf-8")
         name, user, passw = recv_cmd.split(' ')
         try:
-            with open(f"{user_path}{name}.json", 'r') as file:
+            with open(f"{user_path}{name}.conf", 'r') as file:
                 load = json.load(file)
                 load_user = load[f"{name}"]["user"]
                 load_passw = load[f"{name}"]["password"]
@@ -187,7 +212,7 @@ def logout(conn):
 def create(conn):
     try:
         recv_cmd = b''
-        prompt = f"create user & password. format:\n/name username password"
+        prompt = f"creating account.. press any key to continue"
         head = str(len(prompt)).zfill(header_size)
         data = head + prompt
         conn.send(data.encode("utf-8"))
@@ -198,13 +223,7 @@ def create(conn):
             recv_cmd += conn.recv(pck_sze - len(recv_cmd))
         conn.send(ack.encode('utf-8'))
         recv_cmd = recv_cmd.decode("utf-8")
-        try:
-            name, user, passw = recv_cmd.split(' ')
-        except Exception as e:
-            print(e)
-        with open(f'{user_path}{name}.json', "w") as file:
-            data = {name: {"user":user, "password":passw, "priv":"0"}}
-            json.dump(data, file)
+        save(recv_cmd)
         subprocess.run(["mkdir", f"storage/{name}"])
         result = "account created successfully"
     except Exception as e:

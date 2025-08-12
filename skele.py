@@ -1,9 +1,7 @@
 import os
 import threading as task
 import time
-import curses
-from curses import wrapper
-from curses.textpad import Textbox
+
 import sys
 
 height = 0
@@ -82,4 +80,4 @@ def print_list(screens, colors, text_list, y):
     screens["main"].refresh()
 
 
- wrapper(main)
+
