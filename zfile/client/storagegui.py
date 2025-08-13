@@ -292,11 +292,20 @@ def file_read(screens, inp):
 
 def send(screens, data, encoded):
     is_flagged = "n"
+    msg = "checking flag.."
+    print_text(1, screens, None, msg, height // 3, getmid(msg))
+    time.sleep(0.5)
     for key, val in flags.items():
         if val in data:
             is_flagged = "y"
+            msg = f"is flagged: {val}"
+            print_text(1, screens, None, msg, height // 3, getmid(msg))
+            time.sleep(0.5)
     head = str(len(data)).zfill(header_size)
     data = head + is_flagged + data
+    msg = "data send."
+    print_text(1, screens, None, msg, height // 3, getmid(msg))
+    time.sleep(0.5)
     server.send(data.encode("utf-8"))
     ack(0)
 
@@ -320,13 +329,12 @@ def receive(screens, encoded):
         print_text(1, screens, None, msg, height // 3, getmid(msg))
         flag = None
     time.sleep(0.5)
-    time.sleep(0.5)
     while len(data_received) < packet_size:
+        data_received += server.recv(packet_size - len(data_received))
         msg = f"data being received: {packet_size} | {len(data_received)}"
         print_text(1, screens, None, msg, height // 3, getmid(msg))
         time.sleep(0.3)
-        data_received += server.recv(packet_size - len(data_received))
-    ack(1)
+    send(screens, "ack", 0)
     msg = "data received"
     print_text(1, screens, None, msg, height // 3, getmid(msg))
     time.sleep(0.5)
@@ -378,7 +386,7 @@ def login(screens):
     msg = "Enter your login information. Format: name username password"
     print_text(1, screens, colors, msg, height // 3, getmid(msg))
     login_info = get_input(screens)
-    send(screens, "/"+login_info, 0)
+    send(screens, flags["-l"]+"/"+login_info, 0)
     flag, response = receive(screens, 0)
     print_text(1, screens, None, response, height // 3, getmid(response))
     userwait(screens)
@@ -404,12 +412,7 @@ def create(screens):
     msg = "Enter your desired account information. Format: name username password"
     print_text(1, screens, colors, msg, height // 3, getmid(msg))
     login_info = get_input(screens)
-    name, user, passw = login_info.split(' ')
-    user_dict = {"name": "/"+name, "user": user, "pass": passw}
-    with open(config_path, "w") as file:
-        for item, val in user_dict.items():
-            file.write(f"{item}:{val}")
-    send(screens, login_info, 0)
+    send(screens, flags["-c"]+"/"+login_info, 0)
     flag, response = receive(screens, 0)
     print_text(1, screens, None, response, height // 3, getmid(response))
     userwait(screens)

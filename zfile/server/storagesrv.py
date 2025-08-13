@@ -17,7 +17,7 @@ root_psw = ""
 
 admin_params = {"user": root_usr, "pass": root_psw}
 flags = {"-dw": ")#*$^||", "-dr": "^($#||", "-t": "#%&$||", "-l": "*@%#||", "-c": "!)$@||"}
-
+white_list = [flags["-c"].strip("||"), flags["-l"].strip("||")]
 unverified = []
 clients = {}
 recv_cmd = b''
@@ -60,12 +60,14 @@ def client_start(client):
     while True:
         flag, data = receive(client, 0)
         if client in unverified:
-            if flag not in white_list:
+            print(f"client not verified, attempted flag: {flag}")
+            if str(flag) not in white_list:
                 send(client, "You need to login before executing commands.", 0)
                 continue
+        print("flag is in whitelist. continuing")
         if flag:
-            for key, val in flags:
-                if val == flag:
+            for key, val in flags.items():
+                if val.strip("||") == flag:
                     execute = exec_flag.get(key)
                     execute(client, data)
                     break
@@ -95,7 +97,7 @@ def send(client, data, encoded):
     for key, val in flags.items():
         if val in data:
             is_flagged = "y"
-    print(f"sending data..\nsize of data is {len(data + str(header_size))}")
+    print(f"sending data: {data}\nsize of data is {len(data + str(header_size))}")
     head = str(len(data)).zfill(header_size)
     data = head + is_flagged + data
     client.send(data.encode("utf-8"))
@@ -109,15 +111,19 @@ def receive(client, encoded):
     packet_size = int(packet_size)
     print(f"size of transmit is: {packet_size}")
     is_flagged = client.recv(1).decode("utf-8")
+    packet_size -= 1
     if is_flagged == "y":
         print("is flagged")
-        flag = server.recv(6).decode("utf-8").strip("||")
+        flag = client.recv(6).decode("utf-8").strip("||")
+        packet_size -= 6
+        print(f"flag: {flag}")
     else:
         print("is not flagged")
         flag = None
     print("receiving data..")
     while len(data_received) < packet_size:
         data_received += client.recv(packet_size - len(data_received))
+        print(f"data being received: {packet_size} | {len(data_received)}")
     ack(client, 1)
     data_received = data_received.decode("utf-8")
     print("data receive successful")
@@ -172,7 +178,7 @@ def save(data):
 
 """login/logout"""
 
-def create(client):
+def create(client, data):
     flag, data = receive(client, 0)
     name = save(data)
     if not name:
@@ -182,7 +188,7 @@ def create(client):
     unverified.remove(client)
     send(client, f"Welcome {name}, for information on usage select 'help'.", 0)
 
-def login(client):
+def login(client, data):
     flag, data = receive(client, 0)
     name = load(data)
     if not name:
