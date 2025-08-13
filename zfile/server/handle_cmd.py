@@ -116,7 +116,6 @@ def update(data):
 def remove(file_name):
     if any('/' in char for char in file_name):
         file_name = file_name.strip("/")
-
     if file_name in os.listdir(path):
         try:
             subprocess.run(["rm", "-rf", f"{path}/{file_name}"])
@@ -138,14 +137,7 @@ def print_txt(file_name):
 def print_properties(file_name): #when writing and reading file, append who did it and when to a txt file in config. will have to pass name to this module
     return
 
-def find(file_name): #search through all directories and combine all files inside into one list to for loop through and check for a file name
-    root_list = os.listdir(root)
-    for folder in root_list:
-        current_dir = os.listdir(f"{root}/{folder}")
-        for file in current_dir:
-            if file_name in file:
-                return f"file found in {folder}"
-    return "file not found"
+
 
 """system information"""
 
@@ -198,24 +190,7 @@ def make_dir(dir_name):
         return "diretory created"
     else:
         return "directory already exists"
-def change(dir_name):
-    global path
-    white_list = [user, "home","root","back",".."]
-    if dir_name not in os.listdir(path) and dir_name not in white_list:
-        return "that directory does not exist"
-    elif "." in dir_name:
-        return "cannot move into a file"
-    if not any('/' in d for d in dir_name):
-        dir_name = '/' + dir_name
-    if dir_name in white_list:
-        path = root
-        result = f'directory changed to {path}'
-    elif not '/storage' in dir_name:
-        path = path + str(dir_name)
-        result = f'directory changed to {path}'
-    else:
-        result = 'directory not found, might not exist'
-    return result
+
 
 
 def info(cmd_name):

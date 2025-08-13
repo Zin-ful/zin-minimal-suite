@@ -36,9 +36,14 @@ root = os.path.expanduser("~")
 ack = 'ACK'
 parameters = {"download": download_path, "auto": auto_enabled, "aname": auto_name, "auser":auto_user, "apass": auto_pass, "boot": firstboot}
 server = netcom.socket(ipv4, tcp) #creates and defines sock obj
-cmd_list = ["config", "help","exit","promote","demote","create","login","logout","games","msg"]
 
-"""checking for configuration, mostly for first setup'"""
+flags = {"-dw": ")#*$^||", "-dr": "^($#||", "-t": "#%&$||"}
+
+cmd_dict = {"login": login, "logout": logout, "create": create, "config": config, "write": get, "read": push, "testing": test}
+
+cmd_list = ["config", "help","exit","promote","demote","create","login","logout","games","msg", "testing"]
+
+"""first start process"""
 if "zfile" not in os.listdir("/etc"):
     os.makedirs(config_dir, exist_ok=True)
 if "zfile.conf" not in os.listdir(config_dir):
@@ -56,7 +61,7 @@ else:
             parameters[name.strip()] = data.strip()
 
 
-
+"""GUI functions"""
 
 def main(stdscr):
     global height, width, colors
@@ -102,6 +107,7 @@ def select(key, screens, colors):
     screens["main"].addstr(pos + offset - back, 0, cmd_list[pos - back])
     screens["main"].addstr(pos + offset, 0, cmd_list[pos], colors["highlight"])
 
+#+++helper funcs
 def print_text(clr, screens, colors, string, y, x):
     if clr:
         screens["main"].clear()    
@@ -117,7 +123,6 @@ def print_text(clr, screens, colors, string, y, x):
         screens["main"].addstr(y, x, item)
         y += 1
     screens["main"].refresh()
-
 
 def print_list(clr, screens, colors, text_list, y, x):
     if clr:
@@ -193,48 +198,26 @@ def menu(screens, colors):
     while True:
         print_list(1, screens, colors, cmd_list, 0, 0)
         inp = inps(screens, colors)
-        if "send" in inp or "update" in inp:
-            file_read(screens, inp)
-            continue
-        for i in cmd_list:
-            if inp == i:
-                inp += "|"
-        data = data_send(screens, inp)
-        if "login|" in inp:
-            login(screens)
-        elif "!:DATA:!" in data:
-            file_write(screens, data)
+        for item, value in cmd_dict.items():
+            if inp = item:
+                follow_up, data = value(screens)
+                if follow_up:
+                    server_exec(screens, data)
+                continue
+        for item in cmd_list:
+            if inp = item:
+                send(screens, item, 0)
+                break
+        data = receive(screens, 0)
+        print_text(1, screens, colors, data, 0, 0)
+        key = screens["main"].getch()
+        if key:
+            pass
 
-"""misc functions"""
-#we lessen the load on the client by having the server do most of the work, however the client still has actions to perform
-#to lessen network usage, the server formats (using forloops instead of str(list)) omitting uneeded chars
-#also to make things more readable, we store simple (or complex) tasks in functions to make debugging easier
-def config(screens, *arg):
-    global parameters
-    param_list = []
-    for name, item in parameters.items():
-        param_list.append(f"{name} = {item}")
-    msg = "Select a name to edit that configuration"
-    print_text(1, screens, colors, msg, 0, getmid(msg))
-    print_list(0, screens, colors, param_list, 1, 0)
-    inp = get_input(screens)
-    for name, item in parameters.items():
-        if inp == name:
-            msg = f"what would you like to set the value of {name}?"
-            print_text(1, screens, colors, msg, 0, getmid(msg))
-            inp = get_input(screens)
-            parameters[name] = inp
-    with open(config_path, "w") as file:
-        for name, item in parameters.items():
-            if name == "download":
-                if item[len(item) - 1] != "/":
-                    item += "/"
-            file.write(f"{name}={item}")
-    msg = "config saved. press any key to continue"
-    print_text(1, screens, colors, msg, height // 3, getmid(msg))
-    key = screens["main"].getch()
-    if key:
-        pass
+"""helper functions"""
+
+def server_exec(screens, data):
+    return
 
 def file_write(screens, data):
     ext_list = [".txt",".py",".c",".md",".log",".cpp",".h",".hpp",".java",".cs",".js",".ts",".php",".sh",".rb",".pl",".go",".rs",".asm","sql"]
@@ -266,42 +249,6 @@ def file_write(screens, data):
     key = screens["main"].getch()
     if key:
         pass
-
-def login(screens):
-    global auto_enabled, parameters
-    if parameters["boot"] == "false" and parameters["auto"] == "true":
-        login_info = f"{parameters['aname']} {parameters['auser']} {parameters['apass']}"
-        parameters["auto"] = "false"
-        data_send(screens, login_info)
-        return
-    msg = "Enter your login information. Format: name username password"
-    print_text(1, screens, colors, msg, height // 3, getmid(msg))
-    if parameters["boot"] == "false" and parameters["auto"] == "false":
-        login_info = get_input(screens)
-    else:
-        login_info = get_input(screens)
-        parameters["aname"], parameters["auser"], parameters["apass"] = login_info.split(' ')
-        with open(config_path, "w") as file:
-            for item, val in parameters.items():
-                file.write(f"{item}={val}")
-    data_send(screens, login_info)
-
-def logout(screens):
-    global server
-    msg = "Youve logged out, connect back?"
-    print_text(1, screens, colors, msg, height // 3, getmid(msg))
-    inp = get_input(screens)
-    if "y" in usr_inp:
-        msg = "trying to connect... (waiting for server, be patient)"
-        print_text(1, screens, colors, msg, height // 3, getmid(msg))
-        time.sleep(5)
-        if server.fileno() != -1:
-            server.close()
-            server = None
-        time.sleep(1)
-        cmd()
-    else:
-        exit()
 
 def file_read(screens, inp):
     ext_list = [".txt",".py",".c",".md",".log",".cpp",".h",".hpp",".java",".cs",".js",".ts",".php",".sh",".rb",".pl",".go",".rs",".asm","sql"]
@@ -347,28 +294,108 @@ def file_read(screens, inp):
             filedata = base64.b64encode(filedata).decode('utf-8')
             data_send(screens, f"{cmd} {file_name}!:DATA:!{filedata}")
 
-def data_send(screens, inp):
-    header = str(len(inp)).zfill(header_size) #can get up to ten places worth of bytes, adjust as needed
-    to_send = str(header) + inp
-    server.send(to_send.encode("utf-8"))
-    ack_acpt = server.recv(3).decode("utf-8")
-    pck_sze = server.recv(header_size).decode("utf-8")
-    pck_sze = int(pck_sze)
-    data = b''
-    while len(data) < pck_sze:
-        data += server.recv(pck_sze - len(data))
-    data = data.decode("utf-8")
-    if "!:DATA:!" in data:
-        pass
-    elif "logged out" in data:
-        server.shutdown(netcom.SHUT_RDWR)
-        logout()
+def send(screens, data, encoded):
+    ack(0)
+    is_flagged = "n"
+    for key, val in flags.items():
+        if val in data:
+            is_flagged = "y"
+    head = str(len(data)).zfill(header_size)
+    data = head + is_flagged + data
+    server.send(data.encode("utf-8"))
+
+def receive(screens, encoded):
+    data_received = b''
+    packet_size = server.recv(header_size).decode("utf-8")
+    is_flagged = server.recv(1).decode("utf-8")
+    if is_flagged == "y":
+        flag = server.recv(6).decode("utf-8").strip("||")
     else:
-        print_text(1, screens, colors, data, 0, 0)
-        key = screens["main"].getch()
-        if key:
-            pass
-    server.send(ack.encode("utf-8"))
-    return data
+        flag = None
+    packet_size = int(packet_size)
+    while len(data_received) < packet_size:
+        data_received += server.recv(packet_size - len(data_received))
+    ack(server, 1)
+    data_received = data_received.decode("utf-8")
+    return flag, data_received
+
+def ack(state):
+    if not state:
+        ack_acpt = server.recv(3).decode("utf-8")
+    else:
+        server.send(ack.encode('utf-8'))
+
+"""user functions"""
+def test(screens):
+    for i in range(10):
+        send(screens, flags["-t"]+f"Packet: {i}", 0)
+        flag, data_received = receive(screens, 0)
+        msg = f"Testing packet: {i}\n{data_received}"
+        print_text(1, screens, colors, msg, height // 3, getmid(msg))
+
+def config(screens, *arg):
+    global parameters
+    param_list = []
+    for name, item in parameters.items():
+        param_list.append(f"{name} = {item}")
+    msg = "Select a name to edit that configuration"
+    print_text(1, screens, colors, msg, 0, getmid(msg))
+    print_list(0, screens, colors, param_list, 1, 0)
+    inp = get_input(screens)
+    for name, item in parameters.items():
+        if inp == name:
+            msg = f"what would you like to set the value of {name}?"
+            print_text(1, screens, colors, msg, 0, getmid(msg))
+            inp = get_input(screens)
+            parameters[name] = inp
+    with open(config_path, "w") as file:
+        for name, item in parameters.items():
+            if name == "download":
+                if item[len(item) - 1] != "/":
+                    item += "/"
+            file.write(f"{name}={item}")
+    msg = "config saved. press any key to continue"
+    print_text(1, screens, colors, msg, height // 3, getmid(msg))
+    key = screens["main"].getch()
+    if key:
+        pass
+
+def login(screens):
+    global auto_enabled, parameters
+    if parameters["boot"] == "false" and parameters["auto"] == "true":
+        login_info = f"{parameters['aname']} {parameters['auser']} {parameters['apass']}"
+        parameters["auto"] = "false"
+        data_send(screens, login_info)
+        return
+    msg = "Enter your login information. Format: name username password"
+    print_text(1, screens, colors, msg, height // 3, getmid(msg))
+    if parameters["boot"] == "false" and parameters["auto"] == "false":
+        login_info = get_input(screens)
+    else:
+        login_info = get_input(screens)
+        parameters["aname"], parameters["auser"], parameters["apass"] = login_info.split(' ')
+        with open(config_path, "w") as file:
+            for item, val in parameters.items():
+                file.write(f"{item}={val}")
+    data_send(screens, login_info)
+
+def logout(screens):
+    global server
+    msg = "Youve logged out, connect back?"
+    print_text(1, screens, colors, msg, height // 3, getmid(msg))
+    inp = get_input(screens)
+    if "y" in usr_inp:
+        msg = "trying to connect... (waiting for server, be patient)"
+        print_text(1, screens, colors, msg, height // 3, getmid(msg))
+        time.sleep(5)
+        if server.fileno() != -1:
+            server.close()
+            server = None
+        time.sleep(1)
+        cmd()
+    else:
+        exit()
+
+
 
 wrapper(main)

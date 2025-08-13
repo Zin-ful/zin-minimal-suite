@@ -18,13 +18,19 @@ root_usr = ""
 root_psw = ""
 
 admin_params = {"user": root_usr, "pass": root_psw}
+flags = {"-dw": ")#*$^||", "-dr": "^($#||", "-t": "#%&$||"}
+unverified = []
+clients = {}
 ack = 'ACK'
 recv_cmd = b''
 logged_in = False
 status = None
+
 client_conn = netcom.socket(ipv4, tcp) #creates and defines sock obj
 client_conn.setsockopt(netcom.SOL_SOCKET, netcom.SO_REUSEADDR, 1)
 client_conn.bind((IP,  PORT)) #temp
+
+"""first time server setup"""
 
 if "zfile_srvr" not in os.listdir("/etc"):
     os.makedirs("/etc/zfile_srvr", exist_ok=True)
@@ -51,8 +57,58 @@ else:
                 file.write(f"{name}={item}")
         break
 
+"""helper functions"""
+def test(client, data):
+    for i in range(9):
+        send(client, flags["-t"]+f"Echoing packet: {i}", 0)
+        
 
-#check for OS version
+def process_flag(client, flag, data):
+    exec_flag = None
+    for key, val in flags.items():
+        if flag == val:
+            exec_flag = key
+    if key == "-dw":
+        return
+    elif key == "-dr":
+        return
+    elif key == "-t":
+        test(client, data)
+
+def send_file(client, path, encoded):
+    return
+
+def receive_file(client, path, encoded):
+    return
+
+def send(client, data, encoded):
+    head = str(len(data)).zfill(header_size)
+    data = head + data
+    client.send(data.encode("utf-8"))
+
+def receive(client, encoded):
+    data_received = b''
+    packet_size = client.recv(header_size).decode("utf-8")
+    is_flagged = client.recv(1).decode("utf-8")
+    if is_flagged == "y":
+        flag = server.recv(6).decode("utf-8").strip("||")
+    else:
+        flag = None
+    packet_size = int(packet_size)
+    while len(data_received) < packet_size:
+        data_received += client.recv(packet_size - len(data_received))
+    ack(client, 1)
+    data_received = data_received.decode("utf-8")
+    return flag, data_received
+
+def ack(client, state):
+    if not state:
+        ack_acpt = conn.recv(3).decode("utf-8")
+    else:
+        client.send(ack.encode('utf-8'))
+
+"""file operations"""
+
 def load(data):
     name, user, passw = data.split(' ')
     user_dict = {"name": name, "user": user, "pass": passw}
@@ -72,261 +128,69 @@ def save(data):
     with open(f'{user_path}{name}.conf', "w") as file:
         for key, val in user_dict.items():
             file.write(f"{key}:{val}\n")
-        
+
+
+"""login/logout"""
+
+def login():
+    return
+
+def logout():
+    return
+
+"""user functions"""
+
+def change_directory(name):
+    white_list = [user, "home","root","back",".."]
+    if name not in os.listdir(path) and name not in white_list:
+        return "that directory does not exist"
+    elif "." in name:
+        return "cannot move into a file"
+    if not any('/' in d for d in name):
+        name = '/' + name
+    if name in white_list:
+        path = root
+        return f'directory changed to {path}'
+    elif not '/storage' in name:
+        path = path + str(name)
+        return f'directory changed to {path}'
+    else:
+        return 'directory not found, might not exist'
+
+def list_directory():
+    files = ''
+    total = len(os.listdir(path))
+    count = 0
+    for i in os.listdir(path):
+        count += 1
+        if count < total:
+            files += i + ', '
+        elif count == total:
+            files += i
+    return files
+
+def find_file(name):
+    root_list = os.listdir(root)
+    for folder in root_list:
+        current_dir = os.listdir(f"{root}/{folder}")
+        for file in current_dir:
+            if name in file:
+                return f"file found in {folder}"
+    return "file not found"
 
 
 
-def do_connect():
+def sever_init():
     while True:
         try:
             client_conn.listen()
-            curr_client, client_ip = client_conn.accept()
-            print(f"client accepted,\n{curr_client}\n{client_ip}")
-            thread_client = task.Thread(target=client_cmd, args=(curr_client,)) #comma cause args are tuples
+            client, client_ip = client_conn.accept()
+            print(f"client accepted,\n{client}\n{client_ip}")
+            unverified.append(client)
+            thread_client = task.Thread(target=client_cmd, args=client) #comma cause args are tuples
             thread_client.start()
         except Exception as e:
             print(e)
 
-def client_cmd(conn):
-    global cmd_dict
-    cmd_dict = {
-        "login":login,
-        "help":help,
-        "exit":xit
-        }
-    while True:
-        recv_cmd = b''
-        pck_sze = 0
-        ack_acpt = b''
-        try:
-            ack_acpt = conn.recv(3).decode("utf-8")
-            print(ack_acpt)
-            pck_sze = conn.recv(header_size).decode("utf-8")
-            if pck_sze == '' or pck_sze == ' ' or pck_sze == None:
-                conn.send(ack.encode('utf-8'))
-                continue
-            print(pck_sze)
-            pck_sze = int(pck_sze)
-            if pck_sze > 4096:
-                while True:
-                    chunk = conn.recv(4096)
-                    recv_cmd += chunk
-                    if recv_cmd >= chunk:
-                        thread_client = task.Thread(target=send_in_chunk, args=(recv_cmd,)) #comma cause args are tuples
-                        thread_client.start()
-                    else:
-                        send_in_chunk(recv_cmd)
-                        conn.send(ack.encode('utf-8'))
-                        continue
-            else:
-                while len(recv_cmd) < pck_sze:
-                    recv_cmd += conn.recv(pck_sze - len(recv_cmd))
-            conn.send(ack.encode('utf-8'))
-            recv_cmd = recv_cmd.decode("utf-8")
-            print(recv_cmd)
-        except:
-            logout()
-        if "|" in recv_cmd:
-            xcute = cmd_dict.get(recv_cmd.strip("|"))
-            if xcute:
-                data = xcute(conn) #for games, data will have to return and be sent to client or else the server will fail due to lack of ack
-            else:
-                if logged_in == True:
-                    data = "Invalid command"
-                else:
-                    data = "You are not logged in."
-        elif ' ' in recv_cmd and logged_in == True:
-            print(recv_cmd)
-            cmd, cmd2 = recv_cmd.split(' ', 1)
-            data = handle_cmd.command(status, cmd, cmd2)
 
-        elif logged_in == True:
-            cmd2 = ''
-            data = handle_cmd.command(status, recv_cmd, *cmd2)
-        else:
-            data = "You are not logged in."
-        if data == "sent":
-            continue
-        head = str(len(data)).zfill(header_size)
-        data = head + data
-        conn.send(data.encode("utf-8"))
-
-def login(conn):
-    try:
-        recv_cmd = b''
-        prompt = "please login. format:\n/name username password"
-        head = str(len(prompt)).zfill(header_size)
-        data = head + prompt
-        conn.send(data.encode("utf-8"))
-        ack_acpt = conn.recv(3).decode("utf-8")
-        print(ack_acpt)
-        pck_sze = conn.recv(header_size).decode("utf-8")
-        pck_sze = int(pck_sze)
-        while len(recv_cmd) < pck_sze:
-            recv_cmd += conn.recv(pck_sze - len(recv_cmd))
-        conn.send(ack.encode('utf-8'))
-        recv_cmd = recv_cmd.decode("utf-8")
-        name, user, passw = recv_cmd.split(' ')
-        try:
-            with open(f"{user_path}{name}.conf", 'r') as file:
-                load = json.load(file)
-                load_user = load[f"{name}"]["user"]
-                load_passw = load[f"{name}"]["password"]
-                global status
-                status = load[f"{name}"]["priv"]
-        except Exception as e:
-            if e:
-                print(e)
-            result = "invalid information"
-            return result
-        if user == load_user and passw == load_passw:
-            global logged_in 
-            logged_in = True
-            handle_cmd.pass_user(str(name))
-        else:
-            return 'login creds invalid'
-        result = f"logged in successfully, welcome {name.strip('/')}"
-    except Exception as e:
-        result = f"login failed due do to:\n{e}"
-    login_check()
-    return result
-
-def logout(conn):
-    global cmd_dict, logged_in, status
-    cmd_dict = {
-        "login":login,
-        "help":help,
-        "exit":xit
-        }
-    logged_in = False
-    status = None
-    print("user has logged out")
-    logout_msg = "logged out"
-    header = str(len("logged out")).zfill(header_size)
-    data = header + logout_msg
-    conn.send(data.encode("utf-8"))
-    time.sleep(3)
-    conn.close()
-    time.sleep(2)
-    do_connect()
-def create(conn):
-    try:
-        recv_cmd = b''
-        prompt = f"creating account.. press any key to continue"
-        head = str(len(prompt)).zfill(header_size)
-        data = head + prompt
-        conn.send(data.encode("utf-8"))
-        ack_acpt = conn.recv(3).decode("utf-8")
-        pck_sze = conn.recv(header_size).decode("utf-8")
-        pck_sze = int(pck_sze)
-        while len(recv_cmd) < pck_sze:
-            recv_cmd += conn.recv(pck_sze - len(recv_cmd))
-        conn.send(ack.encode('utf-8'))
-        recv_cmd = recv_cmd.decode("utf-8")
-        save(recv_cmd)
-        subprocess.run(["mkdir", f"storage/{name}"])
-        result = "account created successfully"
-    except Exception as e:
-        result = f"account creation failed due do to:\n{e}"
-    return result
-
-def makeadmin(conn):
-    try:
-        recv_cmd = b''
-        info = f"what user do you want to promote to admin?"
-        head = str(len(prompt)).zfill(header_size)
-        data = head + prompt
-        conn.send(data.encode("utf-8"))
-        ack_acpt = conn.recv(3).decode("utf-8")
-        print(ack_acpt)
-        pck_sze = conn.recv(header_size).decode("utf-8")
-        pck_sze = int(pck_sze)
-        while len(recv_cmd) < pck_sze:
-            recv_cmd += conn.recv(pck_sze - len(recv_cmd))
-        conn.send(ack.encode('utf-8'))
-        user = recv_cmd.decode("utf-8")
-        try:
-            with open(f"{user_path}{name}.json", 'r') as file:
-                load = json.load(file)
-                load_user = load[f"{name}"]["user"]
-                load_passw = load[f"{name}"]["password"]
-                load_status = load[f"{name}"]["priv"]
-            with open(f"{user_path}{name}.json", 'w') as file:
-                data = {name: {"user":load_user, "password":load_passw, "priv":"1"}}
-                json.dump(data, file)
-        except Exception as e:
-            if e:
-                print(e)
-            print('creds invalid')
-    except Exception as e:
-        print(e)
-    result = f"{load_user} has been promoted to admin."
-    return result
-
-def removeadmin(conn):
-    try:
-        recv_cmd = b''
-        info = f"what user do you want to demote?"
-        head = str(len(prompt)).zfill(header_size)
-        data = head + prompt
-        conn.send(data.encode("utf-8"))
-        ack_acpt = conn.recv(3).decode("utf-8")
-        print(ack_acpt)
-        pck_sze = conn.recv(header_size).decode("utf-8")
-        pck_sze = int(pck_sze)
-        while len(recv_cmd) < pck_sze:
-            recv_cmd += conn.recv(pck_sze - len(recv_cmd))
-        conn.send(ack.encode('utf-8'))
-        user = recv_cmd.decode("utf-8")
-        try:
-            with open(f"{user_path}{name}.json", 'r') as file:
-                load = json.load(file)
-                load_user = load[f"{name}"]["user"]
-                load_passw = load[f"{name}"]["password"]
-                load_status = load[f"{name}"]["priv"]
-            with open(f"{user_path}{name}.json", 'w') as file:
-                data = {name: {"user":load_user, "password":load_passw, "priv":"0"}}
-                json.dump(data, file)
-        except Exception as e:
-            if e:
-                print(e)
-            print('creds invalid')
-    except Exception as e:
-        print(e)
-    result = f"{load_user} has been demoted." #load_user here so we dont have to use an extra function (strip)
-    return result
-
-def config(conn):
-    return
-def xit(conn):
-    return
-def msg(conn):
-    return
-def message(conn):
-    print("opening client..")
-def games(conn):
-    game_dict = {"freeland":"freeland.game(conn)", "battle tower":"btower.game(conn)", "dice roller":"roller.main(conn)"} #adjust for actual function names and pass conn
-    game_list = ["Freeland", "Battle Tower", "Dice Roller"]
-    for i in game_list:
-        print(i)
-    client_ask = input("what program would you like to run?\n>>> ")
-    xcute = game_dict.get(client_ask)
-    if xcute:
-        xcute(conn) #will have to complete client ack/datarecv cycle so the module can take over
-def help(conn):
-    res = ''
-    for i in cmd_dict.keys():
-        res += i + "\n"
-    if logged_in == True:
-        res += "send\nget\nremove\nupdate\nprint\nlist\nmakefd\nchange\ninfo\npwd\nhelp\n"
-        if status == "1":
-            res += "compress\nproperties\nsystem\npriv\nsys-help\n"
-    return f"commands:\n{res}"
-def login_check():
-    if logged_in == True:
-        if status == "1":
-            cmd_dict.update({"logout": logout, "create":create, "config":config, "promote":makeadmin, "msg":message, "games":games})
-        else:
-            cmd_dict.update({"msg":msg, "games":games, "logout": logout})
-print(f"listening on {IP}:{PORT}")
-do_connect()
+server_init()
