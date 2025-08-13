@@ -33,13 +33,11 @@ config_dir = '/etc/zfile'
 config_path = '/etc/zfile/config.conf'
 user_config_path = "/etc/zfile/autouser.conf"
 root = os.path.expanduser("~")
-ack = 'ACK'
-parameters = {"download": download_path, "auto": auto_enabled, "aname": auto_name, "auser":auto_user, "apass": auto_pass, "boot": firstboot}
+ACK = 'ACK'
+parameters = {"download": download_path}
 server = netcom.socket(ipv4, tcp) #creates and defines sock obj
 
-flags = {"-dw": ")#*$^||", "-dr": "^($#||", "-t": "#%&$||"}
-
-cmd_dict = {"login": login, "logout": logout, "create": create, "config": config, "write": get, "read": push, "testing": test}
+flags = {"-dw": ")#*$^||", "-dr": "^($#||", "-t": "#%&$||", "-l": "*@%#||", "-c": "!)$@||"}
 
 cmd_list = ["config", "help","exit","promote","demote","create","login","logout","games","msg", "testing"]
 
@@ -165,7 +163,7 @@ def init_server(screens, colors):
         server.connect((IP, PORT))
         msg = "connected, moving to shell.."
         print_text(1, screens, colors, msg, height // 3, getmid(msg))
-        server.send(ack.encode("utf-8"))
+        server.send(ACK.encode("utf-8"))
         time.sleep(0.5)
         return
     except Exception as e:
@@ -199,22 +197,20 @@ def menu(screens, colors):
         print_list(1, screens, colors, cmd_list, 0, 0)
         inp = inps(screens, colors)
         for item, value in cmd_dict.items():
-            if inp = item:
-                follow_up, data = value(screens)
-                if follow_up:
-                    server_exec(screens, data)
+            if inp == item:
+                value(screens)
                 continue
-        for item in cmd_list:
-            if inp = item:
-                send(screens, item, 0)
-                break
-        data = receive(screens, 0)
+        send(screens, item, 0)
+        flag, data = receive(screens, 0)
         print_text(1, screens, colors, data, 0, 0)
-        key = screens["main"].getch()
-        if key:
-            pass
+        userwait(screens)
 
 """helper functions"""
+
+def userwait(screens):
+    key = screens["main"].getch()
+    if key:
+        pass
 
 def server_exec(screens, data):
     return
@@ -295,7 +291,6 @@ def file_read(screens, inp):
             data_send(screens, f"{cmd} {file_name}!:DATA:!{filedata}")
 
 def send(screens, data, encoded):
-    ack(0)
     is_flagged = "n"
     for key, val in flags.items():
         if val in data:
@@ -303,19 +298,38 @@ def send(screens, data, encoded):
     head = str(len(data)).zfill(header_size)
     data = head + is_flagged + data
     server.send(data.encode("utf-8"))
+    ack(0)
 
 def receive(screens, encoded):
     data_received = b''
+    msg = "receiving header.."
+    print_text(1, screens, None, msg, height // 3, getmid(msg))
+    time.sleep(0.5)
     packet_size = server.recv(header_size).decode("utf-8")
+    packet_size = int(packet_size)
+    msg = f"header size is: {packet_size}"
+    print_text(1, screens, None, msg, height // 3, getmid(msg))
+    time.sleep(0.5)
     is_flagged = server.recv(1).decode("utf-8")
     if is_flagged == "y":
+        msg = "is flagged."
+        print_text(1, screens, None, msg, height // 3, getmid(msg))
         flag = server.recv(6).decode("utf-8").strip("||")
     else:
+        msg = "is not flagged."
+        print_text(1, screens, None, msg, height // 3, getmid(msg))
         flag = None
-    packet_size = int(packet_size)
+    time.sleep(0.5)
+    time.sleep(0.5)
     while len(data_received) < packet_size:
+        msg = f"data being received: {packet_size} | {len(data_received)}"
+        print_text(1, screens, None, msg, height // 3, getmid(msg))
+        time.sleep(0.3)
         data_received += server.recv(packet_size - len(data_received))
-    ack(server, 1)
+    ack(1)
+    msg = "data received"
+    print_text(1, screens, None, msg, height // 3, getmid(msg))
+    time.sleep(0.5)
     data_received = data_received.decode("utf-8")
     return flag, data_received
 
@@ -323,7 +337,7 @@ def ack(state):
     if not state:
         ack_acpt = server.recv(3).decode("utf-8")
     else:
-        server.send(ack.encode('utf-8'))
+        server.send(ACK.encode('utf-8'))
 
 """user functions"""
 def test(screens):
@@ -361,23 +375,13 @@ def config(screens, *arg):
         pass
 
 def login(screens):
-    global auto_enabled, parameters
-    if parameters["boot"] == "false" and parameters["auto"] == "true":
-        login_info = f"{parameters['aname']} {parameters['auser']} {parameters['apass']}"
-        parameters["auto"] = "false"
-        data_send(screens, login_info)
-        return
     msg = "Enter your login information. Format: name username password"
     print_text(1, screens, colors, msg, height // 3, getmid(msg))
-    if parameters["boot"] == "false" and parameters["auto"] == "false":
-        login_info = get_input(screens)
-    else:
-        login_info = get_input(screens)
-        parameters["aname"], parameters["auser"], parameters["apass"] = login_info.split(' ')
-        with open(config_path, "w") as file:
-            for item, val in parameters.items():
-                file.write(f"{item}={val}")
-    data_send(screens, login_info)
+    login_info = get_input(screens)
+    send(screens, "/"+login_info, 0)
+    flag, response = receive(screens, 0)
+    print_text(1, screens, None, response, height // 3, getmid(response))
+    userwait(screens)
 
 def logout(screens):
     global server
@@ -396,6 +400,20 @@ def logout(screens):
     else:
         exit()
 
+def create(screens):
+    msg = "Enter your desired account information. Format: name username password"
+    print_text(1, screens, colors, msg, height // 3, getmid(msg))
+    login_info = get_input(screens)
+    name, user, passw = login_info.split(' ')
+    user_dict = {"name": "/"+name, "user": user, "pass": passw}
+    with open(config_path, "w") as file:
+        for item, val in user_dict.items():
+            file.write(f"{item}:{val}")
+    send(screens, login_info, 0)
+    flag, response = receive(screens, 0)
+    print_text(1, screens, None, response, height // 3, getmid(response))
+    userwait(screens)
 
+cmd_dict = {"login": login, "logout": logout, "create": create, "config": config, "testing": test}
 
 wrapper(main)

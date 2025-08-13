@@ -4,9 +4,7 @@ import socket as netcom
 import sys
 import os
 import time
-import threading as task
-import handle_cmd
-from handle_cmd import send_in_chunk
+import threading as task    
 import subprocess
 
 IP = 'localhost'
@@ -18,10 +16,10 @@ root_usr = ""
 root_psw = ""
 
 admin_params = {"user": root_usr, "pass": root_psw}
-flags = {"-dw": ")#*$^||", "-dr": "^($#||", "-t": "#%&$||"}
+flags = {"-dw": ")#*$^||", "-dr": "^($#||", "-t": "#%&$||", "-l": "*@%#||", "-c": "!)$@||"}
+
 unverified = []
 clients = {}
-ack = 'ACK'
 recv_cmd = b''
 logged_in = False
 status = None
@@ -57,23 +55,84 @@ else:
                 file.write(f"{name}={item}")
         break
 
+"""main client"""
+def client_start(client):
+    while True:
+        flag, data = receive(client, 0)
+        if client in unverified:
+            if flag not in white_list:
+                send(client, "You need to login before executing commands.", 0)
+                continue
+        if flag:
+            for key, val in flags:
+                if val == flag:
+                    execute = exec_flag.get(key)
+                    execute(client, data)
+                    break
+            continue
+        
 """helper functions"""
 def test(client, data):
     for i in range(9):
         send(client, flags["-t"]+f"Echoing packet: {i}", 0)
-        
+        response = receive(client, 0)
+        print(response)
+    if get_response(client, "Basic echo test pass, would you like to continue?", "y"):
+        pass
+    else:
+        return
 
-def process_flag(client, flag, data):
-    exec_flag = None
+def get_response(client, message, delimiter):
+    send(client, message, 0)
+    response = receive(client, 0)
+    if delimiter in response:
+        return 1
+    else:
+        return 0
+
+def send(client, data, encoded):
+    is_flagged = "n"
     for key, val in flags.items():
-        if flag == val:
-            exec_flag = key
-    if key == "-dw":
-        return
-    elif key == "-dr":
-        return
-    elif key == "-t":
-        test(client, data)
+        if val in data:
+            is_flagged = "y"
+    print(f"sending data..\nsize of data is {len(data + str(header_size))}")
+    head = str(len(data)).zfill(header_size)
+    data = head + is_flagged + data
+    client.send(data.encode("utf-8"))
+    print("data sent")
+    ack(client, 0)
+
+def receive(client, encoded):
+    print("receiving header..")
+    data_received = b''
+    packet_size = client.recv(header_size).decode("utf-8")
+    packet_size = int(packet_size)
+    print(f"size of transmit is: {packet_size}")
+    is_flagged = client.recv(1).decode("utf-8")
+    if is_flagged == "y":
+        print("is flagged")
+        flag = server.recv(6).decode("utf-8").strip("||")
+    else:
+        print("is not flagged")
+        flag = None
+    print("receiving data..")
+    while len(data_received) < packet_size:
+        data_received += client.recv(packet_size - len(data_received))
+    ack(client, 1)
+    data_received = data_received.decode("utf-8")
+    print("data receive successful")
+    return flag, data_received
+
+def ack(client, state):
+    if not state:
+        print("receiving ack")
+        ack_acpt = client.recv(3).decode("utf-8")
+        print("acknowledged")
+    else:
+        print("sending ack..")
+        client.send("ack".encode('utf-8'))
+
+"""file operations"""
 
 def send_file(client, path, encoded):
     return
@@ -81,33 +140,11 @@ def send_file(client, path, encoded):
 def receive_file(client, path, encoded):
     return
 
-def send(client, data, encoded):
-    head = str(len(data)).zfill(header_size)
-    data = head + data
-    client.send(data.encode("utf-8"))
-
-def receive(client, encoded):
-    data_received = b''
-    packet_size = client.recv(header_size).decode("utf-8")
-    is_flagged = client.recv(1).decode("utf-8")
-    if is_flagged == "y":
-        flag = server.recv(6).decode("utf-8").strip("||")
+def user_exists(user, path):
+    if user in os.listdir(path):
+        return 1
     else:
-        flag = None
-    packet_size = int(packet_size)
-    while len(data_received) < packet_size:
-        data_received += client.recv(packet_size - len(data_received))
-    ack(client, 1)
-    data_received = data_received.decode("utf-8")
-    return flag, data_received
-
-def ack(client, state):
-    if not state:
-        ack_acpt = conn.recv(3).decode("utf-8")
-    else:
-        client.send(ack.encode('utf-8'))
-
-"""file operations"""
+        return 0
 
 def load(data):
     name, user, passw = data.split(' ')
@@ -119,21 +156,45 @@ def load(data):
             if user_dict[key] == val.strip['\n']:
                 pass
             else:
-                return
-    #add ip to a white list
+                return 0
+    return name
     
 def save(data):
     name, user, passw = data.split(' ')
     user_dict = {"name": name, "user": user, "pass": passw}
+    if user_exists(user_path, name):
+        return 0
     with open(f'{user_path}{name}.conf', "w") as file:
         for key, val in user_dict.items():
             file.write(f"{key}:{val}\n")
+    return name
 
 
 """login/logout"""
 
-def login():
-    return
+def create(client):
+    flag, data = receive(client, 0)
+    name = save(data)
+    if not name:
+        send(client, "login credentials invald.", 0)
+        return
+    clients.update({client: name})
+    unverified.remove(client)
+    send(client, f"Welcome {name}, for information on usage select 'help'.", 0)
+
+def login(client):
+    flag, data = receive(client, 0)
+    name = load(data)
+    if not name:
+        send(client, "login credentials invald.", 0)
+        return
+    clients.update({client: name})
+    unverified.remove(client)
+    send(client, f"Welcome {name}, access to functions restored.", 0)
+    
+    
+
+
 
 def logout():
     return
@@ -178,19 +239,20 @@ def find_file(name):
                 return f"file found in {folder}"
     return "file not found"
 
-
-
-def sever_init():
+def server_init():
     while True:
         try:
+            print(f"listening on {IP}:{PORT}")
             client_conn.listen()
             client, client_ip = client_conn.accept()
-            print(f"client accepted,\n{client}\n{client_ip}")
+            print(f"client accepted and is not verified\n{client}\n{client_ip}")
             unverified.append(client)
-            thread_client = task.Thread(target=client_cmd, args=client) #comma cause args are tuples
+            ack(client, 0)
+            thread_client = task.Thread(target=client_start, args=[client]) #comma cause args are tuples
             thread_client.start()
         except Exception as e:
             print(e)
 
+exec_flag = {"-dw": send_file, "-dr": receive_file, "-t": test, "-l": login, "-c": create}
 
 server_init()
