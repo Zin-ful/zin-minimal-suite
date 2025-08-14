@@ -37,9 +37,9 @@ ACK = 'ACK'
 parameters = {"download": download_path}
 server = netcom.socket(ipv4, tcp) #creates and defines sock obj
 
-flags = {"-dw": ")#*$^||", "-dr": "^($#||", "-t": "#%&$||", "-l": "*@%#||", "-c": "!)$@||", "-mk": "(!%)||"}
+flags = {"-dw": "#*$^||", "-dr": "^($#||", "-t": "#%&$||", "-l": "*@%#||", "-c": "!)$@||", "-mk": "(!%)||", "-gf": "!@%^||"}
 
-cmd_list = ["get file list","download file","upload file", "make folder", "login","logout", "create", "promote","demote","games","msg", "server test", "client test", "config", "help","exit"]
+cmd_list = ["get file list", "browse","download file","upload file", "make folder", "login","logout", "create", "promote","demote","games","msg", "server test", "client test", "config", "help","exit"]
 
 """first start process"""
 if "zfile" not in os.listdir("/etc"):
@@ -203,6 +203,12 @@ def menu(screens, colors):
                 break
         if exec_success:
             continue
+        for item, value in client_cmd_dict.items():
+            if inp == item:
+                exec_success = value(screens)
+                break
+        if exec_success:
+            continue
         send(screens, inp, 0)
         flag, response = receive(screens, 0)
         print_text(1, screens, colors, response, 1, getmid(response))
@@ -350,6 +356,8 @@ def ack(state):
     else:
         server.send(ACK.encode('utf-8'))
 
+def format_list(data):
+
 """user functions"""
 def login(screens):
     msg = "Enter your login information. Format: 'name username password'"
@@ -431,8 +439,8 @@ def make_directory(screens):
     print_text(1, screens, None, msg, height // 3, getmid(msg))
     folder_path = get_input(screens)
     if not folder_path:
-        if folder_name[0] == "/":
-            full_path = folder_name.strip("/", 1)
+        if folder_name[0] != "/":
+            full_path = "/"+folder_name
         else:
             full_path = folder_name
     else:
@@ -447,6 +455,30 @@ def make_directory(screens):
     userwait(screens)
     return 1
 
-cmd_dict = {"login": login, "logout": logout, "create": create, "config": config, "testing": test, "make folder": make_directory}
+def browse_files(screens):
+    get_file_tree(screens)
+    return 1
+    file_tree = {}
+    with open("file_tree.conf", "r") as file:
+        tree_data = file.readlines()
+        for item in tree_data:
+            file_temp = []
+            path, files = item.split(":")
+            files_cpy = files
+            for char in files_cpy:
+                if char == ",":
+                    file_name, files = files.split(",", 1)
+                    file_temp.append(file_name)
+            file_tree.update({path:file_temp})
+            
+def get_file_tree(screens):
+    send(screens, flags["-gf"]+'ack', 0)
+    flag, response = receive(screens, 0)
+    if "." not in response
+
+    
+
+client_cmd_dict = {"config": config, "browse": browse_files}
+cmd_dict = {"login": login, "logout": logout, "create": create, "testing": test, "make folder": make_directory}
 
 wrapper(main)

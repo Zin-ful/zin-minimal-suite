@@ -17,8 +17,8 @@ root_usr = ""
 root_psw = ""
 
 admin_params = {"user": root_usr, "pass": root_psw}
-flags = {"-dw": ")#*$^||", "-dr": "^($#||", "-t": "#%&$||", "-l": "*@%#||", "-c": "!)$@||", "-mk": "(!%)||"}
-cmd_list = ["get file list","download file","upload file", "make folder", "login","logout", "create", "promote","demote","games","msg", "server test", "client test", "config", "help","exit"]
+flags = {"-dw": ")#*$^||", "-dr": "^($#||", "-t": "#%&$||", "-l": "*@%#||", "-c": "!)$@||", "-mk": "(!%)||", "-gf": "!@%^||"}
+cmd_list = ["browse", "get file list","download file","upload file", "make folder", "login","logout", "create", "promote","demote","games","msg", "server test", "client test", "config", "help","exit"]
 
 white_list = [flags["-c"].strip("||"), flags["-l"].strip("||")]
 unverified = []
@@ -294,7 +294,7 @@ def list_directory(client, data):
 
 def make_directory(client, data):
     name = get_user(client)
-    path = storage_path+user
+    path = storage_path+name
     #when tracking current directory, append that here
     os.makedirs(path+data, exist_ok=True)
     send(client, f"folder created at {path + data}", 0)
@@ -313,6 +313,6 @@ def server_init():
         except Exception as e:
             print(e)
 
-exec_flag = {"-dw": send_file, "-dr": receive_file, "-t": test, "-l": login, "-c": create, "-mk": make_directory}
-exec_phrase = {"list": list_directory}
+exec_flag = {"-dw": send_file, "-dr": receive_file, "-t": test, "-l": login, "-c": create, "-mk": make_directory, "-gf": list_directory}
+exec_phrase = {"get file list": list_directory}
 server_init()
