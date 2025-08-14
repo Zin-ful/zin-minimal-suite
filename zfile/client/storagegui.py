@@ -39,7 +39,7 @@ server = netcom.socket(ipv4, tcp) #creates and defines sock obj
 
 flags = {"-dw": ")#*$^||", "-dr": "^($#||", "-t": "#%&$||", "-l": "*@%#||", "-c": "!)$@||"}
 
-cmd_list = ["config", "help","exit","promote","demote","create","login","logout","games","msg", "testing"]
+cmd_list = ["list","download","upload","login","logout", "create", "promote","demote","games","msg", "testing", "config", "help","exit"]
 
 """first start process"""
 if "zfile" not in os.listdir("/etc"):
@@ -198,12 +198,10 @@ def menu(screens, colors):
         inp = inps(screens, colors)
         for item, value in cmd_dict.items():
             if inp == item:
-                value(screens)
-                continue
-        send(screens, item, 0)
-        flag, data = receive(screens, 0)
-        print_text(1, screens, colors, data, 0, 0)
-        userwait(screens)
+                exec_success = value(screens, inp)
+                break
+        if exec_success:
+            continue
 
 """helper functions"""
 
@@ -301,7 +299,7 @@ def send(screens, data, encoded):
             msg = f"is flagged: {val}"
             print_text(1, screens, None, msg, height // 3, getmid(msg))
             time.sleep(0.5)
-    head = str(len(data)).zfill(header_size)
+    head = str(len(data + is_flagged)).zfill(header_size)
     data = head + is_flagged + data
     msg = "data send."
     print_text(1, screens, None, msg, height // 3, getmid(msg))
@@ -331,11 +329,11 @@ def receive(screens, encoded):
     time.sleep(0.5)
     while len(data_received) < packet_size:
         data_received += server.recv(packet_size - len(data_received))
-        msg = f"data being received: {packet_size} | {len(data_received)}"
+        msg = f"data being received: {packet_size} | {len(data_received)} = {data_received}"
         print_text(1, screens, None, msg, height // 3, getmid(msg))
         time.sleep(0.3)
-    send(screens, "ack", 0)
-    msg = "data received"
+    ack(1)
+    msg = f"data received: {data_received}"
     print_text(1, screens, None, msg, height // 3, getmid(msg))
     time.sleep(0.5)
     data_received = data_received.decode("utf-8")
@@ -348,12 +346,53 @@ def ack(state):
         server.send(ACK.encode('utf-8'))
 
 """user functions"""
+def login(screens):
+    msg = "Enter your login information. Format: 'name username password'"
+    print_text(1, screens, colors, msg, height // 3, getmid(msg))
+    login_info = get_input(screens)
+    send(screens, flags["-l"]+"/"+login_info, 0)
+    flag, response = receive(screens, 0)
+    print_text(1, screens, None, response, height // 3, getmid(response))
+    userwait(screens)
+    return 1
+
+def logout(screens):
+    global server
+    msg = "Youve logged out, connect back?"
+    print_text(1, screens, colors, msg, height // 3, getmid(msg))
+    inp = get_input(screens)
+    if "y" in usr_inp:
+        msg = "trying to connect... (waiting for server, be patient)"
+        print_text(1, screens, colors, msg, height // 3, getmid(msg))
+        time.sleep(5)
+        if server.fileno() != -1:
+            server.close()
+            server = None
+        time.sleep(1)
+        cmd()
+    else:
+        exit()
+
+def create(screens):
+    msg = "Enter your desired account information. 'Format: name username password'"
+    print_text(1, screens, colors, msg, height // 3, getmid(msg))
+    login_info = get_input(screens)
+    send(screens, flags["-c"]+"/"+login_info, 0)
+    flag, response = receive(screens, 0)
+    print_text(1, screens, None, response, height // 3, getmid(response))
+    userwait(screens)
+    return 1
+
+def list_directory(screens):
+
+
 def test(screens):
     for i in range(10):
         send(screens, flags["-t"]+f"Packet: {i}", 0)
         flag, data_received = receive(screens, 0)
         msg = f"Testing packet: {i}\n{data_received}"
         print_text(1, screens, colors, msg, height // 3, getmid(msg))
+    return 1
 
 def config(screens, *arg):
     global parameters
@@ -382,40 +421,6 @@ def config(screens, *arg):
     if key:
         pass
 
-def login(screens):
-    msg = "Enter your login information. Format: name username password"
-    print_text(1, screens, colors, msg, height // 3, getmid(msg))
-    login_info = get_input(screens)
-    send(screens, flags["-l"]+"/"+login_info, 0)
-    flag, response = receive(screens, 0)
-    print_text(1, screens, None, response, height // 3, getmid(response))
-    userwait(screens)
-
-def logout(screens):
-    global server
-    msg = "Youve logged out, connect back?"
-    print_text(1, screens, colors, msg, height // 3, getmid(msg))
-    inp = get_input(screens)
-    if "y" in usr_inp:
-        msg = "trying to connect... (waiting for server, be patient)"
-        print_text(1, screens, colors, msg, height // 3, getmid(msg))
-        time.sleep(5)
-        if server.fileno() != -1:
-            server.close()
-            server = None
-        time.sleep(1)
-        cmd()
-    else:
-        exit()
-
-def create(screens):
-    msg = "Enter your desired account information. Format: name username password"
-    print_text(1, screens, colors, msg, height // 3, getmid(msg))
-    login_info = get_input(screens)
-    send(screens, flags["-c"]+"/"+login_info, 0)
-    flag, response = receive(screens, 0)
-    print_text(1, screens, None, response, height // 3, getmid(response))
-    userwait(screens)
 
 cmd_dict = {"login": login, "logout": logout, "create": create, "config": config, "testing": test}
 

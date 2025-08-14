@@ -12,11 +12,14 @@ PORT = 12345
 header_size = 100 #zfill
 config_path = '/etc/zfile_srvr'
 user_path = '/etc/zfile_srvr/users'
+storage_path = '/etc/zfile_srvr/storage'
 root_usr = ""
 root_psw = ""
 
 admin_params = {"user": root_usr, "pass": root_psw}
 flags = {"-dw": ")#*$^||", "-dr": "^($#||", "-t": "#%&$||", "-l": "*@%#||", "-c": "!)$@||"}
+cmd_list = ["list","download","upload","login","logout", "create", "promote","demote","games","msg", "testing", "config", "help","exit"]
+
 white_list = [flags["-c"].strip("||"), flags["-l"].strip("||")]
 unverified = []
 clients = {}
@@ -34,6 +37,8 @@ if "zfile_srvr" not in os.listdir("/etc"):
     os.makedirs("/etc/zfile_srvr", exist_ok=True)
 if "users" not in os.listdir("/etc/zfile_srvr"):
     os.makedirs("/etc/zfile_srvr/users", exist_ok=True)  
+if "storage" not in os.listdir("/etc/zfile_srvr"):
+    os.makedirs("/etc/zfile_srvr/storage", exist_ok=True)
 if "admin.conf" in os.listdir(user_path):
     print("admin exists")
 else:
@@ -71,7 +76,6 @@ def client_start(client):
                     execute = exec_flag.get(key)
                     execute(client, data)
                     break
-            continue
         
 """helper functions"""
 def test(client, data):
@@ -108,9 +112,11 @@ def receive(client, encoded):
     print("receiving header..")
     data_received = b''
     packet_size = client.recv(header_size).decode("utf-8")
+    print(packet_size)
     packet_size = int(packet_size)
     print(f"size of transmit is: {packet_size}")
     is_flagged = client.recv(1).decode("utf-8")
+    print(is_flagged)
     packet_size -= 1
     if is_flagged == "y":
         print("is flagged")
@@ -126,18 +132,22 @@ def receive(client, encoded):
         print(f"data being received: {packet_size} | {len(data_received)}")
     ack(client, 1)
     data_received = data_received.decode("utf-8")
-    print("data receive successful")
+    print(f"data receive successful: {data_received}")
     return flag, data_received
 
 def ack(client, state):
     if not state:
         print("receiving ack")
         ack_acpt = client.recv(3).decode("utf-8")
-        print("acknowledged")
+        print(f"acknowledged: {ack_acpt}")
     else:
         print("sending ack..")
         client.send("ack".encode('utf-8'))
 
+def get_user(client):
+    for key, value in clients.items():
+        if client == key:
+            return value
 """file operations"""
 
 def send_file(client, path, encoded):
@@ -146,20 +156,45 @@ def send_file(client, path, encoded):
 def receive_file(client, path, encoded):
     return
 
-def user_exists(user, path):
-    if user in os.listdir(path):
+def user_exists(user):
+    print(f"checking users for {user.strip('/')+'.conf'}")
+    if user.strip("/")+".conf" in os.listdir(user_path):
         return 1
     else:
         return 0
 
+def folder_exists(user):
+    print(f"checking storage for {user.strip('/')}")
+    if user.strip("/") in os.listdir(storage_path):
+        return 1
+    else:
+        return 0
+
+def create_directory(user):
+    try:
+        os.makedirs(storage_path + user)
+        return 1
+    except Exception as e:
+        print(f"error creating user directory: {e}")
+        return 0
+
+def remove(name):
+    if user_exists(name):
+        print(f"removing config of {name}")
+        os.remove(user_path+name+".conf")
+    if folder_exists(name):
+        print(f"removing folder of {name}")
+        os.rmdir(storage_path+name)
+    return 1
+    
 def load(data):
     name, user, passw = data.split(' ')
     user_dict = {"name": name, "user": user, "pass": passw}
     with open(f'{user_path}{name}.conf', "r") as file:
         data = file.readlines()
         for item in data:
-            key, val = item.split()
-            if user_dict[key] == val.strip['\n']:
+            key, val = item.split(":")
+            if user_dict[key] == val.strip('\n'):
                 pass
             else:
                 return 0
@@ -167,9 +202,9 @@ def load(data):
     
 def save(data):
     name, user, passw = data.split(' ')
-    user_dict = {"name": name, "user": user, "pass": passw}
-    if user_exists(user_path, name):
+    if user_exists(name):
         return 0
+    user_dict = {"name": name, "user": user, "pass": passw}
     with open(f'{user_path}{name}.conf', "w") as file:
         for key, val in user_dict.items():
             file.write(f"{key}:{val}\n")
@@ -179,17 +214,22 @@ def save(data):
 """login/logout"""
 
 def create(client, data):
-    flag, data = receive(client, 0)
+    print("creating user..")
     name = save(data)
+    print(f"user is {name}") 
     if not name:
-        send(client, "login credentials invald.", 0)
+        send(client, "error creating account, information reserved.", 0)
         return
+    if not create_directory(name):
+        remove(name)
+        send(client, "error creating account, folder creation failure", 0)
+        return 
     clients.update({client: name})
     unverified.remove(client)
+    print("user created and verified")
     send(client, f"Welcome {name}, for information on usage select 'help'.", 0)
 
 def login(client, data):
-    flag, data = receive(client, 0)
     name = load(data)
     if not name:
         send(client, "login credentials invald.", 0)
@@ -198,10 +238,6 @@ def login(client, data):
     unverified.remove(client)
     send(client, f"Welcome {name}, access to functions restored.", 0)
     
-    
-
-
-
 def logout():
     return
 
@@ -224,9 +260,14 @@ def change_directory(name):
     else:
         return 'directory not found, might not exist'
 
-def list_directory():
+def list_directory(client, data):
+    name = get_user(client)
+    path = storage_path+name
     files = ''
     total = len(os.listdir(path))
+    if total == 0:
+        send(client, "no files in directory", 0)
+        return
     count = 0
     for i in os.listdir(path):
         count += 1
@@ -234,7 +275,7 @@ def list_directory():
             files += i + ', '
         elif count == total:
             files += i
-    return files
+    send(client, files, 0)
 
 def find_file(name):
     root_list = os.listdir(root)
