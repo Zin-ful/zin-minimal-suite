@@ -37,9 +37,9 @@ ACK = 'ACK'
 parameters = {"download": download_path}
 server = netcom.socket(ipv4, tcp) #creates and defines sock obj
 
-flags = {"-dw": ")#*$^||", "-dr": "^($#||", "-t": "#%&$||", "-l": "*@%#||", "-c": "!)$@||"}
+flags = {"-dw": ")#*$^||", "-dr": "^($#||", "-t": "#%&$||", "-l": "*@%#||", "-c": "!)$@||", "-mk": "(!%)||"}
 
-cmd_list = ["list","download","upload","login","logout", "create", "promote","demote","games","msg", "testing", "config", "help","exit"]
+cmd_list = ["get file list","download file","upload file", "make folder", "login","logout", "create", "promote","demote","games","msg", "server test", "client test", "config", "help","exit"]
 
 """first start process"""
 if "zfile" not in os.listdir("/etc"):
@@ -194,14 +194,19 @@ def init_server(screens, colors):
 
 def menu(screens, colors):
     while True:
+        exec_success = 0
         print_list(1, screens, colors, cmd_list, 0, 0)
         inp = inps(screens, colors)
         for item, value in cmd_dict.items():
             if inp == item:
-                exec_success = value(screens, inp)
+                exec_success = value(screens)
                 break
         if exec_success:
             continue
+        send(screens, inp, 0)
+        flag, response = receive(screens, 0)
+        print_text(1, screens, colors, response, 1, getmid(response))
+        userwait(screens)
 
 """helper functions"""
 
@@ -383,9 +388,6 @@ def create(screens):
     userwait(screens)
     return 1
 
-def list_directory(screens):
-
-
 def test(screens):
     for i in range(10):
         send(screens, flags["-t"]+f"Packet: {i}", 0)
@@ -394,7 +396,7 @@ def test(screens):
         print_text(1, screens, colors, msg, height // 3, getmid(msg))
     return 1
 
-def config(screens, *arg):
+def config(screens):
     global parameters
     param_list = []
     for name, item in parameters.items():
@@ -421,7 +423,30 @@ def config(screens, *arg):
     if key:
         pass
 
+def make_directory(screens):
+    msg = "what folder would you like to create?"
+    print_text(1, screens, None, msg, height // 3, getmid(msg))
+    folder_name = get_input(screens)
+    msg = "(press enter to create at root or '/') which parent folder would you like to create this in? (folder needs to exist first)"
+    print_text(1, screens, None, msg, height // 3, getmid(msg))
+    folder_path = get_input(screens)
+    if not folder_path:
+        if folder_name[0] == "/":
+            full_path = folder_name.strip("/", 1)
+        else:
+            full_path = folder_name
+    else:
+        if folder_path[0] == "/":
+            folder_path = folder_path.strip("/", 1)
+        if folder_name[0] != "/":
+            folder_name = "/"+folder_name
+        full_path = folder_path+folder_name
+    send(screens, flags["-mk"]+full_path, 0)
+    flag, response = receive(screens, 0)
+    print_text(1, screens, colors, response, height // 3, getmid(response))
+    userwait(screens)
+    return 1
 
-cmd_dict = {"login": login, "logout": logout, "create": create, "config": config, "testing": test}
+cmd_dict = {"login": login, "logout": logout, "create": create, "config": config, "testing": test, "make folder": make_directory}
 
 wrapper(main)

@@ -17,8 +17,8 @@ root_usr = ""
 root_psw = ""
 
 admin_params = {"user": root_usr, "pass": root_psw}
-flags = {"-dw": ")#*$^||", "-dr": "^($#||", "-t": "#%&$||", "-l": "*@%#||", "-c": "!)$@||"}
-cmd_list = ["list","download","upload","login","logout", "create", "promote","demote","games","msg", "testing", "config", "help","exit"]
+flags = {"-dw": ")#*$^||", "-dr": "^($#||", "-t": "#%&$||", "-l": "*@%#||", "-c": "!)$@||", "-mk": "(!%)||"}
+cmd_list = ["get file list","download file","upload file", "make folder", "login","logout", "create", "promote","demote","games","msg", "server test", "client test", "config", "help","exit"]
 
 white_list = [flags["-c"].strip("||"), flags["-l"].strip("||")]
 unverified = []
@@ -76,6 +76,13 @@ def client_start(client):
                     execute = exec_flag.get(key)
                     execute(client, data)
                     break
+        else:
+            execute = exec_phrase.get(data)
+            if execute:
+                result = execute(client, data)
+                send(client, result, 0)
+            else:
+                send(client, "command not found. client or server out of date/sync?", 0)
         
 """helper functions"""
 def test(client, data):
@@ -149,6 +156,14 @@ def get_user(client):
         if client == key:
             return value
 """file operations"""
+def find_file(name):
+    root_list = os.listdir(root)
+    for folder in root_list:
+        current_dir = os.listdir(f"{root}/{folder}")
+        for file in current_dir:
+            if name in file:
+                return f"file found in {folder}"
+    return "file not found"
 
 def send_file(client, path, encoded):
     return
@@ -243,7 +258,7 @@ def logout():
 
 """user functions"""
 
-def change_directory(name):
+def change_directory(client, data):
     white_list = [user, "home","root","back",".."]
     if name not in os.listdir(path) and name not in white_list:
         return "that directory does not exist"
@@ -277,14 +292,12 @@ def list_directory(client, data):
             files += i
     send(client, files, 0)
 
-def find_file(name):
-    root_list = os.listdir(root)
-    for folder in root_list:
-        current_dir = os.listdir(f"{root}/{folder}")
-        for file in current_dir:
-            if name in file:
-                return f"file found in {folder}"
-    return "file not found"
+def make_directory(client, data):
+    name = get_user(client)
+    path = storage_path+user
+    #when tracking current directory, append that here
+    os.makedirs(path+data, exist_ok=True)
+    send(client, f"folder created at {path + data}", 0)
 
 def server_init():
     while True:
@@ -300,6 +313,6 @@ def server_init():
         except Exception as e:
             print(e)
 
-exec_flag = {"-dw": send_file, "-dr": receive_file, "-t": test, "-l": login, "-c": create}
-
+exec_flag = {"-dw": send_file, "-dr": receive_file, "-t": test, "-l": login, "-c": create, "-mk": make_directory}
+exec_phrase = {"list": list_directory}
 server_init()
