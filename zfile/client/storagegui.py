@@ -356,7 +356,15 @@ def ack(state):
     else:
         server.send(ACK.encode('utf-8'))
 
-def format_list(data):
+def itemize_list(listy):
+    file_temp = []
+    listy_cpy = listy
+    for char in listy_cpy:
+        if char == ",":
+            file_name, listy = listy.split(",", 1)
+            file_temp.append(file_name)
+    return file_temp
+            
 
 """user functions"""
 def login(screens):
@@ -464,16 +472,13 @@ def browse_files(screens):
         for item in tree_data:
             file_temp = []
             path, files = item.split(":")
-            files_cpy = files
-            for char in files_cpy:
-                if char == ",":
-                    file_name, files = files.split(",", 1)
-                    file_temp.append(file_name)
+            files = itemize_list(files)
             file_tree.update({path:file_temp})
             
 def get_file_tree(screens):
     send(screens, flags["-gf"]+'ack', 0)
     flag, response = receive(screens, 0)
+    repsonse = itemize_list(response)
     if "." not in response
 
     
