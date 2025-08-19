@@ -479,7 +479,7 @@ def get_file_tree(screens):
     send(screens, flags["-gf"]+'ack', 0)
     flag, response = receive(screens, 0)
     repsonse = itemize_list(response)
-    if "." not in response
+    #for item
 
     
 

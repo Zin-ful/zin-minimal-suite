@@ -291,7 +291,6 @@ def list_directory(client, data):
         elif count == total:
             files += i
     send(client, files, 0)
-
 def make_directory(client, data):
     name = get_user(client)
     path = storage_path+name
