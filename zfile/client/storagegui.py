@@ -8,7 +8,6 @@ import curses
 from curses import wrapper
 from curses.textpad import Textbox
 import threading as task
-print("REMINDER:\nadd / to the beginning of download path config if not found\n")
 
 """default vars"""
 #some vars loaded in config
@@ -37,9 +36,9 @@ ACK = 'ACK'
 parameters = {"download": download_path}
 server = netcom.socket(ipv4, tcp) #creates and defines sock obj
 
-flags = {"-dw": "#*$^||", "-dr": "^($#||", "-t": "#%&$||", "-l": "*@%#||", "-c": "!)$@||", "-mk": "(!%)||", "-gf": "!@%^||"}
-
-cmd_list = ["get file list", "browse","download file","upload file", "make folder", "login","logout", "create", "promote","demote","games","msg", "server test", "client test", "config", "help","exit"]
+flags = {"-dw": "#*$^||", "-dr": "^($#||", "-t": "#%&$||", "-l": "*@%#||", "-c": "!)$@||", "-mk": "(!%)||"}
+cmd_extras = ["browse", "get file list","download file","upload file", "make folder", "promote","demote", "server test", "client test", "help", "config", "logout", "exit"]
+cmd_list = ["login", "create", "config", "exit"]
 
 """first start process"""
 if "zfile" not in os.listdir("/etc"):
@@ -82,28 +81,28 @@ def main(stdscr):
     init_server(screens, colors)
     menu(screens, colors)
     
-def inps(screens, colors):
+def inps(screens, colors, listy):
     while True:
         key = screens["main"].getch()
         if key == ord("w") or key == ord("s"):
-            select(key, screens, colors)
+            select(key, screens, colors, listy)
         elif key == ord("e"):
-            return cmd_list[pos]
+            return listy[pos]
 
-def select(key, screens, colors):
+def select(key, screens, colors, listy):
     global pos
     if key == ord("s"):
         pos += 1
-        if pos >= len(cmd_list):
-            pos = len(cmd_list) - 1
+        if pos >= len(listy):
+            pos = len(listy) - 1
         back = 1
     elif key == ord("w"):
         pos -= 1
         if pos <= 0:
             pos = 0
         back = -1
-    screens["main"].addstr(pos + offset - back, 0, cmd_list[pos - back])
-    screens["main"].addstr(pos + offset, 0, cmd_list[pos], colors["highlight"])
+    screens["main"].addstr(pos + offset - back, 0, listy[pos - back])
+    screens["main"].addstr(pos + offset, 0, listy[pos], colors["highlight"])
 
 #+++helper funcs
 def print_text(clr, screens, colors, string, y, x):
@@ -196,7 +195,7 @@ def menu(screens, colors):
     while True:
         exec_success = 0
         print_list(1, screens, colors, cmd_list, 0, 0)
-        inp = inps(screens, colors)
+        inp = inps(screens, colors, cmd_list)
         for item, value in cmd_dict.items():
             if inp == item:
                 exec_success = value(screens)
@@ -221,83 +220,19 @@ def userwait(screens):
     if key:
         pass
 
-def server_exec(screens, data):
-    return
+def receive_pure_data(screens, data):
+    packet_size = server.recv(header_size).decode("utf-8")
+    packet_size = int(packet_size)
+    while len(data_received) < packet_size:
+        data_received += server.recv(packet_size - len(data_received))
+        msg = f"data being received: {packet_size} | {len(data_received)} = {data_received}"
+        print_text(1, screens, None, msg, height // 3, getmid(msg))
+        time.sleep(0.1)
 
-def file_write(screens, data):
-    ext_list = [".txt",".py",".c",".md",".log",".cpp",".h",".hpp",".java",".cs",".js",".ts",".php",".sh",".rb",".pl",".go",".rs",".asm","sql"]
-    file_name, data = data.split("!:DATA:!")
-    trash, file_ext = file_name.split(".")
-    if any(file_name in files for files in os.listdir(download_path)):
-        msg = f"file already exists, press e to continue"
-        print_text(1, screens, colors, msg, height // 3, getmid(msg))
-        key = screens["main"].getch()
-        if key:
-            pass
-    elif not any(file_name in files for files in os.listdir(download_path)):
-        try:
-            if any(file_ext in files for files in ext_list):
-                with open(f"{parameters['download']}{file_name}", "w") as file:
-                    file.write(data)
-            else:
-                data = base64.b64decode(data)
-                with open(f"{parameters['download']}{file_name}", "wb") as file:
-                    file.write(data)
-        except Exception as e:
-            msg = f"file failed to download due to these reasons: {e}"
-            print_text(1, screens, colors, msg, height // 3, getmid(msg))
-            key = screens["main"].getch()
-            if key:
-                pass
-    msg = "file downloaded"
-    print_text(1, screens, colors, msg, height // 3, getmid(msg))
-    key = screens["main"].getch()
-    if key:
-        pass
-
-def file_read(screens, inp):
-    ext_list = [".txt",".py",".c",".md",".log",".cpp",".h",".hpp",".java",".cs",".js",".ts",".php",".sh",".rb",".pl",".go",".rs",".asm","sql"]
-    cmd, file_path = inp.split(' ')
-    check_slsh = list(file_path)
-    if check_slsh[0] != "/":
-        file_path = "/" + file_path
-    msg = f"press 'e' to confirm, 'q' to reject to confirm file path: {file_path}"
-    print_text(1, screens, colors, msg, height // 3, getmid(msg))
-    key = screens["main"].getch()
-    if key:
-        pass
-    file_path = root + file_path
-    file_name = ''
-    total = 0
-    for i in file_path:
-        if i == "/":
-            total += 1 #couldnt figure out how to get the total and compare with count in the same loop
-    count = 0
-    for i in file_path:
-        if i == "/":
-            count += 1
-        if count == total:
-            file_name += i #might be hard to figure out how it works so ill leave this bad comment that explains the code
-                                     #basically, we count the amount of slashes to get a total. then we count again but once we reach the total we start adding the letters in file_path to file_name
-                                     #this way we can handle files in any directory post /~
-    _, file_ext = file_name.split(".")
-    check_path = file_path.replace(file_name, '')
-    if any(file_name in files for files in os.listdir(check_path)):
-        msg = "that file does not exist, press any key to continue"
-        print_text(1, screens, colors, msg, height // 3, getmid(msg))
-        key = screens["main"].getch()
-        if key:
-            pass
+def send_pure_data(screens, data):
+    data_sent = 0
+    while len(data_sent) > 0:
         return
-    if any(file_ext in files for files in ext_list):
-        with open(file_path, 'r') as file:
-            filedata = file.read()
-            data_send(screens, f"{cmd} {file_name}!:DATA:!{filedata}")
-    else:
-        with open(file_path, 'rb') as file:
-            filedata = file.read()
-            filedata = base64.b64encode(filedata).decode('utf-8')
-            data_send(screens, f"{cmd} {file_name}!:DATA:!{filedata}")
 
 def send(screens, data, encoded):
     is_flagged = "n"
@@ -356,23 +291,26 @@ def ack(state):
     else:
         server.send(ACK.encode('utf-8'))
 
-def itemize_list(listy):
-    file_temp = []
-    listy_cpy = listy
-    for char in listy_cpy:
-        if char == ",":
-            file_name, listy = listy.split(",", 1)
-            file_temp.append(file_name)
-    return file_temp
+
             
 
 """user functions"""
+def update_functions(response):
+    if "Welcome" in response:
+        cmd_list.remove("login")
+        cmd_list.remove("create")
+        cmd_list.remove("exit")
+        cmd_list.remove("config")
+        for item in cmd_extras:
+            cmd_list.append(item)
+
 def login(screens):
     msg = "Enter your login information. Format: 'name username password'"
     print_text(1, screens, colors, msg, height // 3, getmid(msg))
     login_info = get_input(screens)
     send(screens, flags["-l"]+"/"+login_info, 0)
     flag, response = receive(screens, 0)
+    update_functions(response)
     print_text(1, screens, None, response, height // 3, getmid(response))
     userwait(screens)
     return 1
@@ -400,6 +338,7 @@ def create(screens):
     login_info = get_input(screens)
     send(screens, flags["-c"]+"/"+login_info, 0)
     flag, response = receive(screens, 0)
+    update_functions(response)
     print_text(1, screens, None, response, height // 3, getmid(response))
     userwait(screens)
     return 1
@@ -465,8 +404,9 @@ def make_directory(screens):
 
 def browse_files(screens):
     get_file_tree(screens)
-    return 1
     file_tree = {}
+    path_list = []
+    location = "/"
     with open("file_tree.conf", "r") as file:
         tree_data = file.readlines()
         for item in tree_data:
@@ -474,14 +414,33 @@ def browse_files(screens):
             path, files = item.split(":")
             files = itemize_list(files)
             file_tree.update({path:file_temp})
+    for path, item in file_tree.items():
+        path_list.append(path)
+    while True:
+        path_name = inps(screens, colors, path_list)
             
 def get_file_tree(screens):
     send(screens, flags["-gf"]+'ack', 0)
     flag, response = receive(screens, 0)
     repsonse = itemize_list(response)
-    #for item
+    for item in response:
+        if "." not in item:
+            folders.append(item)
+        else:
+            files.append(item)
+        with open("file_tree.conf", "w") as file:
+            file.write(item)
+            
 
-    
+
+def itemize_list(listy):
+    file_temp = []
+    listy_cpy = listy
+    for char in listy_cpy:
+        if char == ",":
+            file_name, listy = listy.split(",", 1)
+            file_temp.append(file_name)
+    return file_temp   
 
 client_cmd_dict = {"config": config, "browse": browse_files}
 cmd_dict = {"login": login, "logout": logout, "create": create, "testing": test, "make folder": make_directory}

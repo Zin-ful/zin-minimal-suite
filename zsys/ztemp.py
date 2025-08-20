@@ -9,6 +9,7 @@ active = 1
 height = 0
 width = 0
 colors = {}
+values = ["coretemp", "k10temp", "x86_pkg_temp", "zenpower", "nct6775"]
 screens = {}
 update_time = 0.500
 cputype = None
@@ -184,7 +185,6 @@ def load_file(spl, path):
 def search_hwmon():
     global cputype
     tempratures = []
-    values = ["coretemp", "k10temp", "x86_pkg_temp"]
     path = "/sys/class/hwmon/"
     tree = os.listdir("/sys/class/hwmon")
     for i in range(64):
@@ -207,7 +207,6 @@ def search_hwmon():
 
 def search_thermal():
     tempratures = []
-    values = ["coretemp", "k10temp", "x86_pkg_temp"]
     path = "/sys/class/thermal/"
     tree = os.listdir("/sys/class/thermal")
     for i in range(64):
