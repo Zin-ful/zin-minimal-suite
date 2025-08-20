@@ -22,6 +22,9 @@ done = 0
 status_bar = None
 bar = ""
 
+user = proc.run("whoami", capture_output=True, text=True)
+user = user.stdout.strip()
+
 if "homescreen" not in os.listdir("/etc"):
 	os.makedirs(conf_path, exist_ok=True)
 
@@ -59,7 +62,7 @@ def updatetop(screens):
     while True:
         if not done:
             screens["top"].addstr(0,0,bar,timecolor)
-            screens["top"].addstr(0, 4, recent_app.strip(), timecolor)
+            screens["top"].addstr(0, 4, f"{user}: {recent_app.strip()}", timecolor)
             now = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
             screens["top"].addstr(height-height, width // 2 + width // 3, now, timecolor)
             screens["top"].refresh()
@@ -68,6 +71,10 @@ def inps(screens):
     global done, status_bar, recent_app, height, width, pos
     while True:
         inp = screens["main"].getch()
+        if not applist:
+            screens["main"].addstr(1, 0, "No apps found, add to /etc/homescreen/apps.conf")
+            screens["main"].addstr(2, 0, "Format to add: /path/to/app/from/exec:Name of app")
+            continue
         if inp == ord("e"):
             apprun = applist[pos]
             apprun = nametopath[apprun]
