@@ -11,6 +11,7 @@ height = 0
 width = 0
 pos = 0
 ready = 0 #i fucking hate this ENTIRE variable and every time its called.
+          #looking at this a month later im scared to update this program. I dont even remember what this variable is for
 globalpos = 0
 xpos = 0
 colors = {}
