@@ -1,0 +1,1 @@
+which can split bytes for single characters allowing encoding errors. Basically it 
