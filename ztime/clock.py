@@ -102,7 +102,7 @@ def update(screens):
                 afternoon = False
                 evening = True
                 night = False
-            elif int(hour) >= 22:
+            elif int(hour) >= 22 or int(hour) <= 4:
                 noon = False
                 morning = False
                 afternoon = False

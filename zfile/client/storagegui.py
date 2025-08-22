@@ -18,6 +18,7 @@ offset = 0
 ylimit = 6
 colors = {}
 screens = {}
+win = {}
 
 header_size = 100
 IP = 'localhost'
@@ -61,7 +62,7 @@ else:
 """GUI functions"""
 
 def main(stdscr):
-    global height, width, colors
+    global height, width, colors, win
     height, width = stdscr.getmaxyx()
     curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_WHITE)
     highlight = curses.color_pair(1)
@@ -78,6 +79,8 @@ def main(stdscr):
     screens.update({"text": tbox})
     screens.update({"source": stdscr})
     colors.update({"highlight": highlight})
+    files_win = curses.newwin(height - 4, width - 1, 2, 0)
+    win = {"main": stdscr, "files": files_win}
     init_server(screens, colors)
     menu(screens, colors)
     
@@ -214,25 +217,57 @@ def menu(screens, colors):
         userwait(screens)
 
 """helper functions"""
+def update_functions(response):
+    if "Welcome" in response:
+        cmd_list.remove("login")
+        cmd_list.remove("create")
+        cmd_list.remove("exit")
+        cmd_list.remove("config")
+        for item in cmd_extras:
+            cmd_list.append(item)
 
 def userwait(screens):
     key = screens["main"].getch()
     if key:
         pass
 
-def receive_pure_data(screens, data):
+def receive_file(screens, path):
+    part_size = 4096
     packet_size = server.recv(header_size).decode("utf-8")
     packet_size = int(packet_size)
-    while len(data_received) < packet_size:
-        data_received += server.recv(packet_size - len(data_received))
-        msg = f"data being received: {packet_size} | {len(data_received)} = {data_received}"
-        print_text(1, screens, None, msg, height // 3, getmid(msg))
-        time.sleep(0.1)
+    ack(1)
+    with open(path, "wb") as file:
+        while data_received < packet_size:
+            data_received = packet_size - data_received
+            part = server.recv(min(part_size, data_received))
+            if not part:
+                break
+            file.write(part)
+            data_received += len(part)
+    ack(1)
 
-def send_pure_data(screens, data):
-    data_sent = 0
-    while len(data_sent) > 0:
-        return
+def send_file(screens, path):
+    with open(path, "rb") as file:
+        file.seek(0, os.SEEK_END)
+        file_size = file.tell()
+    head = str(file_size).zfill(header_size)
+    msg = f"file size {header_size}, sending..."
+    print_text(1, screens, None, msg, height // 3, getmid(msg))
+    time.sleep(0.5)
+    server.send(str(head).encode("utf-8"))
+    ack(0)
+    with open(path, "rb") as file:
+        i = 0
+        while True:
+            part = file.read(4096)
+            if not part:
+                break
+            msg = f"sending part {i}"
+            print_text(1, screens, None, msg, height // 3, getmid(msg))
+            server.send(part)
+            i += 1
+    ack(0)
+    return 1
 
 def send(screens, data, encoded):
     is_flagged = "n"
@@ -291,18 +326,20 @@ def ack(state):
     else:
         server.send(ACK.encode('utf-8'))
 
-
-            
-
 """user functions"""
-def update_functions(response):
-    if "Welcome" in response:
-        cmd_list.remove("login")
-        cmd_list.remove("create")
-        cmd_list.remove("exit")
-        cmd_list.remove("config")
-        for item in cmd_extras:
-            cmd_list.append(item)
+def to_upload(screens):
+    path = get_file()
+    path, name = path.split(":")
+    screens["source"].clear()
+    msg = f"Confirm path?: {path+'/'+name}"
+    screens["source"].addstr(0,getmid(msg),msg)
+    screens["source"].refresh()
+    userwait(screens)
+    send(screens, flags["-dw"]+name, 0)
+    send_file(screens, path+"/"+name)
+    response = receive(screens, 0)
+    print_text(1, screens, None, height // 2, getmid(response))
+    return 1
 
 def login(screens):
     msg = "Enter your login information. Format: 'name username password'"
@@ -430,8 +467,6 @@ def get_file_tree(screens):
             files.append(item)
         with open("file_tree.conf", "w") as file:
             file.write(item)
-            
-
 
 def itemize_list(listy):
     file_temp = []
@@ -443,6 +478,171 @@ def itemize_list(listy):
     return file_temp   
 
 client_cmd_dict = {"config": config, "browse": browse_files}
-cmd_dict = {"login": login, "logout": logout, "create": create, "testing": test, "make folder": make_directory}
+cmd_dict = {"upload file": to_upload,"login": login, "logout": logout, "create": create, "testing": test, "make folder": make_directory}
+
+"""CODE FROM FILE BROWSER"""
+
+data_name = ""
+data_path = ""
+
+pos = 0
+sx = 0
+lvl = 0
+origin = 0
+num = 0
+
+ylimit = 4
+
+cur_dir = "/home"
+files_in_path = os.listdir(cur_dir)
+SELECT = None
+data = None
+hidden = 1
+
+def list_file(delay, rst):
+    global origin, files_in_path, pos, sx, lvl, num
+    time.sleep(0.1)
+    win["files"].clear()
+    files_in_path = os.listdir(cur_dir)
+    if rst:
+        pos = 0
+        lvl = 0
+        num = 0
+    sx = 0
+    i = 0
+    y = 0
+    x = 0
+    for item in files_in_path.copy():
+        if item[0] == "." and hidden:
+            files_in_path.remove(item)
+    for item in files_in_path:
+        if num * (height - ylimit) + i >= len(files_in_path):
+            break
+        if x >= width - 5:
+            return
+        else:
+            win["files"].addstr(y, x, files_in_path[num * (height - ylimit) + i], curses.COLOR_WHITE)
+        i += 1
+        y += 1
+        if y >= height - ylimit:
+            x += width // 3
+            y = 0
+        time.sleep(delay)
+        win["files"].refresh()
+
+def get_file():
+    global cur_dir, pos, origin
+    win["main"].clear()
+    win["main"].refresh()
+    list_file(0.001, 1)
+    while True:
+        key = win["files"].getch()
+        if key == -1:
+            continue
+        if key == ord("a") or key == ord("d"):
+            cur_dir = move(key)
+            list_file(0.002, 1)
+            win["files"].refresh()
+        elif key == ord("w") or key == ord("s"):
+            select_file(key, "files", files_in_path, None)
+        elif key == ord("e"):
+            return cur_dir+":"+files_in_path[pos]
+        elif key == ord('q'):
+            return
+
+def select_file(inp, subwin, word_list, xoffset):
+    global pos, sx, lvl, num
+    if not xoffset:
+        xoffset = 0
+    if not word_list or len(word_list) < 0:
+        win[subwin].addstr(1, 0, "NO FILES IN PATH", curses.COLOR_RED)
+        win[subwin].refresh()
+        return
+    if inp == ord("s"):
+        pos += 1
+        offset = 1
+    elif inp == ord("w"):
+        offset = -1
+        pos -= 1
+    prevlen = ""
+    if pos >= height - ylimit and len(word_list) > height - ylimit and subwin == "files":
+        pos = 0
+        lvl += 1
+        sx += width // 3
+        if sx >= width - 3:
+            if sx // width == 0:
+                num += 3
+            else:
+                num += 3
+            list_file(win, 0.002, 0)
+    elif pos == -1 and lvl >= 1 and subwin == "files":
+        sx -= width // 3
+        pos = height - ylimit - 1
+        lvl -= 1
+        if sx < 0 and num:
+            num -= 3
+            list_file(0.002, 0)
+            sx = (width - width // 3)
+
+    if pos <= 0:
+        offset = 0
+        pos = 0
+    elif pos >= len(word_list):
+        pos = len(word_list) - 1
+        offset = 0
+    for i in word_list[pos]:
+        prevlen += " "
+    if lvl:
+        lvl_offset = (height - ylimit) * lvl
+    else:
+        lvl_offset = 0
+    if pos + lvl_offset >= len(files_in_path) and subwin == "files":
+        pos -= 1
+    final_pos = origin + pos - offset
+    if subwin == "files":
+        if pos > -1:
+            if  final_pos >= height - ylimit or final_pos >= len(files_in_path):
+                pass
+            else:
+                win[subwin].addstr(final_pos, sx + xoffset, prevlen, curses.COLOR_BLACK)
+                win[subwin].addstr(final_pos, sx + xoffset, word_list[pos - offset + lvl_offset], curses.COLOR_BLACK)
+        win[subwin].addstr(origin + pos, sx + xoffset, word_list[pos + lvl_offset])
+    else:
+        if pos > -1:
+            win[subwin].addstr(final_pos, sx + xoffset, prevlen, curses.COLOR_BLACK)
+            win[subwin].addstr(final_pos, sx + xoffset, word_list[pos - offset], curses.COLOR_BLACK)
+        win[subwin].addstr(origin + pos, sx + xoffset, word_list[pos])
+    win[subwin].refresh()
+
+def move(inp):
+    rev_dir = os.path.dirname(f"{cur_dir}..")
+    if files_in_path or len(files_in_path) > 0:
+        if cur_dir == "/":
+            forw_dir = cur_dir + files_in_path[num * sx + pos]
+        else:
+            if not num and sx:
+                calc = (lvl * (height - ylimit)) + pos
+                forw_dir = cur_dir + "/" + files_in_path[calc]
+            else:
+                calc = (lvl * (height - ylimit)) + pos
+                forw_dir = cur_dir + "/" + files_in_path[calc]
+    if inp == ord("a"):
+        if cur_dir == "/":
+            return "/"
+        else:
+            try:
+                var = os.listdir(rev_dir)
+            except:
+                return cur_dir
+            return rev_dir
+    elif inp == ord("d"):
+        try:
+            var = os.listdir(forw_dir)
+        except:
+            return cur_dir
+        return forw_dir
+
+
 
 wrapper(main)
+

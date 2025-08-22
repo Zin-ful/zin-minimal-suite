@@ -17,7 +17,7 @@ root_usr = ""
 root_psw = ""
 
 admin_params = {"user": root_usr, "pass": root_psw}
-flags = {"-dw": ")#*$^||", "-dr": "^($#||", "-t": "#%&$||", "-l": "*@%#||", "-c": "!)$@||", "-mk": "(!%)||"}
+flags = {"-dw": "#*$^||", "-dr": "^($#||", "-t": "#%&$||", "-l": "*@%#||", "-c": "!)$@||", "-mk": "(!%)||"}
 cmd_list = ["browse", "get file list","download file","upload file", "make folder", "login","logout", "create", "promote","demote","games","msg", "server test", "client test", "config", "help","exit"]
 
 white_list = [flags["-c"].strip("||"), flags["-l"].strip("||")]
@@ -69,10 +69,12 @@ def client_start(client):
             if str(flag) not in white_list:
                 send(client, "You need to login before executing commands.", 0)
                 continue
-        print("flag is in whitelist. continuing")
+            print("flag is in whitelist. continuing")
         if flag:
+            print("flag found")
             for key, val in flags.items():
                 if val.strip("||") == flag:
+                    print(f"flag: {key}")
                     execute = exec_flag.get(key)
                     execute(client, data)
                     break
@@ -167,11 +169,45 @@ def find_file(name):
                 return f"file found in {folder}"
     return "file not found"
 
-def send_file(client, path, encoded):
-    return
+def receive_file(client, data):
+    data_received = 0
+    name = get_user(client)
+    path = storage_path+name+"/"+data
+    print(f"writing file to path: {path}")
+    part_size = 4096
+    print(f"getting header")
+    packet_size = client.recv(header_size).decode("utf-8")
+    packet_size = int(packet_size)
+    print(f"file size: {packet_size}")
+    ack(client, 1)
+    with open(path, "wb") as file:
+        while data_received < packet_size:
+            data_received = packet_size - data_received
+            part = client.recv(min(part_size, data_received))
+            if not part:
+                break
+            file.write(part)
+            data_received += len(part)
+            print(f"upload: {data_received}")
+    ack(client, 1)
 
-def receive_file(client, path, encoded):
-    return
+def send_file(client, path):
+    with open(path, "rb") as file:
+        file.seek(0, os.SEEK_END)
+        file_size = file.tell()
+    head = file_size.zfill(header_size)
+    client.send(str(head).encode("utf-8"))
+    ack(client, 0)
+    with open(path, "rb") as file:
+        i = 0
+        while True:
+            part = file.read(4096)
+            if not part:
+                break
+            client.send(part)
+            i += 1
+    ack(client, 0)
+    return 1
 
 def user_exists(user):
     print(f"checking users for {user.strip('/')+'.conf'}")
@@ -315,6 +351,6 @@ def server_init():
         except Exception as e:
             print(e)
 
-exec_flag = {"-dw": send_file, "-dr": receive_file, "-t": test, "-l": login, "-c": create, "-mk": make_directory}
+exec_flag = {"-dr": send_file, "-dw": receive_file, "-t": test, "-l": login, "-c": create, "-mk": make_directory}
 exec_phrase = {"get file list": list_directory}
 server_init()
