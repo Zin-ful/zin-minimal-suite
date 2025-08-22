@@ -160,6 +160,20 @@ def get_user(client):
         if client == key:
             return value
 """file operations"""
+
+def write_tree(client):
+    name = get_user(client)
+    with open(tree_path, "w") as file:
+        file.write(storage+name, '\n')
+        recurse(storage+name, 1, file)
+
+def recurse(path, depth, file):
+        for entry in os.listdir(path):
+            entry_path = os.path.join(path, entry)
+            file.write("    " * depth + entry + '\n')
+            if os.path.isdir(entry_path):
+                recurse(entry_path, depth+1, file)
+
 def find_file(name):
     root_list = os.listdir(root)
     for folder in root_list:
@@ -170,7 +184,6 @@ def find_file(name):
     return "file not found"
 
 def receive_file(client, data):
-    data_received = 0
     name = get_user(client)
     path = storage_path+name+"/"+data
     print(f"writing file to path: {path}")
@@ -181,15 +194,17 @@ def receive_file(client, data):
     print(f"file size: {packet_size}")
     ack(client, 1)
     with open(path, "wb") as file:
+        data_received = 0
         while data_received < packet_size:
-            data_received = packet_size - data_received
-            part = client.recv(min(part_size, data_received))
+            data_remaining = packet_size - data_received
+            print(f"data received: {data_received}")
+            part = client.recv(min(part_size, data_remaining))
             if not part:
                 break
             file.write(part)
             data_received += len(part)
-            print(f"upload: {data_received}")
     ack(client, 1)
+    send(client, f"file uploaded to {name+'/'+data}", 0)
 
 def send_file(client, path):
     with open(path, "rb") as file:

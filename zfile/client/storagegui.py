@@ -23,14 +23,14 @@ win = {}
 header_size = 100
 IP = 'localhost'
 PORT = 12345
-download_path = os.path.expanduser("`/")
+download_path = os.path.expanduser("~/")
 auto_name = 'none'
 auto_user = 'none'
 auto_pass = 'none'
 auto_enabled = "false"
 firstboot = "true"
 config_dir = '/etc/zfile'
-config_path = '/etc/zfile/config.conf'
+config_path = '/etc/zfile/zfile.conf'
 user_config_path = "/etc/zfile/autouser.conf"
 root = os.path.expanduser("~")
 ACK = 'ACK'
@@ -264,10 +264,10 @@ def send_file(screens, path):
                 break
             msg = f"sending part {i}"
             print_text(1, screens, None, msg, height // 3, getmid(msg))
+            time.sleep(0.001)
             server.send(part)
             i += 1
     ack(0)
-    return 1
 
 def send(screens, data, encoded):
     is_flagged = "n"
@@ -337,8 +337,10 @@ def to_upload(screens):
     userwait(screens)
     send(screens, flags["-dw"]+name, 0)
     send_file(screens, path+"/"+name)
-    response = receive(screens, 0)
-    print_text(1, screens, None, height // 2, getmid(response))
+    flag, response = receive(screens, 0)
+    print_text(1, screens, None, response, height // 2, getmid(response))
+    userwait(screens)
+    screens["source"].clear()
     return 1
 
 def login(screens):
@@ -413,7 +415,7 @@ def config(screens):
     print_text(1, screens, colors, msg, height // 3, getmid(msg))
     key = screens["main"].getch()
     if key:
-        pass
+        return 1
 
 def make_directory(screens):
     msg = "what folder would you like to create?"
@@ -439,7 +441,7 @@ def make_directory(screens):
     userwait(screens)
     return 1
 
-def browse_files(screens):
+def browse_tree(screens):
     get_file_tree(screens)
     file_tree = {}
     path_list = []
@@ -456,8 +458,8 @@ def browse_files(screens):
     while True:
         path_name = inps(screens, colors, path_list)
             
-def get_file_tree(screens):
-    send(screens, flags["-gf"]+'ack', 0)
+def get_tree(screens):
+    send(screens, "get file list", 0)
     flag, response = receive(screens, 0)
     repsonse = itemize_list(response)
     for item in response:
@@ -465,8 +467,22 @@ def get_file_tree(screens):
             folders.append(item)
         else:
             files.append(item)
-        with open("file_tree.conf", "w") as file:
-            file.write(item)
+
+def read_tree(path):
+    tree = {}
+    stack [(0, tree)]
+    with open(path, "r") as file:
+        for line in file:
+            stripped = line.rstrip()
+            depth = (len(line) - len(stripped)) // 4
+            name = stripped.strip()
+
+            node = {}
+            while stack and stack[-1][0] >= depth:
+                stack.pop()
+            stack[-1][0][name] = node
+            stack.append((depth, node))
+    return tree
 
 def itemize_list(listy):
     file_temp = []
@@ -477,7 +493,8 @@ def itemize_list(listy):
             file_temp.append(file_name)
     return file_temp   
 
-client_cmd_dict = {"config": config, "browse": browse_files}
+
+client_cmd_dict = {"config": config, "browse": browse_tree}
 cmd_dict = {"upload file": to_upload,"login": login, "logout": logout, "create": create, "testing": test, "make folder": make_directory}
 
 """CODE FROM FILE BROWSER"""
@@ -641,7 +658,6 @@ def move(inp):
         except:
             return cur_dir
         return forw_dir
-
 
 
 wrapper(main)
