@@ -208,7 +208,7 @@ def receive_file(client, data):
 
 def send_file(client, path):
     with open(path, "rb") as file:
-        file.seek(0, os.SEEK_END)
+        file.seek(0, 2)
         file_size = file.tell()
     head = file_size.zfill(header_size)
     client.send(str(head).encode("utf-8"))

@@ -248,7 +248,7 @@ def receive_file(screens, path):
 
 def send_file(screens, path):
     with open(path, "rb") as file:
-        file.seek(0, os.SEEK_END)
+        file.seek(0, 2)
         file_size = file.tell()
     head = str(file_size).zfill(header_size)
     msg = f"file size {header_size}, sending..."
