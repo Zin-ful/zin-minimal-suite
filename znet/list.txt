@@ -1,8 +1,0 @@
-Welcome
- Example page 
- This server also handles nested directories, html, text, and markdown (md) files ONLY.
-"color:white;">Check out the source code for the server!
-"color:white;">Check out a free book in text, markdown, and html if you want to host a library
-WARNING! You need to put document files in /book. The server is made to be efficient, so normal files are served with fread (in chunks)
-wont display right, so keep documents in books (reads in files binary to avoid this)
-which can split bytes for single characters allowing encoding errors. Basically it 
