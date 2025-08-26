@@ -2,8 +2,6 @@ from socket import AF_INET as ipv4
 from socket import SOCK_STREAM as tcp
 import socket as netcom
 import os
-import base64
-import subprocess as proc
 
 conf_path = "/etc/keyget"
 flags = {"-w": "*%_@"}
@@ -15,7 +13,6 @@ if "wireguard" not in os.listdir("/etc"):
 	exit()
 else:
 	print("wireguard is installed")
-	wg_dir = os.listdir("/etc/wireguard")
 
 server = netcom.socket(ipv4, tcp)
 
@@ -27,38 +24,47 @@ port = 12345
 
 def main():
 	while True:
+		executed = 0
 		inp = input(">>> ")
+		if "ex" in inp:
+			exit()
 		server.send(inp.encode("utf-8"))
 		response = server.recv(1024).decode("utf-8")
 		for key, val in flags.items():
-			print(f"checking for flags.. {key}:{val}")
 			if val in response:
-				print(f"flag found, finding function...")
 				response = response.strip(val)
 				xcute = cmd.get(key)
-				print(xcute)
 				if xcute:
-					print("executing")
 					xcute(response)
-					continue
-		print(response)
+					executed = 1
+		if not executed:
+			print(response)
 
 def download(data):
+	keys, data = data.split(":", 1)
 	inp = input("Would you like to create a conf file?\n>>> ")
+
 	if "n" in inp:
 		return
+	inp = input("Would you like to use this file with wireguard?")
+	if "n" in inp:
+		path = ""
 	else:
-		inp = input("Would you like to use this file with wireguard?")
-		if "n" in inp:
-			path = "wg0.conf"
-		else:
-			path = "/etc/wireguard/wg0.conf"
-		with open(path, "w") as file:
-			file.write(data)
-		print(f"file created at: {path}")
+		path = "/etc/wireguard/"
+	with open(path+"wg0.conf", "w") as file:
+		file.write(data)
 
-def gen_private_key():
-	key = proc.run(["wg", "genkey"], capture_output=True, text=True)
+	cache, keys = keys.split("=", 1)
+	pubkey, privkey = keys.split("&")
+	
+
+	with open(path+"public.key", "w") as file:
+		file.write(pubkey)
+	cache, pubkey = pubkey.split("=", 1)
+	with open(path+"private.key", "w") as file:
+		file.write(privkey)
+		print(f"file created at: {path}wg0.conf\npubkey created at {path}public.key\nprivkey created at {path}private.key")
+
 
 cmd = {"-w": download}
 server.connect((ip, int(port)))
