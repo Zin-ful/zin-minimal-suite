@@ -15,12 +15,11 @@ else:
 	print("wireguard is installed")
 
 server = netcom.socket(ipv4, tcp)
-
 ip = input("IP Addr: ")
 port = input("Port Number: ")
 
 ip = "localhost"
-port = 12345
+port = 10592
 
 def main():
 	while True:

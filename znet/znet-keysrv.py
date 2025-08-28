@@ -6,7 +6,6 @@ import os
 import base64
 import threading as task
 import subprocess as proc
-import time
 
 conf_path = "/etc/keygetsrv"
 flags = {"-w": "*%_@"}
@@ -14,7 +13,7 @@ flags = {"-w": "*%_@"}
 
 
 #port = int(input("port: "))
-port = 12345
+port = 10592
 server = netcom.socket(ipv4, tcp)
 print("socket created")
 server.setsockopt(netcom.SOL_SOCKET, netcom.SO_REUSEADDR, 1)
@@ -51,7 +50,6 @@ def init():
 			if wg_title in item and ".swp" not in item:
 				while True:
 					print(f"{item} = {wg_title}{wg_number}.conf")
-					time.sleep(0.1)
 					if item == f"{wg_title}{wg_number}.conf":
 						break
 					wg_number += 1
@@ -239,6 +237,7 @@ def client_start(client):
 		except Exception as e:
 			print(e)
 			print("returning to main thread")
+			client.close()
 			return
 
 def server_init():

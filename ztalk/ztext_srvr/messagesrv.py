@@ -5,7 +5,7 @@ import threading as task
 import datetime
 import os
 conf_path = "/etc/ztext_srvr"
-port = 45454
+port = 34983
 ip = "0.0.0.0"
 passwd = "admin"
 linky = "none"

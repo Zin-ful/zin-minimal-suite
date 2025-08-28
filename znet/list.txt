@@ -1,0 +1,7 @@
+zkey = 0
+zdrive = 1
+zmsg = 0
+zcall = 0
+zapp = 0
+video_server = 0
+library_server = 0

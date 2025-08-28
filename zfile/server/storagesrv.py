@@ -8,7 +8,7 @@ import threading as task
 import subprocess
 
 IP = 'localhost'
-PORT = 12345
+PORT = 25415
 header_size = 100 #zfill
 config_path = '/etc/zfile_srvr'
 user_path = '/etc/zfile_srvr/users'

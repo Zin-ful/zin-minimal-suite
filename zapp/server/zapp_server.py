@@ -7,7 +7,7 @@ import tarfile
 import time
 
 head_sze = 100
-port = 12400
+port = 41742
 ip = "0.0.0.0"
 chnk_sze = 1024
 passwd = "admin"
