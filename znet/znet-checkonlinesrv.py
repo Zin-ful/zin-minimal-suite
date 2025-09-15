@@ -5,10 +5,10 @@ import threading as task
 import subprocess as proc
 import time
 
-port_list = [10592, 25415, 34983, 41742, 54574, 61431]
+port_list = [10592, 25415, 34983, 41742, 49652, 54574, 61431]
 
-app_ports = {"zkey": 10592, "zdrive": 25415, "zmsg": 34983, "zcall": 41742, "zapp": 54574, "video_server": 61431, "library_server": 0}
-status = {"zkey": 0, "zdrive": 0, "zmsg": 0, "zcall": 0, "zapp": 0, "video_server": 0, "library_server": 0}
+app_ports = {"zkey": 10592, "zdrive": 25415, "zmsg": 34983, "zshell":39562, "zcall": 41742, "zprogram-editor": 49652, "zapp": 54574, "video_server": 61431, "library_server": 0}
+status = {"zkey": 0, "zdrive": 0, "zmsg": 0, "zcall": 0, "zshell":0, "zapp": 0, "video_server": 0, "library_server": 0}
 
 port = 23512
 

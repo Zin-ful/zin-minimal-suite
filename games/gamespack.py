@@ -1,14 +1,16 @@
 from socket import AF_INET as ipv4
 from socket import SOCK_STREAM as tcp
 import socket as netcom
-import threading as task
-import subprocess as proc
+import os
 import time
+import random
+import threading
 
-port = 49652
+port = 19603
 
 server = netcom.socket(ipv4, tcp)
 
+zock.init(server)
 ip = input("IP? >>> ")
 server.connect((ip, int(port)))
 
@@ -22,4 +24,3 @@ def client_start():
 
 
 client_start()
-

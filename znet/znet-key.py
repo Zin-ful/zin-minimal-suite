@@ -16,10 +16,8 @@ else:
 
 server = netcom.socket(ipv4, tcp)
 ip = input("IP Addr: ")
-port = input("Port Number: ")
-
-ip = "localhost"
-port = 10592
+if not ip:
+	ip = "localhost"
 
 def main():
 	while True:

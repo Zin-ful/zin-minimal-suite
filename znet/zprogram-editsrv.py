@@ -5,7 +5,13 @@ import threading as task
 import subprocess as proc
 import time
 
-
+port = 49652
+server = netcom.socket(ipv4, tcp)
+print("socket created")
+server.setsockopt(netcom.SOL_SOCKET, netcom.SO_REUSEADDR, 1)
+print("set socket options")
+server.bind(("0.0.0.0", port))
+print(f"bound to {port}")
 
 def init():
     while True:
@@ -19,18 +25,24 @@ def init():
         except Exception as e:
             print(e)
 def client_start(client):
+    ack = client.recv(3).decode("utf-8")
+    print("acked")
+    if ack.strip() != "ack":
+        print("client is out of sync, exiting")
+        return
+    client.send("(Enter path to file)".encode("utf-8"))
     while True:
         try:
-            ack = client.recv(3).decode("utf-8")
-            print("acked")
-            if not ack:
-                continue
             cmd = client.recv(256).decode("utf-8")
             if cmd:
-                response = exec(cmd)
+                response = extract_vars(cmd)
             else:
                 continue
-            client.send(response.encode("utf-8"))
+            if response:
+                response = convert(response)
+                client.send(response.encode("utf-8"))
+            else:
+                client.send("Program not found.".encode("utf-8"))
         except Exception as e:
             print(e)
             client.close()
@@ -47,8 +59,13 @@ def extract_vars(path):
                 if '\t' in line or "    " in line:
                     continue
                 vars.update({i: line.strip()})
-        for val, item in vars.items():
-            print(val, item)
+    return vars
 
-path = input("enter full path for extraction\n>>>> ")
-extract_vars(path)
+def convert(vars):
+    string = ""
+    for val, item in vars.items():
+        string += str(val) + item + "\n"
+    return string
+
+
+init()

@@ -1,6 +1,7 @@
 from socket import AF_INET as ipv4
 from socket import SOCK_STREAM as tcp
 import socket as netcom
+
 server = None
 header_size = 100 #zfill
 ACK = "ack"
@@ -71,3 +72,71 @@ def ack(state):
         ack_acpt = server.recv(3).decode("utf-8")
     else:
         server.send(ACK.encode('utf-8'))
+
+def check_format(info, delim, expected_delim):
+    i = 0
+    for item in info:
+        if item == delim:
+            i += 1
+    if i == expected_delim:
+        return 1
+    else:
+        return 0
+
+
+def remove(name):
+    if user_exists(name):
+        print(f"removing config of {name}")
+        os.remove(user_path+name+".conf")
+    if folder_exists(name):
+        print(f"removing folder of {name}")
+        os.rmdir(storage_path+name)
+    return 1
+    
+def load(data):
+    name, user, passw = data.split(' ')
+    if name+".conf" not in os.listdir((user_path))
+    user_dict = {"name": name, "user": user, "pass": passw}
+    with open(f'{user_path}{name}.conf', "r") as file:
+        data = file.readlines()
+        for item in data:
+            key, val = item.split(":")
+            if user_dict[key] == val.strip('\n'):
+                pass
+            else:
+                return 0
+    return name
+    
+def save(data):
+    name, user, passw = data.split(' ')
+    if user_exists(name):
+        return 0
+    user_dict = {"name": name, "user": user, "pass": passw}
+    with open(f'{user_path}{name}.conf', "w") as file:
+        for key, val in user_dict.items():
+            file.write(f"{key}:{val}\n")
+    return name
+
+
+def create(client, data):
+    print("creating user..")
+    name = save(data)
+    print(f"user is {name}") 
+    if not name:
+        return 0
+    if not create_directory(name):
+        remove(name)
+        return 0
+    clients.update({client: name})
+    print("user created and verified")
+    return 1
+
+def login(client, data):
+    name = load(data)
+    if not name:
+        return 0
+    clients.update({client: name})
+    return 1
+
+def logout():
+    return
