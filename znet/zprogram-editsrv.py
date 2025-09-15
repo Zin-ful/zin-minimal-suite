@@ -39,14 +39,42 @@ def client_start(client):
             else:
                 continue
             if response:
-                response = convert(response)
-                client.send(response.encode("utf-8"))
+                reply = convert(response)
+                client.send(f"{reply}\nWould you like to edit any of these variables?".encode("utf-8"))
+                prompt(client, response)
             else:
                 client.send("Program not found.".encode("utf-8"))
         except Exception as e:
             print(e)
             client.close()
             break
+
+def prompt(client):
+    confirm = client.recv(128).decode("utf-8")
+    if "y" not in confirm.lower():
+        ss(client, "returning to main")
+        return
+
+    ss(client, "Select your line and change its value.")
+    while True:
+        new_val = client.recv(256).decode("utf-8")
+        if " " not in new_val.strip():
+            ss(client, "invalid format, [name or index] [value]")
+        break
+    return extract_val(new_val)    
+
+def write_vars(path, is_int, name, val):
+    return
+
+def extract_val(string):
+    is_int = 1
+    name, value = string.split(" ", 1)
+    try:
+        name = int(name.strip())
+    except:
+        is_int = 0
+        print("not int")
+    return is_int, name, value
 
 def extract_vars(path):
     with open(path, "r") as file:
@@ -67,5 +95,7 @@ def convert(vars):
         string += str(val) + item + "\n"
     return string
 
+def ss(client, string):
+    client.send(string.encode("utf-8"))
 
 init()
