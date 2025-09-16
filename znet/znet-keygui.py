@@ -185,7 +185,7 @@ def download(screens, data):
 	cache, pubkey = pubkey.split("=", 1)
 	with open(path+"private.key", "w") as file:
 		file.write(privkey)
-		print_test(screens, colors, f"file created at: {path}wg0.conf\npubkey created at {path}public.key\nprivkey created at {path}private.key", 0)
+		print_text(screens, colors, f"file created at: {path}wg0.conf\npubkey created at {path}public.key\nprivkey created at {path}private.key", 0)
 
 
 cmd = init()

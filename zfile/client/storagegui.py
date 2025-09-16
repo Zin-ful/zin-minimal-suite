@@ -22,7 +22,7 @@ win = {}
 
 header_size = 100
 IP = 'localhost'
-PORT = 12345
+PORT = 25415
 download_path = os.path.expanduser("~/")
 auto_name = 'none'
 auto_user = 'none'
