@@ -77,7 +77,7 @@ def fix_wg():
 	with open(path+"wg0.conf", "w") as file:
 		port = input("Your router should have a row added in your port map with an IP address and port\nEnter the port now: ")
 		server_ip = input("Now enter the IP Address: ")
-		file.write(f"[Interface]\nAddress = 10.0.0.1/24\nSaveConfig = false\nPreUp = iptables -A Forward -i %i -j ACCEPT\nPostDown = iptables -D FORWARD -i %i -j ACCEPT\nListenPort = {port}\nPrivateKey = {privkey}\n#!!PublicKey = {pubkey}\n#!!ServerIP = {server_ip}\n\n")
+		file.write(f"[Interface]\nAddress = 10.0.0.1/24\nSaveConfig = false\nPreUp = iptables -A FORWARD -i %i -j ACCEPT\nPostDown = iptables -D FORWARD -i %i -j ACCEPT\nListenPort = {port}\nPrivateKey = {privkey}\n#!!PublicKey = {pubkey}\n#!!ServerIP = {server_ip}\n\n")
 	print("file generated.")
 	inp = input("Would you like to generate client key pairs for download?\n>>> ")
 	if "y" not in inp:
@@ -160,7 +160,7 @@ def download(client, name):
 					server_pubkey = item.strip(server_pubkey)
 				if "ListenPort =" in item:
 					server_port = item.strip("ListenPort = ").strip("\n")
-			conf_file = f"#!!Keys={aval_pubkeys[selection]}&{aval_privkeys[selection]}:[Interface]\nPrivateKey = {aval_privkeys[selection]}\nAddress = {aval_ips[selection]}/24\n\n[Peer]\nPublicKey = {server_pubkey}\nAllowedIPs = 10.0.0.0/32\nEndpoint = {server_ip}:{server_port}\nPersistentKeepalive = 25"
+			conf_file = f"#!!Keys={aval_pubkeys[selection]}&{aval_privkeys[selection]}:[Interface]\nPrivateKey = {aval_privkeys[selection]}\nAddress = {aval_ips[selection]}/24\n\n[Peer]\nPublicKey = {server_pubkey}\nAllowedIPs = 10.0.0.0/24\nEndpoint = {server_ip}:{server_port}\nPersistentKeepalive = 25"
 			client.send(f"{flags['-w']+conf_file}".encode("utf-8"))
 			i = 0
 			for item in peers:
