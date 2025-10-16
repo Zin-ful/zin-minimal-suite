@@ -19,7 +19,7 @@ ready = 0
 ipid = "none"
 network = ""
 security = ""
-port = 45454
+port = 34983
 ip = ""
 msg = ''
 y = 0
@@ -34,10 +34,6 @@ if "phonebook" not in os.listdir("/etc"):
 
 def main(stdscr):
     global msg, ERASE, TUT, HIGHLIGHT_1, HIGHLIGHT_2, HIGHLIGHT_3, HIGHLIGHT_4, FROM_SERVER, height, width, network, security, users, message_thread, update_thread
-    server = netcom.socket(ipv4, tcp)
-    server.connect((ip, port))
-    server.sendall(username.encode("utf-8"))
-    network = "connected!    "
     height, width = stdscr.getmaxyx()
     curses.init_pair(1, curses.COLOR_BLUE, curses.COLOR_BLUE)
     HIGHLIGHT = curses.color_pair(1)
@@ -524,7 +520,7 @@ def manual_conf(show_chat, user_input, tbox, state):
             for title, data in attr_dict.items():
                 file.write(f"{title}={data}\n")
     server = netcom.socket(ipv4, tcp)
-    server.connect((ip, port))
+    server.connect((attr_dict["ipaddr"], port))
     server.sendall(attr_dict["name"].encode("utf-8"))
     network = "connected!    "
     msg3 = "Connection accepted! Moving to shell.."
@@ -562,4 +558,5 @@ def autoconnect(show_chat, user_input, tbox):
     time.sleep(1)
     show_chat.clear()
     show_chat.refresh()
+
 wrapper(main)
