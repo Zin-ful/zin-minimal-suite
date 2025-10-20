@@ -12,7 +12,7 @@ calling = 0
 codes = {"call-start": "001",  "call-confirmation": "002", "call-end": "003", "call-timeout": "004", "err": "000"}
 
 host_ip = "0.0.0.0"
-port = 12345
+port = 10874
 
 buffer_size = 2048
 timeout_limit = 15
