@@ -1,0 +1,6 @@
+#!/bin/sh
+
+echo "ZINAPPS: Starting report server" > /dev/kmsg
+
+python3 /usr/local/bin/reports.py
+

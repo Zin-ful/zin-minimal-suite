@@ -1,0 +1,4 @@
+#!/bin/sh
+
+echo "ZINAPPS: Starting messenger" > /dev/kmsg
+python3 /usr/local/bin/msg.py

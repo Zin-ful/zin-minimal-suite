@@ -1,0 +1,5 @@
+#!/bin/sh
+
+echo "ZINAPP: starting wireguard key manager" > /dev/kmsg
+
+python3 /usr/local/bin/wgkey.py
