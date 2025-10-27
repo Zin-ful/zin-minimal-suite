@@ -14,8 +14,8 @@ server.bind(("0.0.0.0", port))
 home = "/opt/zinapp/mailboxes"
 
 if "zinapp" not in os.listdir("/opt"):
-    os.mkdir("zinapp")
-if home not in os.listdir("/opt/zinapp"):
+    os.mkdir("/opt/zinapp")
+if "mailboxes" not in os.listdir("/opt/zinapp"):
     os.mkdir(home)
 
 def init():

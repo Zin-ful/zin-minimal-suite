@@ -214,7 +214,8 @@ def messenger(client_socket, addr):
         #print(f"message recv failed: {e}")
     finally:
         try:
-            user.sendall(f"server.message.from.server.users: -1 !###########\nSYSTEM MESSAGE: user DISconnected: {addr}\n###########".encode("utf-8"))
+            for user in users:
+                user.sendall(f"server.message.from.server.users: -1 !###########\nSYSTEM MESSAGE: user DISconnected: {addr}\n###########".encode("utf-8"))
         except BrokenPipeError:
             pass
         with clients_lock:
