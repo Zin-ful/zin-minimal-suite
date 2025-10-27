@@ -9,9 +9,12 @@ port = 52311
 user = None
 
 server = netcom.socket(ipv4, tcp)
+
 ip = input("IP address? >>> ")
+
 if not ip:
     ip = "localhost"
+
 server.connect((ip, int(port)))
 
 autofill = {"gm": "get mail", "gb": "get box", "m": "mail", "o": "open",

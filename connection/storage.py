@@ -6,6 +6,8 @@ import time
 import base64
 print("REMINDER:\nadd / to the beginning of download path config if not found\n")
 
+curusr = os.path.expanduser("~")
+
 """default vars"""
 #some vars loaded in config
 header_size = 100
@@ -17,9 +19,9 @@ auto_user = 'none'
 auto_pass = 'none'
 auto_enabled = "false"
 firstboot = "true"
-config_dir = '/etc/zfile'
-config_path = '/etc/zfile/config.conf'
-user_config_path = "/etc/zfile/autouser.conf"
+config_dir = curusr+'/.zinapp/zfile'
+config_path = curusr+'/.zinapp/zfile/config.conf'
+user_config_path = curusr+"/.zinapp/zfile/autouser.conf"
 root = os.path.expanduser("~")
 ack = 'ACK'
 parameters = {"download": download_path, "auto": auto_enabled, "aname": auto_name, "auser":auto_user, "apass": auto_pass, "boot": firstboot}
@@ -27,7 +29,9 @@ server_conn = netcom.socket(ipv4, tcp) #creates and defines sock obj
 server_cmd_list = ["config", "help","exit","promote","demote","create","login","logout","games","msg"]
 
 """checking for configuration, mostly for first setup'"""
-if "zfile" not in os.listdir("/etc"):
+if ".zinapp" not in os.listdir(curusr):
+    os.mkdir(curusr+"/.zinapp")
+if "zfile" not in os.listdir(curusr+"/.zinapp"):
     os.makedirs(config_dir, exist_ok=True)
 if "zfile.conf" not in os.listdir(config_dir):
     with open(config_path, "w") as file:
@@ -65,7 +69,7 @@ def cmd():
                 if usr_inp == i:
                     usr_inp += "|"
             data = data_send(usr_inp)
-            if "login|" in usr_inp and parameters["auto" == "true":
+            if "login|" in usr_inp and parameters["auto"] == "true":
                 login()
             elif "!:DATA:!" in data:
                 file_write(data)

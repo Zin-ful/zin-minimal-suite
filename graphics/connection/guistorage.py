@@ -23,16 +23,16 @@ win = {}
 header_size = 100
 IP = 'localhost'
 PORT = 25415
-download_path = os.path.expanduser("~/")
+download_path = os.path.expanduser("~")
 auto_name = 'none'
 auto_user = 'none'
 auto_pass = 'none'
 auto_enabled = "false"
 firstboot = "true"
-config_dir = '/etc/zfile'
-config_path = '/etc/zfile/zfile.conf'
-user_config_path = "/etc/zfile/autouser.conf"
 root = os.path.expanduser("~")
+config_dir = root+'/.zinapp/zfile'
+config_path = root+'/.zinapp/zfile/zfile.conf'
+user_config_path = root+"/.zinapp/zfile/autouser.conf"
 ACK = 'ACK'
 parameters = {"download": download_path}
 server = netcom.socket(ipv4, tcp) #creates and defines sock obj
@@ -42,8 +42,8 @@ cmd_extras = ["browse", "get file list","download file","upload file", "make fol
 cmd_list = ["login", "create", "config", "exit"]
 
 """first start process"""
-if "zfile" not in os.listdir("/etc"):
-    os.makedirs(config_dir, exist_ok=True)
+if "zfile" not in os.listdir(root+"/.zinapp"):
+    os.mkdir(config_dir)
 if "zfile.conf" not in os.listdir(config_dir):
     with open(config_path, "w") as file:
         for name, item in parameters.items():

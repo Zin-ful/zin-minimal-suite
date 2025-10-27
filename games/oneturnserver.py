@@ -7,7 +7,7 @@ import random
 import threading
 import base64
 
-conf_path = "/etc/oneturnserver"
+conf_path = "/opt/zinapp/oneturnserver"
 
 words = ["one","into","a","seat","flip","not","unset","nail","joke","laugh","enjoy","old","eye","file","bring","love","lie","sprawl","shook","rather","involved","time","right","there","left","tell","camera","before","more","over","flee","stand","rush","friend","address","of","emergecy","guy","got","down","couple", "hunt", "run","without","help","trace","old","year","state","car", "hands", "arrived", "anyone", "on", "this", "fall","high","try","burn","toss","lap","cant","did","do","too","to","two","flow","tan","brain","glove","county","had","come","here","room","work"]
 
@@ -46,8 +46,11 @@ server = netcom.socket(ipv4, tcp)
 server.setsockopt(netcom.SOL_SOCKET, netcom.SO_REUSEADDR, 1)
 server.bind(("0.0.0.0", port))
 
-if "oneturnserver" not in os.listdir("/etc"):
-	os.makedirs(conf_path, exist_ok=True)
+if "zinapp" not in os.listdir("/opt"):
+    os.mkdir("/opt/zinapp")
+
+if "oneturnserver" not in os.listdir("/opt/zinapp"):
+	os.mkdir(conf_path)
 
 server.listen(2)
 

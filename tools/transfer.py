@@ -9,6 +9,7 @@ import time
 client_list = []
 
 """default vars"""
+
 srv = 1
 cli = 1
 header_size = 100

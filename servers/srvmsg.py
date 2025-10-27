@@ -4,7 +4,7 @@ import socket as netcom
 import threading as task
 import datetime
 import os
-conf_path = "/etc/ztext_srvr"
+conf_path = "/opt/zinapp/ztext_srvr"
 port = 34983
 ip = "0.0.0.0"
 passwd = "admin"
@@ -12,6 +12,9 @@ linky = "none"
 contact = "none"
 
 attr_dict = {"contact": contact, "link": linky, "passwd": passwd}
+
+if not "zinapp" in os.listdir("/opt"):
+    os.mkdir("/opt/zinapp")
 
 def load():
     try:

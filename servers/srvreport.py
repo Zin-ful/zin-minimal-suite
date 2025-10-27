@@ -6,7 +6,7 @@ from time import sleep
 
 import os
 
-port = 52311
+port = 23621
 server = netcom.socket(ipv4, tcp)
 print("socket created")
 server.setsockopt(netcom.SOL_SOCKET, netcom.SO_REUSEADDR, 1)
@@ -15,11 +15,11 @@ server.bind(("0.0.0.0", port))
 print(f"bound to {port}")
 connections = {}
 
-conf = "/etc/zinapps/report"
-if not "zinapps" in os.listdir("/etc"):
-    os.mkdir("/etc/zinapps")
-if not "report" in os.listdir("/etc/zinapps"):
-    os.mkdir("/etc/zinapps/report")
+conf = "/opt/zinapp/report"
+if not "zinapp" in os.listdir("/opt"):
+    os.mkdir("/opt/zinapp")
+if not "report" in os.listdir("/opt/zinapp"):
+    os.mkdir("/opt/zinapp/report")
 
 def init():
     while True:

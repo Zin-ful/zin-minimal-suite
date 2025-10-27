@@ -10,9 +10,9 @@ import subprocess
 IP = 'localhost'
 PORT = 25415
 header_size = 100 #zfill
-config_path = '/etc/zfile_srvr'
-user_path = '/etc/zfile_srvr/users'
-storage_path = '/etc/zfile_srvr/storage'
+config_path = '/opt/zinapp/zfile_srvr'
+user_path = '/opt/zinapp/zfile_srvr/users'
+storage_path = '/opt/zinapp/zfile_srvr/storage'
 root_usr = ""
 root_psw = ""
 
@@ -33,12 +33,13 @@ client_conn.bind((IP,  PORT)) #temp
 
 """first time server setup"""
 
-if "zfile_srvr" not in os.listdir("/etc"):
-    os.makedirs("/etc/zfile_srvr", exist_ok=True)
-if "users" not in os.listdir("/etc/zfile_srvr"):
-    os.makedirs("/etc/zfile_srvr/users", exist_ok=True)  
-if "storage" not in os.listdir("/etc/zfile_srvr"):
-    os.makedirs("/etc/zfile_srvr/storage", exist_ok=True)
+
+if "zfile_srvr" not in os.listdir("/opt/zinapp"):
+    os.makedirs("/opt/zinapp/zfile_srvr", exist_ok=True)
+if "users" not in os.listdir("/opt/zinapp/zfile_srvr"):
+    os.makedirs("/opt/zinapp/zfile_srvr/users", exist_ok=True)  
+if "storage" not in os.listdir("/opt/zinapp/zfile_srvr"):
+    os.makedirs("/opt/zinapp/zfile_srvr/storage", exist_ok=True)
 if "admin.conf" in os.listdir(user_path):
     print("admin exists")
 else:

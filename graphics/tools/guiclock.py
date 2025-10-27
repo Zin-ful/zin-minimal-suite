@@ -7,7 +7,8 @@ from curses.textpad import Textbox
 import time
 import datetime
 import random
-conf_path = "/etc/ztime"
+curusr = os.path.expanduser("~")
+conf_path = curusr+"/.zinapp/ztime"
 screens = {}
 colors = {}
 offset = 1
@@ -28,8 +29,11 @@ evenings = ["Oh its minecraft time", "TIME FOR THE CRAFT", "Top 3 movies: Iron g
 nights = ["jiiiiiglyy puuuufff jiggillyyyy puffff", "Everyones asleep? Would be a great time to record at full volume", "It would probably be a good time to sleep.", "If your clock isnt accurate these messages might not make sense.", "sleeep sleeeeeeeep SLEEEEEEP FUCK DAMNIT SLEEEP GODD CHRIST", "hey.. THEY HIT THE PENTAGON OH GOD NO NOT THE PENTAGON", "How fucked is your sleep schedule man?", "i bet you forgot something today didnt you"]
 bar = ""
 
-if "ztime" not in os.listdir("/etc"):
-    os.makedirs(conf_path, exist_ok=True)
+if ".zinapp" not in os.listdir(curusr):
+    os.mkdir(curusr+".zinapp")
+
+if "ztime" not in os.listdir(curusr+"/.zinapp"):
+    os.mkdir(conf_path)
 
 if "clock.conf" not in os.listdir(conf_path):
     with open(f"{conf_path}/clock.conf", "w") as file:

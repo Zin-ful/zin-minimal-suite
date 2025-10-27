@@ -5,6 +5,7 @@ import os
 import datetime
 import tarfile
 
+curusr = os.path.expanduser("~")
 
 chnk_sze = 0
 head_sze = 100
@@ -14,10 +15,13 @@ save_recent = "1"
 confirm = "0"
 server_ip = "127.0.0.1"
 server_port = "12400"
-install_path = "/etc/zget"
+install_path = curusr+"/.zinapp/zget"
 global_install_path = "/usr/local/bin"
-config_path = "/etc/zget"
-app_cache = "/etc/zget/cache"
+config_path = curusr+"/.zinapp/zget"
+app_cache = curusr+"/.zinapp/zget/cache"
+
+if ".zinapp" not in os.listdir(curusr):
+    os.mkdir(curusr+".zinapp")
 
 attr_dict = {"verbose": verbose, "logging": logging, "save_recent": save_recent, "confirm": confirm, "server_ip": server_ip, "install_path": install_path, "config_path": config_path, "app_cache": app_cache}
 

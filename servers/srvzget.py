@@ -13,9 +13,13 @@ chnk_sze = 1024
 passwd = "admin"
 verbose = "1"
 logging = "1"
-config_path = "/etc/zapp_srvr"
-app_locations = "/etc/zapp_srvr/programs"
-cache = "/etc/zapp_srvr/cache"
+config_path = "/opt/zinapp/zapp_srvr"
+app_locations = "/opt/zinapp/zapp_srvr/programs"
+cache = "/opt/zinapp/zapp_srvr/cache"
+
+if "zinapp" not in os.listdir("/opt"):
+    os.mkdir("zinapp")
+
 server = netcom.socket(ipv4, tcp)
 server.bind((ip, port))
 

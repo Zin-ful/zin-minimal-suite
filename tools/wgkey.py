@@ -3,10 +3,15 @@ from socket import SOCK_STREAM as tcp
 import socket as netcom
 import os
 
-conf_path = "/etc/keyget"
+curusr = os.path.expanduser("~")
+
+conf_path = curusr+"/.zinapp/keyget"
 flags = {"-w": "*%_@"}
-if "keyget" not in os.listdir("/etc"):
-	os.makedirs(conf_path, exist_ok=True)
+
+if ".zinapp" not in os.listdir(curusr):
+    os.mkdir(curusr+"/.zinapp")
+if "keyget" not in os.listdir(curusr+"/.zinapp"):
+	os.mkdir(conf_path)
 
 if "wireguard" not in os.listdir("/etc"):
 	print("wireguard is not installed.")
@@ -62,8 +67,10 @@ def download(data):
 		file.write(privkey)
 		print(f"file created at: {path}wg0.conf\npubkey created at {path}public.key\nprivkey created at {path}private.key")
 
+def search():
+    return
 
-cmd = {"-w": download}
+cmd = {"-w": download, "-s": search}
 server.connect((ip, int(port)))
 ack = server.recv(3).decode("utf-8")
 if ack == "ack":

@@ -9,8 +9,10 @@ from curses import wrapper
 from curses.textpad import Textbox
 import sys
 
+curusr = os.path.expanduser("~")
+
 session_usr = []
-conf_path = "/etc/ztext"
+conf_path = curusr+ "/.zinapp/ztext"
 username = "none"
 alias = "none"
 autoconn = "false"
@@ -29,8 +31,13 @@ pause = 0
 
 attr_dict = {"ipaddr": ip, "name": username, "autoconnect": autoconn, "idaddr": ipid, "alias":alias}
 
-if "phonebook" not in os.listdir("/etc"):
-    os.makedirs("/etc/phonebook", exist_ok=True)
+if ".zinapp" not in os.listdir(curusr):
+    os.mkdir(curusr+"/.zinapp")
+if "ztext" not in os.listdir(curusr+"/.zinapp"):
+    os.mkdir(curusr+"/.zinapp/ztext")
+if "phonebook" not in os.listdir(curusr+"/.zinapp"):
+    os.mkdir(curusr+"/.zinapp/phonebook")
+
 
 def main(stdscr):
     global msg, ERASE, TUT, HIGHLIGHT_1, HIGHLIGHT_2, HIGHLIGHT_3, HIGHLIGHT_4, FROM_SERVER, height, width, network, security, users, message_thread, update_thread
@@ -129,9 +136,9 @@ def message_recv(show_chat):
 def getnick(name):
     if "@" in name:
         name = name.strip("@")
-    if f"{name}.txt" not in os.listdir("/etc/phonebook"):
+    if f"{name}.txt" not in os.listdir(curusr+"/.zinapp/phonebook"):
         return f"@{name}:"
-    with open(f"/etc/phonebook/{name}.txt", "r") as file:
+    with open(curusr+f"/.zinapp/phonebook/{name}.txt", "r") as file:
         data = file.readlines()
         for item in data:
             if "nickname:" in item:
@@ -147,7 +154,7 @@ def query(stdscr, show_chat, tbox, user_input):
     clr(None, show_chat, None, None)
     show_chat.addstr(y, 0, "Users:", HIGHLIGHT_1)
     y += 1
-    names = os.listdir("/etc/phonebook")
+    names = os.listdir(curusr+"/.zinapp/phonebook")
     for name in names:
         show_chat.addstr(y, 0, name.strip(".txt"), HIGHLIGHT_1)
         y += 1

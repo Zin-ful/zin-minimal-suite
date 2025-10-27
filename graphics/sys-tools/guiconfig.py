@@ -42,15 +42,19 @@ def main(stdscr):
 
 def lookforapps():
     global apps_found
-    for item in os.listdir("/etc"):
+    for item in os.listdir("/opt/zinapp"):
+        if item in apps:
+            apps_found.append(item)
+    for item in os.listdir(curusr+".zinapp"):
         if item in apps:
             apps_found.append(item)
 def lookforconfs():
     global apps_confs, local_path
-    for item in os.listdir(f"/etc/{apps_found[pos]}"):
+    for item in os.listdir(f"/opt/zinapp/{apps_found[pos]}"):
         if ".conf" in item:
             apps_confs.append(item)
-    local_path = f"/etc/{apps_found[pos]}"
+    for item in os.listdir(f"{curusr}/.zinapp/{apps_found[pos]}")
+    local_path = f"/opt/zinapp/{apps_found[pos]}"
 
 def print_list(screens, colors, listy):
     y = offset

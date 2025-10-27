@@ -6,7 +6,10 @@ import time
 import random
 import threading
 import base64
-conf_path = "/etc/oneturnfight"
+
+curusr = os.path.expanduser("~")
+
+conf_path = curusr+"/.zinapp/oneturnfight"
 
 username = ""
 password = ""
@@ -46,7 +49,9 @@ words = ["one","into","a","seat","flip","not","unset","nail","joke","laugh","enj
 
 
 
-if "oneturnfight" not in os.listdir("/etc"):
+if ".zinapp" not in os.listdir(curusr):
+    os.mkdir(curusr+"/.zinapp")
+if "oneturnfight" not in os.listdir(curusr+"/.zinapp"):
 	os.makedirs(conf_path, exist_ok=True)
 if "local_scores.conf" not in os.listdir(conf_path):
 	with open(f"{conf_path}/local_scores.conf", "w") as file:
@@ -75,7 +80,7 @@ else:
 			name, val = item.split("=")
 			auth[name] = val	
 
-if "otfwords.txt" in os.listdir() :
+if "otfwords.txt" in os.listdir():
 	with open(f"otfwords.txt","r") as file:
 		addwords = file.readlines()
 		print(f"wordlist found: {len(addwords)}")
