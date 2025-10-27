@@ -299,10 +299,10 @@ def shutoff(stdscr, arg1, arg2, arg3):
     sys.exit()
 
 def listcmd(stdscr, arg1, arg2, arg3):
-    res = []
-    for i in commands:
-        res += i
-    return str(res).strip("'").strip("[").strip("]")
+    result = ""
+    for item in commands:
+        result += item + "\n"
+    return result
 
 def auto_conf(stdscr, arg1, arg2, arg3):
     global autoconn
