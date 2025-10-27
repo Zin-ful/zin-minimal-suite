@@ -11,9 +11,9 @@ server.setsockopt(netcom.SOL_SOCKET, netcom.SO_REUSEADDR, 1)
 
 server.bind(("0.0.0.0", port))
 
-home = "mailboxes"
+home = "/opt/mailboxes"
 
-if home not in os.listdir():
+if home not in os.listdir("/opt"):
     os.mkdir(home)
 
 def init():
