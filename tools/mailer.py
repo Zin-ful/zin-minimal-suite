@@ -19,7 +19,7 @@ server.connect((ip, int(port)))
 
 autofill = {"gm": "get mail", "gb": "get box", "m": "mail", "o": "open",
  "s": "select", "c": "create", "sel": "select", "ma": "mail", "op": "open",
- "cr": "create"}
+ "cr": "create", "r": "remove", "rm": "remove", "rem": "remove"}
 
 def client_start():
     global user
@@ -70,6 +70,7 @@ def mail():
         title = "No Title"
     elif title == "/q/":
         return 0
+    title = f"from {user}: {title}"
     subject = input("(/q/ to exit) Subject: ")
     if not subject:
         subject = "No Subject"
@@ -91,6 +92,6 @@ def mail():
 
 cmds = {"create (box name)": "creates a mailbox", "get box": "displays all mailboxes", 
 "select (box name)": "selects the mailbox you want to use", "get mail": "displays the mail from your choosen mailbox", 
-"open (file name)": "reads a specific email", "mail": "opens the mail UI"}
+"open (mail name)": "reads a specific email", "mail": "opens the mail UI", "remove (mail name)": "removes a mail by name or index"}
 
 client_start()

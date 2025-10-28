@@ -12,6 +12,7 @@ server.connect((ip, int(port)))
 
 def client_start():
     server.send("ack".encode("utf-8"))
+    interval = int(server.recv(4).decode("utf-8"))
     while True:
         server.recv(3)
         sleep(10)
