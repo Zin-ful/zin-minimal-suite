@@ -32,12 +32,11 @@ server.setsockopt(netcom.SOL_SOCKET, netcom.SO_REUSEADDR, 1)
 print("set socket options")
 server.bind(("0.0.0.0", port))
 print(f"bound to {port}")
-
+print("listening...")
+server.listen(20)
 def init():
     while True:
         try:
-            print("listening...")
-            server.listen(20)
             client, client_ip = server.accept()
             print(f"client accepted: {client_ip}")
             thread_client = task.Thread(target=client_start, args=[client])
@@ -55,7 +54,6 @@ def status_check(port):
 
 def client_start(client):
     while True:
-        try:
             ack = client.recv(3).decode("utf-8")
             if not ack:
                 continue
@@ -63,18 +61,20 @@ def client_start(client):
             for key, val in status.items():
                 status[key] = status_check(app_ports[key])
                 if status[key]:
-                    all_status += f"{key} = {status[key]}\n"
+                    all_status += f"{key} = Online\n"
                 else:
                     print(f"{key} not found at {val}")
-            if all_status:
-                print("sending status")
-                client.send(all_status.encode("utf-8"))
-            else:
-                client.send("\nno servers active\n".encode("utf-8"))
+            try:
+                if all_status:
+                    print("sending status")
+                    client.send(all_status.encode("utf-8"))
+                else:
+                    client.send("\nno servers active\n".encode("utf-8"))
+            except (BrokenPipeError, ConnectionResetError):
+                client_end(client)
 
-        except Exception as e:
-            print(e)
-            client.close()
-            break
+def client_end(client):
+    print("closing client")
+    client.close()
 
 init()

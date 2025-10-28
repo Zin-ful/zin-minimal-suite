@@ -18,11 +18,13 @@ if "zinapp" not in os.listdir("/opt"):
 if "mailboxes" not in os.listdir("/opt/zinapp"):
     os.mkdir(home)
 
+server.listen(1)
+print(f"listening on port {port}")
+   
+
 def init():
     while True:
         try:
-            print(f"listening on {port}")
-            server.listen(20)
             client, client_ip = server.accept()
             print(f"client accepted: {client_ip}")
             thread_client = task.Thread(target=client_start, args=[client, client_ip])
@@ -37,10 +39,19 @@ def client_start(client, client_ip):
         print("acked")
     while True:
         response = None
-        exec = client.recv(10024).decode("utf-8")
+        try:
+            exec = client.recv(10024).decode("utf-8")
+            if not exec:
+                client_end(client, client_ip)
+                break
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            client_end(client, client_ip)
+            break
         if exec:
+            if " " not in exec:
+                client.send("sorry, that isnt a command".encode("utf-8"))
+                continue
             print(f"msg from {client_ip}")
-            print(exec)
             if "(!USER)" in exec:
                 current_mailbox, exec = exec.split(" ", 1)
                 current_mailbox = current_mailbox.strip("(!USER)")
@@ -64,6 +75,39 @@ def client_start(client, client_ip):
             if not response:
                 response = "Command not found."
             client.send(response.encode("utf-8"))
+
+def client_end(client, client_ip):
+    print(f"{client_ip} disconnected")
+    client.close()
+    print("client closed")
+
+def remove_mail(box, name):
+    if not box:
+        client.send("you have to select a mailbox first".encode("utf-8"))
+        return
+    access_index = 0
+    inbox = os.listdir(home+"/"+box)
+    name = name+".txt"
+    for item in os.listdir(home+"/"+box):
+        if name in item:
+            name = item
+    if name not in inbox:
+        try:
+            name = int(name.strip(".txt"))
+            access_index = 1
+        except Exception as e:
+            print(e)
+            return "Mail with that name doesnt exist"
+        if name > len(inbox) - 1 or name < 0:
+            return "Mail with that index doesnt exist"
+        else:
+            name = inbox[name]            
+    try:
+        os.remove(home+"/"+box+"/"+name)
+    except Exception as e:
+        print(e)
+        return "Error occured"
+    return "file removed. no trash bin exists so...."
 
 def send_mail(client, box):
     reply = ''
@@ -102,12 +146,10 @@ def select_box(box, name):
 
 def mail(box, name):
     name, title = name.split("/t/", 1)
-    print(title)
     if name not in os.listdir(home):
         return f"Mailbox {name} does not exist."
     title, header = title.split("/h/", 1)
     header, body = header.split("/b/", 1)
-    print(title, header, body)
     i = 0
     while header in os.listdir(home+"/"+name):
         if i > 1:
@@ -123,6 +165,9 @@ def view_mail(box, name):
     access_index = 0
     inbox = os.listdir(home+"/"+box)
     name = name+".txt"
+    for item in os.listdir(home+"/"+box):
+        if name in item:
+            name = item
     if name not in inbox:
         try:
             name = int(name.strip(".txt"))
@@ -133,8 +178,7 @@ def view_mail(box, name):
         if name > len(inbox) - 1 or name < 0:
             return "Mail with that index doesnt exist"
         else:
-            name = inbox[name]            
-        
+            name = inbox[name]
     try:
         with open(home+"/"+box+"/"+name, "r") as file:
             data = file.read()
@@ -144,6 +188,6 @@ def view_mail(box, name):
     except Exception as e:
         print(e)
         return "Error occured"
-cmd = {"open": view_mail, "select": select_box, "mail": mail, "create": create}
+cmd = {"remove": remove_mail, "open": view_mail, "select": select_box, "mail": mail, "create": create}
 
 init()

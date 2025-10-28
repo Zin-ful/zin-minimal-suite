@@ -243,8 +243,6 @@ def client_start(client):
 def server_init():
 	while True:
 		try:
-			print("listening...")
-			server.listen(20)
 			client, client_ip = server.accept()
 			print("client accepted, acking")
 			client.send("ack".encode("utf-8"))
@@ -258,5 +256,9 @@ def server_init():
 cmd_dict = {"help": helpy, "get": download, "mkconf": make_config, "check": verify, "list": view}
 
 wg_title, wg_number = init()
+
+print("listening...")
+server.listen(20)
+			
 
 server_init()

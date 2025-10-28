@@ -157,6 +157,25 @@ def log(client_socket, msg):
         with open(f"{conf_path}/log.txt", "a") as file:
             file.write(f"from {client_socket}: {msg}\n")
 
+def send_message(client, msg):
+    try:
+        client.sendall(msg.encode("utf-8"))
+        return 1
+    except (BrokenPipeError, ConnectionResetError):
+        client_end(client)
+        return 0
+
+def receive_message(client):
+    try:
+        msg = client.recv(2048)
+        if msg:
+            return msg
+        else:
+            client_end(client)
+            return 0
+    except (BrokenPipeError, ConnectionResetError):
+        client_end(client)
+        return 0
 def messenger(client_socket, addr):
     addr_id = str(addr)
     user_id, user_ip = addr_id.split(",")
@@ -166,71 +185,64 @@ def messenger(client_socket, addr):
     username = client_socket.recv(128)
     if username:
         users_name.update({str(user_id): username.decode("utf-8")})
-        #print("user sent")
 
-    #print(f"user connected: {addr}")
+    print(f"user connected: {addr}")
     with clients_lock:
         users.append(client_socket)
     startmsg = f"server.message.from.server.users: {len(users)} !###########\nSYSTEM MESSAGE: user connected: {addr}\n###########"
     for other_client in users:
         if other_client != client_socket:
-            try:
-                other_client.sendall(startmsg.encode("utf-8"))
-            except Exception as e:
-                pass
-    try:
-        while True:
-            msg = client_socket.recv(2048)
-            if not msg:
+            if not send_message(other_client, startmsg):
                 break
-            message = f"{msg.decode('utf-8')}\n"
-            if "server.main." in message and '"' not in message:
-                cmd = message.replace("server.main.", "")
-                log(client_socket, cmd)
-                xcute = commands.get(cmd.strip())
-                if xcute:
-                     message = xcute(client_socket, message)
-                else:
-                    message = "server.message.from.server.invalid"
-                log(client_socket, message)
-                client_socket.sendall(message.encode("utf-8"))
-                continue
+    while True:
+        msg = receive_message(client_socket)
+        if not msg:
+            break
+        message = f"{msg.decode('utf-8')}\n"
+        if "server.main." in message and '"' not in message:
+            cmd = message.replace("server.main.", "")
+            log(client_socket, cmd)
+            xcute = commands.get(cmd.strip())
+            if xcute:
+                message = xcute(client_socket, message)
             else:
-                message = f"\n@{users_name.get(user_id)}: {msg.decode('utf-8')}\n"
-            if len(users) <= 1:
-                with open(f"{conf_path}/missed.txt", "a") as file:
-                    file.write(f"{message}\n")
-            #print(message)        
-            with clients_lock:
-                for other_client in users:
-                    if other_client != client_socket:
-                        try:
-                            other_client.sendall(message.encode("utf-8"))
-                        except Exception as e:
-                            pass
-                            #print(f"message send failed: {e}")
-    except Exception as e:
-        pass
-        #print(f"message recv failed: {e}")
-    finally:
-        try:
-            for user in users:
-                user.sendall(f"server.message.from.server.users: -1 !###########\nSYSTEM MESSAGE: user DISconnected: {addr}\n###########".encode("utf-8"))
-        except BrokenPipeError:
-            pass
+                message = "server.message.from.server.invalid"
+            log(client_socket, message)
+            if not send_message(client_socket, message):
+                break
+            continue
+        else:
+            message = f"\n@{users_name.get(user_id)}: {msg.decode('utf-8')}\n"
+        if len(users) <= 1:
+            with open(f"{conf_path}/missed.txt", "a") as file:
+                file.write(f"{message}\n")
         with clients_lock:
-            users.remove(client_socket)
-        client_socket.close()
+            for other_client in users:
+                if other_client != client_socket:
+                    if not send_message(other_client, message):
+                        break
+        
+def client_end(client):
+    print("ending client")
+    try:
+        for user in users:
+            user.sendall(f"server.message.from.server.users: -1 !###########\nSYSTEM MESSAGE: user DISconnected: {addr}\n###########".encode("utf-8"))
+    except BrokenPipeError:
+        pass
+    with clients_lock:
+        users.remove(client)
+    client.close()
+    print("client disconnected")
 
 
 load()
+server.listen(10)
+print(f"server listening on ip: {ip} and port {port}")
+        
 while True:
     try:
-        server.listen(10)
-        #print(f"server listening on ip: {ip} and port {port}")
         client_socket, addr = server.accept()
         client_thread = task.Thread(target=messenger, args=(client_socket, addr))
         client_thread.start()
     except Exception as e:
         pass
-        #print(f"threading failed: {e}")
