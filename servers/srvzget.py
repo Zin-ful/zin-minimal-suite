@@ -21,6 +21,7 @@ if "zinapp" not in os.listdir("/opt"):
     os.mkdir("zinapp")
 
 server = netcom.socket(ipv4, tcp)
+server.setsockopt(netcom.SOL_SOCKET, netcom.SO_REUSEADDR, 1)
 server.bind((ip, port))
 
 attr_dict = {"verbose": verbose, "logging": logging}

@@ -13,15 +13,17 @@ verbose = "1"
 logging = "1"
 save_recent = "1"
 confirm = "0"
-server_ip = "127.0.0.1"
-server_port = "12400"
-install_path = curusr+"/.zinapp/zget"
-global_install_path = "/usr/local/bin"
+server_ip = input("IP Address? >>> ")
+if not server_ip:
+    server_ip = "localhost"
+server_port = "41742"
+install_path = "/usr/local/bin"
+global_install_path = "/usr/bin"
 config_path = curusr+"/.zinapp/zget"
 app_cache = curusr+"/.zinapp/zget/cache"
 
 if ".zinapp" not in os.listdir(curusr):
-    os.mkdir(curusr+".zinapp")
+    os.mkdir(curusr+"/.zinapp")
 
 attr_dict = {"verbose": verbose, "logging": logging, "save_recent": save_recent, "confirm": confirm, "server_ip": server_ip, "install_path": install_path, "config_path": config_path, "app_cache": app_cache}
 
@@ -62,9 +64,9 @@ def cleanup(name):
 
 def uncompress(name, glb_inst):
     with tarfile.open(f"{app_cache}/{name}", 'r:gz') as tar:
-        tar.extractall(path=f"{install_path}/apps")
+        tar.extractall(path=f"{install_path}")
     if glb_inst:
-        for item in os.listdir(f"{install_path}/apps/{name}"):
+        for item in os.listdir(install_path):
             for curr_app in os.listdir(global_install_path):
                 if name == curr_app:
                     return print("This app has been installed locally but is not callable from the commandline.\nWhen looking in the system-wide applications folder there was a duplicate application. Since this could be a critical file I will not overwrite it.\nThe only solution to this, is to ask the owner of the server your retriving from to change the name of the root folder of the application.")
@@ -189,7 +191,7 @@ def config(*cmd):
         print("Write succesful")
     
 def list_local(*cmd): #lists installed apps
-    apps = os.listdir(f"{install_path}/apps")
+    apps = os.listdir(f"{install_path}")
     if not apps:
         print("You have no apps installed")
     else:
@@ -242,14 +244,16 @@ try:
 except Exception as e:
     #print(e)
     print("Looks like this is your first time running zget. I will create the directories and config files.")   
-    print(f"Generating the install directory in {install_path}")
-    os.makedirs(install_path, exist_ok=True)
-    print(f"Generating the application directory in {install_path}/apps")
-    os.makedirs(f"{install_path}/apps", exist_ok=True)
+    #print(f"Generating the install directory in {install_path}")
+    #os.mkdir(install_path)
+    #print(f"Generating the application directory in {install_path}/apps")
+    #os.mkdir(f"{install_path}/apps")
     print(f"Generating the configuration directory in {config_path}")
-    os.makedirs(config_path, exist_ok=True)
+    os.mkdir(config_path)
     print(f"Generating the cache directory in {app_cache}")
-    os.makedirs(app_cache, exist_ok=True)
+    os.mkdir(app_cache)
+    #print("Generating apps folder")
+    #os.mkdir(install_path+"/apps")
     print("Generating config..")
     with open(f"{config_path}/zget.conf", "a") as file:
         print("Writing attribute: verbose")
