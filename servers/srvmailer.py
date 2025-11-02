@@ -83,8 +83,7 @@ def client_end(client, client_ip):
 
 def remove_mail(box, name):
     if not box:
-        client.send("you have to select a mailbox first".encode("utf-8"))
-        return
+        return "you have to select a mailbox first"
     access_index = 0
     inbox = os.listdir(home+"/"+box)
     name = name+".txt"
