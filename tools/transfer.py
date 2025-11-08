@@ -68,21 +68,36 @@ def client_start(client):
     while True:
         path = client.recv(1024).decode("utf-8")
         if path:
-            print(path)
-            try:
-                send_file(client, path)
-            except Exception as e:
-                print(f"error sending file to requestor: {e}")
-            time.sleep(0.5)
+            if "#list" in path:
+                if " " in path:
+                    temp, path = path.split(" ")
+                    if path[len(path) - 1] != "/":
+                        path += "/"
+                else:
+                    path = ""
+                try:
+                    reply = "!"
+                    for item in os.listdir(home+path):
+                        reply += item+"\n"
+                    client.send(reply.encode("utf-8"))
+                except:
+                    client.send("!Directory does not exist".encode("utf-8"))
+                continue
+            else:
+                try:
+                    send_file(client, path)
+                except Exception as e:
+                    print(f"error sending file to requestor: {e}")
+                    client.send("!File not found".encode("utf-8"))
+                time.sleep(0.5)
 
 def client_shell(client):
     while True:
         print("input the path of a file to download it")
-        print("The path starts from '/home'\n\n")
-        inp = input(">>> ")
-        path = input("file name? >>> ")
+        print("The path starts from '/home/'\n\n")
+        inp = input("(#list to check directories) >>> ")        
         client.send(inp.encode("utf-8"))
-        receive_file(client, path)
+        receive_file(client, None)
 
 def init_client():
     global client
@@ -115,15 +130,25 @@ def init_client():
 def receive_file(client, path):
     data_received = 0
     part_size = 4096
-    packet_size = client.recv(header_size).decode("utf-8")
+    check = client.recv(1).decode("utf-8")
+    if check == "!":
+        data = client.recv(part_size).decode("utf-8")
+        print(data)
+        return
+    else:
+        packet_size = check
+    packet_size += client.recv(header_size).decode("utf-8")
     packet_size = int(packet_size)
     ack(client, 1)
+    if not path:
+        path = input("file name? >>> ")
     with open(download+path, "wb") as file:
         print(f"opening file at {download}{path}")
         while data_received < packet_size:
-            data_received = packet_size - data_received
+            remaining_data = packet_size - data_received
             print(f"starting download. chunk size: {part_size}")
-            part = client.recv(min(part_size, data_received))
+            remaining_data = min(part_size, remaining_data)
+            part = client.recv(remaining_data)
             print(f"receiving {len(part)} bytes")
             if not part:
                 break
