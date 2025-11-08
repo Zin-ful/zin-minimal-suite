@@ -6,6 +6,7 @@ import curses
 import time
 from curses import wrapper
 from curses.textpad import Textbox
+import random
 
 curusr = os.path.expanduser("~")
 
@@ -26,8 +27,6 @@ port = 10592
 online = 1
 #game
 card_space = {}
-full_deck = {}
-player_deck = {}
 player_data = {}
 
 #utils
@@ -59,10 +58,12 @@ def main(stdscr):
     yellow_1 = curses.color_pair(9)
     curses.init_pair(10, curses.COLOR_BLACK, curses.COLOR_YELLOW)
     yellow_2 = curses.color_pair(10)
-    
+    curses.init_pair(11, curses.COLOR_BLACK, curses.COLOR_BLACK)
+    clear_color = curses.color_pair(11)
     #general
     top_window = curses.newwin(0, width, 0, 0)
-    bottom_window = None
+    middle_window = curses.newwin(1, width, height // 3, 0)
+    bottom_window = curses.newwin(1, width, (height - (height // 10) - 2), 0)
     main_window = curses.newwin(height - 5, width, 2, 0)
     input_window = curses.newwin(1, width - 1, height - 1, 1)
 
@@ -73,8 +74,11 @@ def main(stdscr):
     card_one = curses.newwin(height // 4, width // 8, height // 2 + 5, (width // 5))
     card_two = curses.newwin(height // 4, width // 8, height // 2 + 5, (width - (width // 2)) - 10)
     card_three = curses.newwin(height // 4, width // 8, height // 2 + 5, (width - (width // 4)) - 13)
-    deck_window = None
-    pause_window = None
+
+    hand_one = curses.newwin(height // 10, width // 6, height - (height // 10), width // 3)
+    hand_two = curses.newwin(height // 10, width // 6, height - (height // 10), (width // 3) + width // 6)
+    hand_three = curses.newwin(height // 10, width // 6, height - (height // 10), (width // 3) + width // 3)
+    pause_window = None 
     user_input = Textbox(input_window)
 
     #player field
@@ -88,26 +92,35 @@ def main(stdscr):
     screens.update({"player": player_field})
     screens.update({"card detail": card_window})
     screens.update({"pause": pause_window})
+    
+    screens.update({"hand one": hand_one})
+    screens.update({"hand two": hand_two})
+    screens.update({"hand three": hand_three})
+    screens.update({"middle bar": middle_window})
     screens.update({"bottom bar": bottom_window})
     screens.update({"card one": card_one})
     screens.update({"card two": card_two})
     screens.update({"card three": card_three})
 
     #screen dimensions
-    
+    dims.update({"middle bar": middle_window.getmaxyx()})
     dims.update({"top bar": top_window.getmaxyx()})
     dims.update({"main": main_window.getmaxyx()})
     dims.update({"input window": input_window.getmaxyx()})
     dims.update({"source": stdscr.getmaxyx()})
-
+    dims.update({"bottom bar": bottom_window.getmaxyx()})
+    
     dims.update({"non-player": opposition_field.getmaxyx()})
     dims.update({"player": player_field.getmaxyx()})
     dims.update({"card detail": card_window.getmaxyx()})
     dims.update({"card one": card_one.getmaxyx()})
     dims.update({"card two": card_two.getmaxyx()})
     dims.update({"card three": card_three.getmaxyx()})
+
     #dims.update({"pause": pause_window.getmaxyx()})
-    #dims.update({"bottom bar": bottom_window.getmaxyx()})
+    dims.update({"hand one": hand_one.getmaxyx()})
+    dims.update({"hand two": hand_two.getmaxyx()})
+    dims.update({"hand three": hand_three.getmaxyx()})
 
 
     #colors
@@ -121,36 +134,35 @@ def main(stdscr):
     colors.update({"white": white_1})
     colors.update({"yellow 1": yellow_1})
     colors.update({"yellow 2": yellow_2})
+    colors.update({"clear": clear_color})
     
     #process
-    render_card(all_cards["Knight"], 2, 1)
-    render_card(all_cards["Mage"], 2, 2)
-    render_card(all_cards["Familiar"], 2, 3)
-    
-    #test(stdscr, card_one, blue_2)
-    #test(stdscr, card_two, blue_2)
-    #test(stdscr, card_three, blue_2)
-    #init()
-    #stdscr.clear()
-    #stdscr.refresh()
+    #test(hand_one)
+    #test(hand_two)
+    #test(hand_three)
+    test(bottom_window)
+    init()
+    stdscr.clear()
+    stdscr.refresh()
+    game_menu()
     #inps(menu_list, menu_dict)
 
 def draw(screen, color, y, x):
     screen.addstr(y, x, " ", color)
 
-def test(screen, screen_2, pair):
-    screen.clear()
-    screen.refresh()
+def test(screen):
+    screens["source"].clear()
+    screens["source"].refresh()
     j = 1
     while j < height - 1:
         i = 1
         while i < width - 1:
             i += 1
-            draw(screen, pair, j, i)
+            draw(screens["source"], colors["blue 2"], j, i)
         j += 1
+    screens["source"].refresh()
+    screen.clear()
     screen.refresh()
-    screen_2.clear()
-    screen_2.refresh()
     time.sleep(1)
 
 
@@ -163,6 +175,17 @@ def local_inps(menu):
         if key == ord("e"):
             return menu[pos]
 
+
+def empty_inps():
+    key = screens["main"].getch()
+    if key == ord("a"):
+        return -1
+    elif key == ord("d"):
+        return 1
+    elif key == ord(" "):
+        return " "
+    else:
+        return 0
     
 def inps(menu, dict):
     global pos
@@ -178,6 +201,7 @@ def inps(menu, dict):
                 screens["main"].clear()
                 print_list(menu, 0, globalpos)
                 pos = 0
+
 def select(key, menu):
     global pos, globalpos
     if key == ord("s"):
@@ -235,15 +259,116 @@ def print_list(text_list, y, offset):
         y += 1
     screens["main"].refresh()
 
-def userwait(screens):
+def userwait():
     key = screens["main"].getch()
     if key:
         return key
 
+def log(data):
+    with open("log.txt", "w") as file:
+        file.write(str(data))
+def ref(screen):
+    screens[screen].clear()
+    screens[screen].refresh()
+
 """Actual program functions"""
 
 def game_menu():
-    return
+    draw_amount = 5
+    height, width = dims["player"]
+    screens["main"].clear()
+    screens["main"].refresh()
+    hand = []
+    deck = gen_deck(50)
+    for i in range(draw_amount):
+        name = draw_card(deck, i)
+        deck.remove(name)
+        hand.append(name)
+        
+    clr(5, width // 2)
+    
+    ref("card detail")
+    render_deck(len(deck), height - 1, 0)
+    render_hand(hand, 0, None)
+    val = 1
+    while True: 
+        inp = empty_inps()
+        if inp:
+            if inp == " ":
+                play_turn()
+                continue
+            val += inp
+            if val < 1:
+                val = 1
+            if val > 3:
+                val = 3
+            render_hand(hand, val, "bottom bar")
+        else:
+            if len(card_space) == 3:
+                continue
+            if len(hand) == 1:
+                for i in range(draw_amount - len(hand)):
+                    name = draw_card(deck, i)
+                    deck.remove(name)
+                    hand.append(name)
+                render_deck(len(deck), height - 1, 0)
+                ref("card detail")
+                screens["player"].refresh()
+                render_hand(hand, 0, None)
+                if card_space:
+                    for name, val in card_space.items():
+                        deck.remove(name)
+                        render_card(all_cards[name], 2, val)
+                #screens["hand one"].refresh()
+                #screens["hand two"].refresh()
+                #screens["hand three"].refresh()
+                continue
+            table_pos = 1
+            while True:
+                inp = empty_inps()
+                if inp:
+                    table_pos += inp
+                    if table_pos < 1:
+                        table_pos = 1
+                    if table_pos > 3:
+                        table_pos = 3
+                    render_hand(hand, table_pos, "middle bar")
+                else:
+                    ref("middle bar")
+                    hand.remove(hand[val - 2])
+                    render_hand(hand, 0, None)
+                    render_card(all_cards[hand[val - 2]], 2, table_pos)
+                    card_space.update({hand[val - 2]:table_pos})
+                    log(all_cards[hand[val - 2]])
+                    break
+
+def play_turn(enemy):
+    if not len(card_space):
+        return
+    for name, val in card_space.items()
+        attack = all_cards[name]["Attack"]
+        enemy["Health"] -= attack
+        
+
+def clr(y, x):
+    screens["main"].addstr(y,x, " ", colors["clear"])
+    screens["main"].refresh()
+
+def draw_card(deck, number):
+    choice = random.randint(0, len(deck) - 1)
+    render_card(all_cards[deck[choice]], 1, 0)
+    screens["main"].addstr(5, width // 2, str(number + 1), colors["red 1"])
+    screens["main"].refresh()
+    userwait()
+    return deck[choice]
+
+def gen_deck(num):
+    deck = []
+    for _ in range(num):
+        randnum = random.randint(0, len(player_data["Cards"]) - 1)
+        deck.append(player_data["Cards"][randnum])
+    return deck
+    
 
 def shop_menu():
     return
@@ -259,7 +384,20 @@ def start_online():
     return
 
 def view_cards():
-    return
+    #screens["main"].clear()
+    cards = player_data["Cards"]
+    i = 0
+    while True:
+        render_card(all_cards[cards[i]], 1, 0)
+        value = empty_inps()
+        if value == 0:
+            break
+        else:
+            i += value
+        if i < 0:
+            i = 0
+        elif i > len(cards) - 1:
+            i = len(cards) - 1
 
 def settings():
     return 
@@ -285,6 +423,29 @@ def fill_screen(screen, color, offset):
 def intro(screens, colors):
     return
 
+def render_deck(number, y, x):
+    if number < 2:
+        color = colors["red 2"]
+    else:
+        color = colors["white"]
+    screens["player"].addstr(y - 1, x + 5, str(number), color)
+
+    draw(screens["player"], colors["white"], y - 1, x)
+    draw(screens["player"], colors["white"], y - 1, x + 1)
+    draw(screens["player"], colors["white"], y - 1, x + 2)
+    draw(screens["player"], colors["white"], y - 1, x + 3)
+
+    draw(screens["player"], colors["white"], y - 2, x)
+    draw(screens["player"], colors["white"], y - 2, x + 1)
+    draw(screens["player"], colors["white"], y - 2, x + 2)
+    draw(screens["player"], colors["white"], y - 2, x + 3)
+
+    draw(screens["player"], colors["white"], y - 3, x)
+    draw(screens["player"], colors["white"], y - 3, x + 1)
+    draw(screens["player"], colors["white"], y - 3, x + 2)
+    draw(screens["player"], colors["white"], y - 3, x + 3)
+ 
+    screens["player"].refresh()
 
 def render_card(card, size, number): #size 1-3 
     detail = card["design"]
@@ -322,15 +483,53 @@ def render_card(card, size, number): #size 1-3
         screens[card_name].addstr(0, 1, detail["name"], colors[detail["text"]])
         screens[card_name].addstr(1, 1, f"Cst:{card['Cost']}", colors[detail["text"]])
         screens[card_name].addstr(2, 1, f"Act:{card['Action']}", colors[detail["text"]])
-        screens[card_name].addstr(height - 7, 1, f"Attack: {card['Attack']}", colors[detail["text"]])
-        screens[card_name].addstr(height - 6, 1, f"Magic: {card['Magic']}", colors[detail["text"]])
-        screens[card_name].addstr(height - 5, 1, f"Defense: {card['Defense']}", colors[detail["text"]])
+        screens[card_name].addstr(height - 4, 1, f"Attack: {card['Attack']}", colors[detail["text"]])
+        screens[card_name].addstr(height - 3, 1, f"Magic: {card['Magic']}", colors[detail["text"]])
+        screens[card_name].addstr(height - 2, 1, f"Defense: {card['Defense']}", colors[detail["text"]])
 
         screens[card_name].refresh()
+    if size == 3:
+        if number == 1:
+            card_name = "hand one"
+        elif number == 2:
+            card_name = "hand two"
+        elif number == 3:
+            card_name = "hand three"
+        dim = dims.get(card_name)
+        height = dim[0]
+        width = dim[1]
+        fill_screen(card_name, detail["border"], 0)
+        fill_screen(card_name, detail["color"], 1)
+        screens[card_name].addstr(0, 1, detail["name"], colors[detail["text"]])
+        screens[card_name].addstr(1, 1, f"Cst:{card['Cost']}", colors[detail["text"]])
+        screens[card_name].refresh()
+
+def render_hand(deck, selected, bar):
+    i = 1
+    if not selected:
+        ref("hand one")
+        ref("hand two")
+        ref("hand three")
+        for item in deck:
+            render_card(all_cards[item], 3, i)
+            i += 1
+            if i == 4:
+                break
+    else:
+        render_select(bar, selected)
 
 
 
-
+def render_select(bar, sel):
+    height, width = dims[bar]
+    screens[bar].clear()
+    if sel == 1:
+        screens[bar].addstr(0, width // 3 + (width // 12), "  ", colors["white"])
+    elif sel == 2:
+        screens[bar].addstr(0, (width // 3) + width // 6 + (width // 12), "  ", colors["white"])
+    elif sel == 3:
+        screens[bar].addstr(0, (width // 3) + width // 3 + (width // 12), "  ", colors["white"])
+    screens[bar].refresh()
 
 """Startup"""
 
@@ -341,7 +540,8 @@ def load():
         data = file.readlines()
         for item in data:
             name, value = item.split(":")
-            value = int(value)
+            if "[" not in value:
+                value = int(value)
             player_data.update({name: value})
 
 def save():    
@@ -395,6 +595,8 @@ def init():
         print(f"{name}: {val}")
     if not load():
         create_player()
+    for name, val in all_cards.items():
+        card_names.append(name)
     #print("init finished")
     #time.sleep(2)
 
@@ -406,10 +608,11 @@ def create_player():
     player_data.update({"Exp": 0})
     player_data.update({"Sp": 0})    
     player_data.update({"Level": 0})
-
+    player_data.update({"Cards": ["Knight", "Mage", "Priest"]})
     with open(conf_path+"user_stats.conf", "w") as file:
         for name, value in player_data.items():
             file.write(f"{name}:{value}\n")
+
 menu_dict = {"Play": game_menu, "Shop": shop_menu, "Stats": stat_menu, "Online": start_online, "Deck": view_cards, "Settings": settings}
 
 all_cards = {
@@ -420,9 +623,9 @@ all_cards = {
 "Priest":{"type":"Support", "Health": 20, "Attack": 0, "Defense": 5, "Magic": 30, "Cost": 35, "Action": 0, 
 "design": {"name":"Priest","border": "white", "shape": "box", "color": "yellow 2", "text": "black", "description": "Free through faith"}},
 "Familiar":{"type":"Spirit", "Health": 50, "Attack": 5, "Defense": 0, "Magic": 10, "Cost": 20, "Action": 10, 
-"design": {"name":"Familiar","border": "white", "shape": "box", "color": "green 2", "text": "black", "description": "Unknown through sight"}},
+"design": {"name":"Familiar","border": "white", "shape": "box", "color": "green 2", "text": "green 1", "description": "Unknown through sight"}},
 }
-
+card_names = []
 
 
 #init()
