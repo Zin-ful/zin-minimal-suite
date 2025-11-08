@@ -29,7 +29,12 @@ server = ''
 qkeys = {}
 pause = 0
 
+main_menu = ["Messenger", "Group Chat"]
+
 attr_dict = {"ipaddr": ip, "name": username, "autoconnect": autoconn, "idaddr": ipid, "alias":alias}
+
+colors = {}
+screens = {}
 
 if ".zinapp" not in os.listdir(curusr):
     os.mkdir(curusr+"/.zinapp")
@@ -38,9 +43,10 @@ if "ztext" not in os.listdir(curusr+"/.zinapp"):
 if "phonebook" not in os.listdir(curusr+"/.zinapp"):
     os.mkdir(curusr+"/.zinapp/phonebook")
 
+"""utility functions"""
 
 def main(stdscr):
-    global msg, ERASE, TUT, HIGHLIGHT_1, HIGHLIGHT_2, HIGHLIGHT_3, HIGHLIGHT_4, FROM_SERVER, height, width, network, security, users, message_thread, update_thread
+    global height, width, message_thread, update_thread
     height, width = stdscr.getmaxyx()
     curses.init_pair(1, curses.COLOR_BLUE, curses.COLOR_BLUE)
     HIGHLIGHT = curses.color_pair(1)
@@ -59,44 +65,126 @@ def main(stdscr):
     curses.init_pair(8, curses.COLOR_BLACK, curses.COLOR_WHITE)
     TUT = curses.color_pair(8)
 
+    colors.update({"hl":HIGHLIGHT})
+    colors.update({"hl1":HIGHLIGHT_1})
+    colors.update({"hl2":HIGHLIGHT_2})
+    colors.update({"hl3":HIGHLIGHT_3})
+    colors.update({"hl4":HIGHLIGHT_4})
+    colors.update({"server":FROM_SERVER})
+    colors.update({"erase":ERASE})
+    colors.update({"tut":TUT})
+
     stdscr.clear()
     stdscr.refresh()
+
     top_win = curses.newwin(0, width, 0, 0)
     show_chat = curses.newwin(height - 5, width, 2, 0)
     user_input = curses.newwin(1, width - 1, height - 1, 1)
     tbox = Textbox(user_input)
+    screens.update({"bar":top_win})
+    screens.update({"chat":show_chat})
+    screens.update({"input":user_input})
+    screens.update({"text":tbox})
+    screens.update({"source":stdscr})
     security = "CHATS ARE NOT ENCRYPTED"
     i = 0
     while i < width:
-        top_win.addstr(0, i, " ", HIGHLIGHT)
+        screens["bar"].addstr(0, i, " ", HIGHLIGHT)
         i += 1
-    config_init(show_chat, user_input, tbox)
-    top_win.refresh()
-    update_thread = task.Thread(target=update, args=(stdscr, top_win, show_chat, user_input,))
-    message_thread = task.Thread(target=message_recv, args=(show_chat,), daemon=True)
-    update_thread.start()
-    message_thread.start()
-    message(tbox, user_input, top_win, show_chat, stdscr)
+    while True:
+        choice = inps(main_menu)
+        success = gc_config_init()
+        if success == 2:
+            continue
+        if not success:
+            ref(stdscr)
+            exit()
+        ref(stdscr)
+        if choice == main_menu[0]:
+            contact_selection()
+        else:
+            screens["bar"].refresh()
+            update_thread = task.Thread(target=update)
+            message_thread = task.Thread(target=message_recv, daemon=True)
+            update_thread.start()
+            message_thread.start()
+            group_message()
 
-def update(stdscr, top_win, show_chat, user_input):
+"""menu functions"""
+def get_input():
+    inp = screens["text"].edit().strip()
+    if inp:
+        return inp
+
+def inps(menu):
+    print_list(0, 0, menu)
+    pos = 0
+    while True:
+        inp = screens["source"].getch()
+        if inp == ord("e"):
+            return menu[pos]
+        elif inp == ord("w") or inp == ord("s"):
+            pos = select(menu, inp, pos)
+        elif inp == ord("R"):
+            screens["source"].clear()
+            screens["source"].refresh()
+            print_list(0, 0, menu)
+
+def print_list(y, x, menu):
+    i = 0
+    for item in menu:
+        screens["source"].addstr(y + i, x, item)
+        i += 1
+    screens["source"].refresh()
+
+def errlog(error):
+    with open(conf_path+"/err.txt", "a") as file:
+        file.write("\nERROR\nERROR\n")
+        for name, value in attr_dict.items():
+            file.write(f"{name}:{value}\n")
+        file.write(error)
+        file.write("\nERROR END\nERROR END\n")
+
+def select(menu, key, pos):
+    if key == ord("s"):
+        pos += 1
+        if pos >= len(menu):
+            pos = len(menu) - 1
+        back = 1
+    elif key == ord("w"):
+        pos -= 1
+        if pos <= 0:
+            pos = 0
+        back = -1
+    screens["source"].addstr(pos - back, 0, menu[pos - back])
+    screens["source"].addstr(pos, 0, menu[pos], colors["server"])
+    return pos
+
+def update():
     global security, network, users, inp, msg
     while True:
         time.sleep(1)
-        top_win.addstr(0, width // 2 - (len(security) // 2), security, HIGHLIGHT_2)
-        top_win.addstr(0, width - width // 3, "              ", HIGHLIGHT_1)
-        top_win.addstr(0, (width - (width // 4)) - (len(network) // 2), network, HIGHLIGHT_2)
-        top_win.addstr(0, width // 7, str(len(session_usr)), HIGHLIGHT_1)
-        top_win.refresh()
+        screens["bar"].addstr(0, width // 2 - (len(security) // 2), security, colors["hl2"])
+        screens["bar"].addstr(0, width - width // 3, "              ", colors["hl1"])
+        screens["bar"].addstr(0, (width - (width // 4)) - (len(network) // 2), network, colors["hl2"])
+        screens["bar"].addstr(0, width // 7, str(len(session_usr)), colors["hl1"])
+        screens["bar"].refresh()
 
-def clearchk(show_chat):
+def print_text(pos_y, pos_x, msg, color):
+    i = 0
+    for item in msg:
+        screens["chat"].addstr(pos_y + i, pos_x, item, color)
+        i += 1
+    screens["chat"].refresh()
+
+def clearchk():
     global y
     if y >= height - 7:
-        show_chat.erase()
+        screens["chat"].erase()
         y = 0
-        show_chat.refresh()
+        screens["chat"].refresh()
 
-
-def message_recv(show_chat):
+def message_recv():
     global y, msg, users
     x = 0
     while True:
@@ -117,7 +205,7 @@ def message_recv(show_chat):
             for i in msg:
                 if i == '\n':
                     num += 1
-            clearchk(show_chat)
+            clearchk()
             if "server.message.from.server" in msg:
                 msg = msg.replace("server.message.from.server", "")
                 response, msg = msg.split(".", 1)
@@ -125,13 +213,13 @@ def message_recv(show_chat):
                     response, msg = msg.split("!")
                     response = response.strip("users:")
                     users += int(response.strip())
-                show_chat.addstr(y, x, msg, FROM_SERVER)
+                screens["chat"].addstr(y, x, msg, colors["server"])
             else:
-                show_chat.addstr(y, x, msg, HIGHLIGHT_3)
+                screens["chat"].addstr(y, x, msg, colors["hl3"])
         if num != 1:
             y += num
-        clearchk(show_chat)
-        show_chat.refresh()
+        clearchk()
+        screens["chat"].refresh()
 
 def getnick(name):
     if "@" in name:
@@ -146,165 +234,149 @@ def getnick(name):
                 return f"@{item}:"
     return f"@{name}:"
 
-def query(stdscr, show_chat, tbox, user_input):
+def query():
     global y
     success = 0
-    user_input.clear()
-    user_input.refresh()
-    clr(None, show_chat, None, None)
-    show_chat.addstr(y, 0, "Users:", HIGHLIGHT_1)
+    ref(screens["input"])
+    clr(None, screens["chat"], None, None)
+    screens["chat"].addstr(y, 0, "Users:", colors["hl1"])
     y += 1
     names = os.listdir(curusr+"/.zinapp/phonebook")
     for name in names:
-        show_chat.addstr(y, 0, name.strip(".txt"), HIGHLIGHT_1)
+        screens["chat"].addstr(y, 0, name.strip(".txt"), colors["hl1"])
         y += 1
     y += 1
-    show_chat.addstr(y, 0, "Whos contact would you like to view?", HIGHLIGHT_1)
-    show_chat.refresh()
-    inp = tbox.edit().strip()
+    print_text(y, 0, ("Whos contact would you like to view?",), colors["hl1"])
+    inp = screens["text"].edit().strip()
     if inp:
-        user_input.clear()
-        user_input.refresh()
-        clr(None, show_chat, None, None)
+        ref(screens["input"])
+        clr(None, screens["chat"], None, None)
         for item in names:
             if inp.lower() == item.strip(".txt").lower() or inp.strip("@").lower() == item.strip(".py").strip("@").lower():
-                with open(f"/etc/phonebook/{item}", "r") as file:
+                with open(curusr+f"/.zinapp/phonebook/{item}", "r") as file:
                     data = file.readlines()
                     for item in data:
-                        show_chat.addstr(y, 0, item, HIGHLIGHT_1)
+                        screens["chat"].addstr(y, 0, item, colors["hl1"])
                         y += 1
                 y += 1
-                show_chat.addstr(y, 0, "Press enter to continue", HIGHLIGHT_1)
+                print_text(y, 0, ("Press enter to continue",), colors["hl1"])
                 success = 1
-                show_chat.refresh()
-                inp = tbox.edit().strip()
+                inp = screens["text"].edit().strip()
                 if inp:
-                    user_input.clear()
-                    user_input.refresh()
+                    ref(screens["input"])
     if not success:
-        show_chat.addstr(y + 1, 0, "User does not exist", HIGHLIGHT_1)
-        show_chat.refresh()
+        print_text(y + 1, 0, ("User does not exist",), colors["hl1"])
         time.sleep(1)
     
-    clr(None, show_chat, None, None)
-                        
-    
-    
-def savenick(stdscr, show_chat, tbox, user_input):
+    clr(None, screens["chat"], None, None)
+
+def savenick():
     global pause, y
     if not session_usr:
         return
     success = 0
     pause = 1
-    user_input.clear()
-    user_input.refresh()
-    clr(None, show_chat, None, None)
-    show_chat.addstr(y, 0, "Users:", HIGHLIGHT_1)
+    ref(screens["input"])
+    clr(None, screens["chat"], None, None)
+    print_text(y, 0, ("Users:",), colors["hl1"])
     y += 1
     for name in session_usr:
-        show_chat.addstr(y, 0, name, HIGHLIGHT_1)
+        print_text(y, 0, (name), colors["hl1"])
         y += 1
     y += 1
-    show_chat.addstr(y, 0, "Who would you like to add to your contacts?", HIGHLIGHT_1)
-    show_chat.refresh()
-    inp = tbox.edit().strip()
+    print_text(y, 0, ("Who would you like to add to your contacts?",), colors["hl1"])
+    inp = screens["text"].edit().strip()
     if inp:
-        user_input.clear()
-        user_input.refresh()
-        clr(None, show_chat, None, None)
+        ref(screens["input"])
+        clr(None, screens["chat"], None, None)
         for name in session_usr:
             if inp.lower() == name.lower() or name.strip("@").lower() == inp.strip("@").lower():
                 data = []
-                show_chat.addstr(y, 0, "Were going to fill out information for this user.", HIGHLIGHT_1)
-                y += 1
-                show_chat.addstr(y, 0, "Name:", HIGHLIGHT_1)
-                show_chat.refresh()
-                inp = tbox.edit().strip()
+                print_text(y, 0, ("Were going to fill out information for this user.", "Name:"), colors["hl1"])
+                inp = screens["text"].edit().strip()
                 if inp:
                     if "@" in inp:
                         inp = inp.strip("@")
                     newname = inp
                     data.append(inp)
-                clr(None, show_chat, None, None)
-                user_input.clear()
-                user_input.refresh()
+                clr(None, screens["chat"], None, None)
+                ref(screens["input"])
                 
-                show_chat.addstr(y, 0, "Nickname:", HIGHLIGHT_1)
-                show_chat.refresh()
-                inp = tbox.edit().strip()
+                print_text(y, 0, ("Nickname:",), colors["hl1"])
+                inp = screens["text"].edit().strip()
                 if inp:
                     data.append(inp)
-                clr(None, show_chat, None, None)
-                user_input.clear()
-                user_input.refresh()
+                clr(None, screens["chat"], None, None)
+                ref(screens["input"])
                 
-                show_chat.addstr(y, 0, "IP Address:", HIGHLIGHT_1)
-                show_chat.refresh()
-                inp = tbox.edit().strip()
+                print_text(y, 0, ("IP Address:",), colors["hl1"])
+                inp = screens["text"].edit().strip()
                 if inp:
                     data.append(inp)
-                clr(None, show_chat, None, None)
-                user_input.clear()
-                user_input.refresh()
+                clr(None, screens["chat"], None, None)
+                ref(screens["input"])
                 
-                show_chat.addstr(y, 0, "Notes:", HIGHLIGHT_1)
-                show_chat.refresh()
-                inp = tbox.edit().strip()
+                print_text(y, 0, ("Notes:",), colors["hl1"])
+                inp = screens["text"].edit().strip()
                 if inp:
                     data.append(inp)
-                clr(None, show_chat, None, None)
-                user_input.clear()
-                user_input.refresh()
-                
-                with open(f"/etc/phonebook/{newname}.txt", "w") as file:
+                clr(None, screens["chat"], None, None)
+                ref(screens["input"])
+                with open(curusr+f"/.zinapp/phonebook/{newname}.txt", "w") as file:
                     file.write(f"name: {data[0]}\n")
                     file.write(f"nickname: {data[1]}\n")
                     file.write(f"ip address: {data[2]}\n")
                     file.write(f"notes: {data[3]}\n")
                     success = 1
     
-    user_input.clear()
-    user_input.refresh()
+    ref(screens["input"])
     if success:
         msg = "Writing to file, please wait..."
     else:
         msg = "User does not exist. Exiting..."
-    show_chat.addstr(y + 1, 0, msg, HIGHLIGHT_1)
-    show_chat.refresh()
+    print_text(y + 1, 0, (msg,), colors["hl1"])
     time.sleep(1)
-    clr(None, show_chat, None, None)
+    clr(None, screens["chat"], None, None)
     pause = 0
-    
 
-def notrase(show_chat, inp, upd, yplus):
+def notrase(inp, upd, yplus):
     i = 0
     for char in inp:
-        show_chat.addstr(y + yplus, i, " ", ERASE)
+        screens["chat"].addstr(y + yplus, i, " ", colors["erase"])
         i += 1
     if upd:
-        show_chat.refresh()
+        screens["chat"].refresh()
+
+def batch_erase(text, y_offset):
+    i = 0
+    for item in text:
+        notrase(text, 0, y_offset + i)
+        i += 1
+    screens["chat"].refresh()
+
 """user functions"""
 
-def shutoff(stdscr, arg1, arg2, arg3):
+def shutoff():
     update_thread.join()
-    stdscr.clear()
-    stdscr.addstr(height // 2, width // 2, "    exiting...", HIGHLIGHT_3)
-    stdscr.refresh()
+    screens["source"].clear()
+    print_text(height // 2, width // 2, ("    exiting...",), colors["hl3"])
     message_thread.join(timeout=1)
     curses.nocbreak()
-    stdscr.keypad(False)
+    screens["source"].keypad(False)
     curses.echo()
     curses.endwin()
     server.close()
     sys.exit()
 
-def listcmd(stdscr, arg1, arg2, arg3):
+def listcmd():
     result = ""
+    i = 0
     for item in commands:
         result += item + "\n"
-    return result
+        i += 1
+    return result, i - 1
 
-def auto_conf(stdscr, arg1, arg2, arg3):
+def auto_conf():
     global autoconn
     with open(f"{conf_path}/msg_server.conf", "r") as file:
         state = file.readlines()
@@ -319,209 +391,209 @@ def auto_conf(stdscr, arg1, arg2, arg3):
     with open(f"{conf_path}/msg_server.conf", "w") as file:
         for title, val in attr_dict.items():
             file.write(f"{title}={val}\n")
-    return f"autoconnect set to {attr_dict['autoconnect']}"
+    return f"autoconnect set to {attr_dict['autoconnect']}", 0
 
-def clr(stdscr, show_chat, arg2, arg3):
+def clr():
     global y
-    show_chat.clear()
-    show_chat.refresh()
+    screens["chat"].clear()
+    screens["chat"].refresh()
     y = 0
-    return "clear"
+    return "clear", 0
 
-def changeuser(stdscr, show_chat, tbox, user_input):
-    user_input.clear()
-    user_input.refresh()
-    msg = "What would your username like to be?"
-    show_chat.addstr(y + 1, 0, msg, HIGHLIGHT_1)
-    show_chat.refresh()
-    inp = tbox.edit().strip()
+def ref(screen):
+    screen.clear()
+    screen.refresh()
+
+def changeuser():
+    ref(screens["input"])
+    print_text(y + 1, 0, ("What would your username like to be?",), colors["hl1"])
+    inp = screens["text"].edit().strip()
     if inp:
         attr_dict["name"] = inp.strip()
         with open(f"{conf_path}/msg_server.conf", "w") as file:
             for title, val in attr_dict.items():
                 file.write(f"{title}={val}\n")
-    user_input.clear()
-    user_input.refresh()
-    notrase(show_chat, msg, 0, 1)
-    msg = "Writing to file, please wait..."
-    show_chat.addstr(y + 1, 0, msg, HIGHLIGHT_1)
-    show_chat.refresh()
+    ref(screens["input"])
+    notrase("What would your username like to be?", 0, 1)
+    print_text(y + 1, 0, ("Writing to file, please wait...",), colors["hl1"])
     time.sleep(1)
-    notrase(show_chat, msg, 0, 1)
-    msg = "Username updated!"
-    show_chat.addstr(y + 1, 0, msg, HIGHLIGHT_1)
-    show_chat.refresh()
+    notrase("Username updated!", 0, 1)
+    print_text(y + 1, 0, ("Username updated!",), colors["hl1"])
     time.sleep(1)
-    notrase(show_chat, msg, 1, 1)
+    notrase("Writing to file, please wait...", 1, 1)
+    return "", 0
 
-def set_qkeys(stdscr, show_chat, tbox, user_input):
+def set_qkeys():
     with open(""):
         return
 
-def importip(stdscr, show_chat, tbox, user_input):
+def importip():
     global ipid, alias
-    user_input.clear()
-    user_input.refresh()
-    msg1 = "This will assist you in connecting to networks"
-    show_chat.addstr(y + 1, 0, msg1, HIGHLIGHT_1)
-    msg2 = "We will assign an ID to an IP address"
-    show_chat.addstr(y + 2, 0, msg2, HIGHLIGHT_1)
-    msg3 = "please enter the IP address youd like to give an ID"
-    show_chat.addstr(y + 3, 0, msg3, HIGHLIGHT_3)
-    show_chat.refresh()
-    inp = tbox.edit().strip()
+    ref(screens["input"])
+    msg = ("This will assist you in connecting to networks","We will assign an ID to an IP address","please enter the IP address youd like to give an ID")
+    print_text(y, 0, msg, colors["hl1"])
+    inp = screens["text"].edit().strip()
     if inp:
         attr_dict["idaddr"] = inp.strip()
-    user_input.clear()
-    user_input.refresh()
-    notrase(show_chat, msg1, 0, 1)
-    notrase(show_chat, msg2, 0, 2)
-    notrase(show_chat, msg3, 0, 3)
-    msg1 = "For the ID, you can enter any number or text"
-    show_chat.addstr(y + 1, 0, msg1, HIGHLIGHT_1)
-    msg2 = "You can only have one ID total"
-    show_chat.addstr(y + 2, 0, msg2, HIGHLIGHT_1)
-    msg3 = "please enter the ID to be assigned"
-    show_chat.addstr(y + 3, 0, msg3, HIGHLIGHT_3)
-    show_chat.refresh()
-    inp = tbox.edit().strip()
+    ref(screens["input"])
+    batch_erase(msg, 1)
+    msg = ("For the ID, you can enter any number or text", "You can only have one ID total", "please enter the ID to be assigned")
+    print_text(y, 0, msg, colors["hl1"])
+    inp = screens["text"].edit().strip()
     if inp:
         attr_dict["alias"] = inp.strip()
         with open(f"{conf_path}/msg_server.conf", "w") as file:
             for title, val in attr_dict.items():
                 file.write(f"{title}={val}\n")
-    user_input.clear()
-    user_input.refresh()
-    notrase(show_chat, msg1, 0, 1)
-    notrase(show_chat, msg2, 0, 2)
-    notrase(show_chat, msg3, 0, 3)
-    msg = "Writing to file, please wait..."
-    show_chat.addstr(y + 1, 0, msg, HIGHLIGHT_1)
-    show_chat.refresh()
+    ref(screens["input"])
+    batch_erase(msg, 1)
+    print_text(y + 1, 0, ("Writing to file, please wait...",), colors["hl1"])
     time.sleep(1)
-    notrase(show_chat, msg, 0, 1)
-    msg = "Connection ID added. To skip the connection process entirely, configure #autostart"
-    show_chat.addstr(y + 1, 0, msg, HIGHLIGHT_1)
-    show_chat.refresh()
+    notrase("Writing to file, please wait...", 0, 1)
+    print_text(y + 1, 0, ("Connection ID added. To skip the connection process entirely, configure #autostart",), colors["hl1"])
     time.sleep(1)
-    notrase(show_chat, msg, 1, 1)
+    notrase("Connection ID added. To skip the connection process entirely, configure #autostart", 1, 1)
+    return "", 0
 
 commands = {"#help": listcmd, "#exit": shutoff, "#query-user": query, "#add-user": savenick, "#change-user": changeuser, "#autoconnect":auto_conf, "#import-ip":importip, "#clear": clr}
 
-#$
-def message(tbox, user_input, top_win, show_chat, stdscr):
+"""init and main functions"""
+
+def group_message():
     global y
     x = 0
     while True:
         try:
-            inp = tbox.edit().strip()
+            inp = screens["text"].edit().strip()
             if inp:
                 y += 2
-                clearchk(show_chat)
+                clearchk()
                 if "#" in inp and '"' not in inp:
                     xcute = commands.get(inp)
                     if xcute:
-                        inp = xcute(stdscr, show_chat, tbox, user_input)
+                        result, adjust_y = xcute()
                     else:
-                        inp = "invalid"
-                    clearchk(stdscr)
-                    if inp:
-                        show_chat.addstr(y, x, inp, HIGHLIGHT_4)
-                    user_input.erase()
-                    user_input.refresh()
-                    show_chat.refresh()
-                    inp = None
+                        result = "invalid"
+                    clearchk()
+                    if result:
+                        screens["chat"].addstr(y, x, result, colors["hl4"])
+                    if adjust_y:
+                        y += adjust_y
+                    ref(screens["input"])
+                    screens["chat"].refresh()
+                    result = None
                     continue
                 
                 if "server.main." not in inp or '"' in inp:
-                    show_chat.addstr(y, x, inp, HIGHLIGHT_4)
-                user_input.erase()
-                user_input.refresh()
-                show_chat.refresh()
+                    screens["chat"].addstr(y, x, inp, colors["hl4"])
+                ref(screens["input"])
+                screens["chat"].refresh()
                 server.sendall(inp.encode("utf-8"))
                 inp = None
         except KeyboardInterrupt:
                 server.close()
                 exit()
         except Exception as e:
-            stdscr.clear()
-            stdscr.addstr(height // 2, width // 2, str(e))
-            stdscr.refresh()
+            screens["source"].clear()
+            screens["source"].addstr(height // 2, width // 2, str(e))
+            screens["source"].refresh()
 
-def config_init(show_chat, user_input, tbox):
-    global ip, username, network, server, autoconn, ipid, alias
-    try:
-        with open(f"{conf_path}/msg_server.conf", "r") as file:
-            attr = file.readlines()
-            for item in attr:
-                if item == "\n":
-                    pass
-                else:
-                    item, attr = item.split("=")
-                    attr_dict[item.strip()] = attr.strip()
-            if attr_dict["autoconnect"] == "true":
-                autoconnect(show_chat, user_input, tbox)
+def direct_message(name):
+    global y
+    x = 0
+    while True:
+        try:
+            inp = screens["text"].edit().strip()
+            if inp:
+                y += 2
+                clearchk()
+                screens["chat"].addstr(y, x, inp, colors["hl4"])
+                ref(screens["input"])
+                screens["chat"].refresh()
+                server.sendall(f"@{name}:{inp}".encode("utf-8"))
+                inp = None
+        except KeyboardInterrupt:
+                server.close()
+                exit()
+        except Exception as e:
+            screens["source"].clear()
+            screens["source"].addstr(height // 2, width // 2, str(e))
+            screens["source"].refresh()
+
+
+def contact_selection():
+    y = 0
+    clean_names = []
+    names = os.listdir(curusr+"/.zinapp/phonebook")
+    for name in names:
+        screens["chat"].addstr(y, 0, name.strip(".txt"), colors["hl1"])
+        clean_names.append(name.strip(".txt"))
+        y += 1
+    y += 1
+    print_text(y, 0, ("Who would you like to message?",), colors["hl1"])
+    name = inps(clean_names)
+    message_thread = task.Thread(target=message_recv, daemon=True)
+    message_thread.start()
+    direct_message(name)
+
+def gc_config_init():
+    with open(f"{conf_path}/msg_server.conf", "r") as file:
+        attr = file.readlines()
+        for item in attr:
+            if item == "\n":
+                pass
             else:
-                manual_conf(show_chat, user_input, tbox, "false")
-    except Exception as e:
-        with open(f"{conf_path}/errlog.txt", "a") as file:
-            file.write(f"ERROR ERROR ERROR\n\n{str(e)}\n\n")
-            for name, val in attr_dict.items():
-                file.write(f"attr: {name} = {val}")
-            file.write(f"ERROR END\n")
-        manual_conf(show_chat, user_input, tbox, "true")
+                item, attr = item.split("=")
+                attr_dict[item.strip()] = attr.strip()
+        if attr_dict["autoconnect"] == "true":
+            try:
+                autoconnect()
+            except netcom.error as e:
+                print_text(height // 2, width // 3, ("Connection refused, try again?",), colors["hl3"])
+                choice = get_input()
+                ref(screens["input"])
+                ref(screens["chat"])
+                if "y" in choice:
+                    return 2
+                else:
+                    return 0
+            except Exception as e:
+                print_text(height // 2, width // 2, (f"UNKNOWN EXCEPTION, CHECK LOGS @{conf_path}",), colors["hl3"])
+                errlog(str(e))
+                return 0
+        else:
+            manual_conf("false")
+        return 1
 
-def manual_conf(show_chat, user_input, tbox, state):
-    global ip, username, network, server
+def manual_conf(state):
+    global server
     os.makedirs(conf_path, exist_ok=True)
-    user_input.clear()
-    user_input.refresh()
+    ref(screens["input"])
     if state == "true":
-        msg1 = "It looks like its your first time starting the messenger."
-        msg2 = "Lets start by getting the username youd like to use"
-        show_chat.addstr(y + 1, 0, msg1, HIGHLIGHT_1)
-        show_chat.addstr(y + 2, 0, msg2, HIGHLIGHT_1)
+        msg = ("It looks like its your first time starting the messenger.", "Lets start by getting the username youd like to use")
+        print_text(y + 1, 0, msg, colors["hl1"])
     else:
         pass
-    msg3 = "please enter your desired username"
-    show_chat.addstr(y + 3, 0, msg3, HIGHLIGHT_3)
-    show_chat.refresh()
-    inp = tbox.edit().strip()
+    print_text(y + 3, 0, ("please enter your desired username",), colors["hl3"])
+    inp = screens["text"].edit().strip()
     if inp:
         attr_dict["name"] = inp.strip()
-    user_input.clear()
-    user_input.refresh()
+    ref(screens["input"])
+    ref(screens["chat"])
     if state == "true":
-        notrase(show_chat, msg1, 0, 1)
-        notrase(show_chat, msg2, 0, 2)
-        msg1 = "Next enter the IP address of the message server your connecting to"
-        show_chat.addstr(y + 1, 0, msg1, HIGHLIGHT_1)
-        msg2 = "If you are hosting the server yourself, 'localhost' will work"
-        show_chat.addstr(y + 2, 0, msg2, HIGHLIGHT_1)
-    notrase(show_chat, msg3, 0, 3)
-    msg3 = "please enter the IP to connect to"
-    show_chat.addstr(y + 3, 0, msg3, HIGHLIGHT_3)
-    show_chat.refresh()
-    inp = tbox.edit().strip()
+        msg = ("Next enter the IP address of the message server your connecting to", "If you are hosting the server yourself, 'localhost' will work")
+        print_text(y + 1, 0, msg, colors["hl1"])   
+    print_text(y + 3, 0, ("please enter the IP to connect to",), colors["hl3"])
+    inp = screens["text"].edit().strip()
     if inp:
         attr_dict["ipaddr"] = inp.strip()
-    user_input.clear()
-    user_input.refresh()
+    ref(screens["input"])
     if state == "true":
-        notrase(show_chat, msg1, 0, 1)
-        notrase(show_chat, msg2, 0, 2)
-        msg = "Writing to file, please wait..."
-        show_chat.addstr(y + 1, 0, msg, HIGHLIGHT_1)
-    notrase(show_chat, msg3, 0, 3)
-    show_chat.refresh()
+        print_text(y + 1, 0, ("Writing to file, please wait...",), colors["hl1"])
+    ref(screens["chat"])
+    print_text(y + 2, 0, ("Attempting connect. To skip the connection process entirely, configure #autostart",), colors["hl1"])
     time.sleep(1)
-    if state == "true":
-        notrase(show_chat, msg, 0, 1)
-    msg = "Attempting connect. To skip the connection process entirely, configure #autostart"
-    show_chat.addstr(y + 1, 0, msg, HIGHLIGHT_1)
-    show_chat.refresh()
-    time.sleep(1)
-    notrase(show_chat, msg, 1, 1)
+    notrase("Attempting connect. To skip the connection process entirely, configure #autostart", 1, 2)
     if state == "true":
         with open(f"{conf_path}/msg_server.conf", "w") as file:
             for title, data in attr_dict.items():
@@ -530,40 +602,30 @@ def manual_conf(show_chat, user_input, tbox, state):
     server.connect((attr_dict["ipaddr"], port))
     server.sendall(attr_dict["name"].encode("utf-8"))
     network = "connected!    "
-    msg3 = "Connection accepted! Moving to shell.."
-    show_chat.addstr(y // 2, width // 2 - len(msg3), msg3, HIGHLIGHT_3)
-    show_chat.refresh()
+    msg = ("Connection accepted! Moving to shell..",)
+    print_text(y // 2, width // 2 - len(msg), msg, colors["hl3"])
     time.sleep(1)
-    show_chat.clear()
-    show_chat.refresh()
+    ref(screens["chat"])
 
-def autoconnect(show_chat, user_input, tbox):
-    global ip, username, network, server
+def autoconnect():
+    global server
     with open(f"{conf_path}/msg_server.conf", "r") as file:
         attrs = file.readlines()
         for item in attrs:
             title, val = item.split("=")
             attr_dict[title.strip()] = val.strip()
-    show_chat.clear()
-    show_chat.refresh()
-    msg1 = f"Connecting to: {attr_dict['idaddr']}"
-    show_chat.addstr(y + 1, 0, msg1, HIGHLIGHT_1)
-    msg2 = f"Username: {attr_dict['name']}"
-    show_chat.addstr(y + 2, 0, msg2, HIGHLIGHT_1)
-    msg3 = "Waiting for accept..."
-    show_chat.addstr(y + 3, 0, msg3, HIGHLIGHT_3)
-    show_chat.refresh()
+    ref(screens["chat"])
+    msg = (f"Connecting to: {attr_dict['idaddr']}", f"Username: {attr_dict['name']}", "Waiting for accept...")
+    print_text(y + 1, 0, msg, colors["hl1"])
     time.sleep(1)
     server = netcom.socket(ipv4, tcp)
-    server.connect((attr_dict["ipaddr"], port))
+    server.connect((attr_dict["ipaddr"].strip(), port))
     server.sendall(attr_dict["name"].encode("utf-8"))
     network = "connected!    "
-    show_chat.clear()
-    msg3 = "Connection accepted! Moving to shell.."
-    show_chat.addstr(y // 2, width // 2 - len(msg3), msg3, HIGHLIGHT_3)
-    show_chat.refresh()
+    screens["chat"].clear()
+    msg = "Connection accepted! Moving to shell.."
+    print_text(y // 2, width // 2 - len(msg), (msg,), colors["hl3"])
     time.sleep(1)
-    show_chat.clear()
-    show_chat.refresh()
-
+    ref(screens["chat"])
+  
 wrapper(main)
