@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
@@ -59,18 +58,21 @@ int main() {
     struct timespec start, end;
     int threads = get_thread();
     printf("cpu math iterations: %ld\nio iterations %d\ncpu threads found %d\n", itr, ioitr, threads);
-	printf("warming up cpu\n");
-	long warmup_range[2] = {0, 100000000};
+	printf("warming cpu\n");
+	long warmup_range[2] = {0, 400000000};
 	simpbench((void *)warmup_range);
-	printf("starting test\n");
+	printf("starting signle core test\n");
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start);
 	long test_range[2] = {0, itr};
     simpbench((void *)test_range);
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &end);
     double time_1 = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
     printf("time taken for single thread test: %.3f\n", time_1);
+    printf("warming up all cores\n");
+    thrbench(threads, (itr / 10));
+    printf("starting all cores test\n");
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start); 
-    thrbench(threads);
+    thrbench(threads, 0);
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &end);
     double time_2 = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
     printf("time taken for multi-thread test: %.3f\n", time_2);
