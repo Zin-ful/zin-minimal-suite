@@ -1,3 +1,4 @@
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
@@ -5,7 +6,7 @@
 #include <unistd.h>
 int wait = 2000000;
 
-long itr = 500000000;
+long itr = 5000000000;
 int ioitr = 500;
 
 void iobench() {
@@ -28,17 +29,24 @@ int get_thread() {
     return (threads > 0) ? (int)threads : 1;
 }
 
-void simpbench() {
-    volatile long sum = 0;
-    for (long i = 0; i < itr; i++) {
+void simpbench(void *arg) {
+   	long start = ((long *)arg)[0];
+   	long end = ((long *)arg)[1];
+   	volatile long sum = 0;
+    for (long i = start; i < end; i++) {
         sum = (sum + i) * 3 - i / 2;
     }
+    return NULL;
 }
 
-void thrbench(threads) {
+void thrbench(int threads) {
     pthread_t tids[threads];
+	long ranges[threads][2];
+	long chunk = itr / threads;
     for (int i = 0; i < threads; i++) {
-        pthread_create(&tids[i], NULL, simpbench, (void*)(size_t)i);
+    	ranges[i][0] = i * chunk;
+    	ranges[i][1] = (i == threads - 1) ? itr : (i + 1) * chunk;
+        pthread_create(&tids[i], NULL, simpbench, ranges[i]);
     }
     
     for (int i = 0; i < threads; i++) {
@@ -51,15 +59,19 @@ int main() {
     struct timespec start, end;
     int threads = get_thread();
     printf("cpu math iterations: %ld\nio iterations %d\ncpu threads found %d\n", itr, ioitr, threads);
-    clock_gettime(CLOCK_MONOTONIC, &start);
-    simpbench();
-    clock_gettime(CLOCK_MONOTONIC, &end);
+	printf("warming up cpu\n");
+	long warmup_range[2] = {0, 100000000};
+	simpbench((void *)warmup_range);
+	printf("starting test\n");
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start);
+	long test_range[2] = {0, itr};
+    simpbench((void *)test_range);
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &end);
     double time_1 = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
     printf("time taken for single thread test: %.3f\n", time_1);
-
-    clock_gettime(CLOCK_MONOTONIC, &start); 
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start); 
     thrbench(threads);
-    clock_gettime(CLOCK_MONOTONIC, &end);
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &end);
     double time_2 = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
     printf("time taken for multi-thread test: %.3f\n", time_2);
     usleep(wait);
