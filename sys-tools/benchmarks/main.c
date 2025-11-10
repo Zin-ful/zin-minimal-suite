@@ -38,10 +38,13 @@ void simpbench(void *arg) {
     return NULL;
 }
 
-void thrbench(int threads) {
+void thrbench(int threads, int iteration) {
     pthread_t tids[threads];
 	long ranges[threads][2];
-	long chunk = itr / threads;
+	if (iteration == 0) {
+		iteration = itr;
+	}
+	long chunk = iteration / threads;
     for (int i = 0; i < threads; i++) {
     	ranges[i][0] = i * chunk;
     	ranges[i][1] = (i == threads - 1) ? itr : (i + 1) * chunk;
