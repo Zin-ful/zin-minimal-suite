@@ -315,6 +315,12 @@ def config():
         for name, val in parameters.items():
             menu.append(f"{name} > {val}")
         key = simple_input(menu)
+        if not key:
+            screens["top"].clear()
+            screens["top"].refresh()
+            screens["main"].clear()
+            screens["main"].refresh()
+            return 
         key, cache = key.split(" > ")
         screens["main"].clear()
         screens["main"].refresh()
