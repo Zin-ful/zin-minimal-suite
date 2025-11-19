@@ -10,6 +10,9 @@ import time
 import curses
 from curses import wrapper
 from curses.textpad import Textbox
+from socket import AF_INET as ipv4
+from socket import SOCK_STREAM as tcp
+import socket as netcom
 
 curusr = os.path.expanduser("~")
 
@@ -38,6 +41,9 @@ NW = "????"
 NE = "????" 
 SW = "????" 
 SE = "????"
+connect_to_server = "false"
+server_ip = "0.0.0.0"
+wait_time = "120"
 
 url = "https://api.weather.gov/alerts/active?area="
 times = {}
@@ -47,7 +53,7 @@ colors = {}
 weather_types = {"surf": "water", "water": "water", "rain": "water", "flood": "water", "fog": "water", "hydro": "water", "wind": "wind", "heat": "heat", "dry":"heat", "fire": "heat", "red flag": "heat", "snow": "cold", "winter": "cold", "freeze": "cold", "frost": "cold", "spark": "spark", "light": "spark", "thunder": "spark", "storm": "spark"}
 intense = ["extreme", "severe", "blizzard", "tornado", "hurri", "typhoon", "flood", "surge"]
 
-parameters = {"state": state, "county": county, 
+parameters = {"state": state, "county": county, "alternate server": connect_to_server, "server ip": server_ip, "refresh time": wait_time,
 "center": center, "west": WT, "east": ET, "south": ST, "north": NT, 
 "north east": NE, "south east": SE, "south west": SW, "north west": NW,  
 "bind 1": bind_1, "bind 2": bind_2, "bind 3": bind_3}
@@ -64,6 +70,9 @@ fetch_cmd = ["curl", "-s", url]
 pos = 0
 offset = 1
 list_pos = 0
+
+port = 49021
+server = netcom.socket(ipv4, tcp)
 
 if "parameters.conf" not in os.listdir(conf_path):
     with open(f"{conf_path}/parameters.conf", "w") as file:
@@ -112,6 +121,34 @@ def main(stdscr):
     colors.update({"highlight": highlight, "water": wet, "spark": spark, "heat": heat, "bad": bad, "cold": cold, "wind": wind})
     inps()
 
+def clear_all():
+    for item, screen in screens.items():
+        if item == "text":
+            continue
+        screen.clear()
+        screen.refresh()
+
+def init():
+    clear_all()
+    if parameters["server ip"] == "0.0.0.0":
+        return 0
+    server.connect((parameters["server ip"], port))
+    print_text("connecting", 0)
+    screens["main"].refresh()
+    time.sleep(0.1)
+    server.send(parameters["state"].encode("utf-8"))
+    print_text("sending config", 0)
+    screens["main"].refresh()
+    time.sleep(0.1)
+    server.send(parameters["refresh time"].encode("utf-8"))
+    server.recv(1)
+    print_text("connected to server", 0)
+    screens["main"].refresh()
+    time.sleep(0.1)
+    screens["main"].clear()
+    screens["main"].refresh()
+    
+    
 def sort_list(text_list, top, middle, bottom, sortby):
     new_list = []
     t = 0
@@ -132,7 +169,7 @@ def sort_list(text_list, top, middle, bottom, sortby):
         screens["main"].clear()
         screens["main"].addstr(0, 0, f"No {sortby}s found", colors["highlight"])
         screens["main"].refresh()
-        time.sleep(0.5)
+        time.sleep(0.2)
         screens["main"].clear()
         return text_list
     return new_list
@@ -155,13 +192,21 @@ def simple_input(menu):
         elif key == ord("q"):
             return None
 
+
+
 def inps():
     global list_pos
     pos = 0
     alert_list = 0
     screens["main"].clear()
+    if parameters["alternate server"] != "false":
+        init()
     while not alert_list:
-        alert_list, alert_details, alert_link = get_alert(None)
+        if parameters["alternate server"] == "false":
+            alert_list, alert_details, alert_link = get_alert(None)
+        else:
+            alert_list, alert_details, alert_link = alt_alert("*")
+            
     cache_list = alert_list
     print_list(alert_list, 1)
     while True:
@@ -193,40 +238,51 @@ def inps():
                 list_pos = 0
             screens["main"].clear()
             print_list(alert_list, 1) 
+
         elif key == ord("R"):
             screens["source"].clear()
             screens["source"].refresh()
-            get_alert(None)
+            if parameters["alternate server"] == "false":
+                alert_list, alert_details, alert_link = get_alert(None)
+            else:
+                alert_list, alert_details, alert_link = alt_alert("*") 
             print_list(alert_list, 1)
+
         elif key == ord("C"):
             config()
             screens["main"].clear()
-            get_alert(None)
+            if parameters["alternate server"] == "false":
+                alert_list, alert_details, alert_link = get_alert(None)
+            else:
+                alert_list, alert_details, alert_link = alt_alert(parameters["state"])
             print_list(alert_list, 1)
+
         elif key == ord("!"):
-            if parameters["bind 1"] != "none":
+            if parameters["bind 1"] != "????":
                 alert_list = sort_list(cache_list, None, None, None, parameters["bind 1"])
                 screens["top"].addstr(0, width - (width // 3) * 2, "Sort by: "+parameters["bind 1"]+"  ")
                 screens["top"].refresh()
                 list_pos = 0
-            screens["main"].clear()
-            print_list(alert_list, 1)
+                screens["main"].clear()
+                print_list(alert_list, 1)
+
         elif key == ord("@"):
-            if parameters["bind 2"] != "none":
+            if parameters["bind 2"] != "????":
                 alert_list = sort_list(cache_list, None, None, None, parameters["bind 2"])
                 screens["top"].addstr(0, width - (width // 3) * 2, "Sort by: "+parameters["bind 2"]+"  ")
                 screens["top"].refresh()
                 list_pos = 0
-            screens["main"].clear()
-            print_list(alert_list, 1)
+                screens["main"].clear()
+                print_list(alert_list, 1)
+
         elif key == ord("#"):
-            if parameters["bind 3"] != "none":
+            if parameters["bind 3"] != "????":
                 alert_list = sort_list(cache_list, None, None, None, parameters["bind 3"])
                 screens["top"].addstr(0, width - (width // 3) * 2, "Sort by: "+parameters["bind 3"]+"  ")
                 screens["top"].refresh()
                 list_pos = 0
-            screens["main"].clear()
-            print_list(alert_list, 1)
+                screens["main"].clear()
+                print_list(alert_list, 1)
                
         elif key == ord('\x1b'):
             exit()
@@ -266,6 +322,7 @@ def examine(listy, pos):
         key = screens["main"].getch()
         if key == ord("q"):
             break
+
 def cleanfiles(param):
     to_rm = []
     count = 0
@@ -303,14 +360,12 @@ def debug(param):
         print(f"{key}={value}")
 
 def config():
-    cache = None
-    screens["source"].clear()
-    screens["top"].clear()
-    screens["source"].refresh()
-    phrase = "You have opened the config tool. Please select one of these options to configure:"
-    screens["top"].addstr(0, 0, phrase, colors["highlight"])
-    screens["top"].refresh()
     while True:
+        cache = None
+        clear_all()
+        phrase = "You have opened the config tool. Please select one of these options to configure:"
+        screens["top"].addstr(0, 0, phrase, colors["highlight"])
+        screens["top"].refresh()
         menu = []
         for name, val in parameters.items():
             menu.append(f"{name} > {val}")
@@ -332,13 +387,13 @@ def config():
         screens["source"].clear()
         screens["source"].refresh()
         parameters[key] = inp
-        screens["top"].addstr(0, 0, f"updated {inp}. New value: {parameters[key]}", colors["highlight"])
+        screens["top"].addstr(0, 0, f"updated {inp}. New value: {parameters[key]}      ", colors["highlight"])
         screens["top"].refresh()
-        time.sleep(0.5)
+        time.sleep(0.3)
         screens["top"].clear()
         screens["top"].refresh()
         paraupd()
-        break
+        continue
         
 def timer():
     global fetch_time, done
@@ -348,6 +403,104 @@ def timer():
         fetch_time += 1
         if done:
             break
+
+def alt_alert(state):
+    global server
+    clear_all()
+    time.sleep(0.1)
+    screens["top"].addstr(0, 0, "getting data...")
+    screens["top"].refresh()
+    alert_list = []
+    alert_details = []
+    alert_link = {}
+    try:
+        y = 1
+        server.send(state.encode("utf-8"))
+        alert_data = server.recv(10000).decode("utf-8")
+        if alert_data == "#none":
+            screens["main"].addstr(y, 0, f"No alerts for {parameters['state']}, YAYYYY :DDD")
+            screens["main"].addstr(y + 1, 0, f"Shift+R to refresh")
+            screens["main"].addstr(y + 2, 0, f"Shift+C for config")
+            screens["main"].refresh()
+            while True:
+                key = screens["main"].getch()
+                if key == ord("R"):
+                    return 0, 0, 0
+                elif key == ord("C"):
+                    config()
+                    return 0, 0, 0                       
+        else:
+            all_alerts = []
+            with open("recent_alert.txt", "w") as file:
+                file.write(alert_data)
+            with open ("recent_alert.txt", "r") as file:
+                alert_data = file.read()
+            alert_data_copy = alert_data
+            for item in alert_data_copy:
+                if item == "#":
+                    alert, alert_data = alert_data.split("##", 1)
+                    all_alerts.append(alert)
+                    if "##" not in alert_data:
+                        break
+                    
+            screens["top"].clear()
+            msg = f"{len(all_alerts)} Alerts for {parameters['state']}"
+            screens["top"].addstr(0, 0, msg)
+
+        screens["top"].addstr(0, width - width // 2, "Shift+C for config")
+        screens["top"].addstr(0, width - width // 4 - (width // 10),"Shift+R to update")
+        screens["top"].addstr(0, width - width // 5,"Shift+S to sort")
+        screens["top"].refresh()
+        y += 1
+
+        for item in all_alerts:
+            headline, event = item.split("!@", 1)
+            headline = headline.strip()
+            event, details = item.split("@!", 1)
+            event = event.strip()
+            details = details.strip()
+            
+            if parameters["county"] in details.lower():
+                headline = "In County>>> " + headline
+            nearby = ""
+            count = 0
+            for direction, abbr  in directions.items():
+                if parameters[direction] in details.lower():
+                    nearby += f"{abbr}:"
+                    count += 1
+            if nearby:
+                nearby += ">>>"
+                if ">>>" in headline:
+                    cache, headline = headline.split(">>>")
+                if count > 2:
+                    nearby = "Large Area>>>"
+                headline = nearby + headline
+            if parameters["center"] in details.lower():
+                if ">>>" in headline:
+                    cache, headline = headline.split(">>>")
+                headline = "NEARBY>>> " + headline
+            alrhead = f"{headline}"
+            alrmore = f"{event}\n{details}"
+            alert_details.append(alrmore)
+            alert_list.append(alrhead)
+            alert_link.update({alrhead: alrmore})
+    except (BrokenPipeError, ConnectionResetError, TimeoutError) as e:
+        clear_all()
+        print_text("Connection failed, timed out, or reset. Press any key and try again or press Shift+C to enter config", 0)
+        print_text(str(e), 3)
+        key = screens["main"].getch()
+        if key == ord("C"):
+            config()
+            server.shutdown(shutdown)
+            server.close()
+            del server
+            server = netcom.socket(ipv4, tcp)
+            #init()
+            return 0, 0, 0
+        else:
+            exit()
+    return alert_list, alert_details, alert_link
+
 
 def get_alert(param):
     screens["top"].addstr(0, 0, "getting data...")
