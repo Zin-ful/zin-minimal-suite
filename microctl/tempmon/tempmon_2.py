@@ -30,6 +30,8 @@ light_1.value(0)
 light_2.value(0)
 light_3.value(0)
 
+# Limit list size to prevent memory overflow
+MAX_AVG_SAMPLES = 100
 
 temp_avg_in = []
 hum_avg_in = []
@@ -50,7 +52,7 @@ low_hum_out = 1000
 fan_on_threshhold = 20
 alt_fan_on_threshhold = 20
 
-wait = 0.0001
+wait = 1.0  # Changed from 0.0001 to 1 second
 time = 0
 
 pos = 0
@@ -64,6 +66,7 @@ def change_state(pins, state):
         pins[i].value(state)
         print("turning to ", state)
         i += 1
+        
 def scrprint(string, x, y):
     display.text(string, x, y, 1)
 
@@ -124,15 +127,18 @@ def display_temperature():
     scrprint(str((float(temp_out) * 1.8) + 32) + "F", 0, 40)
     
 def display_temp_avg():
-    temp_trend_in = str(round(sum(temp_avg_in) / len(temp_avg_in), 2))
-    temp_trend_out = str(round(sum(temp_avg_out) / len(temp_avg_out), 2))
+    if len(temp_avg_in) > 0 and len(temp_avg_out) > 0:
+        temp_trend_in = str(round(sum(temp_avg_in) / len(temp_avg_in), 2))
+        temp_trend_out = str(round(sum(temp_avg_out) / len(temp_avg_out), 2))
 
-    scrprint("Case Avg Temp:", 0, 0)
-    scrprint(temp_trend_in + "C", 0, 8)
-    scrprint(str(((float(temp_trend_in) * 1.8)+ 32)) + "F", 0, 16)
-    scrprint("Room Avg Temp:", 0, 24)
-    scrprint(temp_trend_out + "C", 0, 32)
-    scrprint(str(((float(temp_trend_out) * 1.8) + 32)) + "F", 0, 40)
+        scrprint("Case Avg Temp:", 0, 0)
+        scrprint(temp_trend_in + "C", 0, 8)
+        scrprint(str(((float(temp_trend_in) * 1.8)+ 32)) + "F", 0, 16)
+        scrprint("Room Avg Temp:", 0, 24)
+        scrprint(temp_trend_out + "C", 0, 32)
+        scrprint(str(((float(temp_trend_out) * 1.8) + 32)) + "F", 0, 40)
+    else:
+        scrprint("Collecting data...", 0, 0)
     
 def display_humidity():
     scrprint("Case Humidity:", 0, 0)
@@ -141,13 +147,16 @@ def display_humidity():
     scrprint(hum_out + "%", 0, 32)
     
 def display_hum_avg():
-    hum_trend_in = str(round(sum(hum_avg_in) / len(hum_avg_in), 2))
-    hum_trend_out = str(round(sum(hum_avg_out) / len(hum_avg_out), 2))
+    if len(hum_avg_in) > 0 and len(hum_avg_out) > 0:
+        hum_trend_in = str(round(sum(hum_avg_in) / len(hum_avg_in), 2))
+        hum_trend_out = str(round(sum(hum_avg_out) / len(hum_avg_out), 2))
 
-    scrprint("Case Avg Hum:", 0, 0)
-    scrprint(hum_trend_in + "%", 0, 8)
-    scrprint("Room Avg Hum:", 0, 24)
-    scrprint(hum_trend_out + "%", 0, 32)
+        scrprint("Case Avg Hum:", 0, 0)
+        scrprint(hum_trend_in + "%", 0, 8)
+        scrprint("Room Avg Hum:", 0, 24)
+        scrprint(hum_trend_out + "%", 0, 32)
+    else:
+        scrprint("Collecting data...", 0, 0)
 
 def display_peak_temp():
     scrprint("Peak Temps:", 0, 0)
@@ -170,6 +179,7 @@ def display_pressure():
     scrprint(pres_in + "mb", 0, 8)
     scrprint("Pressure Out:", 0, 16)
     scrprint(pres_out + "mb", 0, 24)
+    
 def display_utility():
     unallocated_mem = str(gc.mem_free() // 1024)
     allocated_mem = str(gc.mem_alloc() // 1024)
@@ -181,6 +191,8 @@ def display_utility():
     scrprint(f"T: {len(temp_avg_out) + len(temp_avg_in)} H: {len(hum_avg_out) + len(hum_avg_in)}", 0, 40)
 
 menu = [display_temperature, display_temp_avg, display_peak_temp, display_humidity, display_hum_avg, display_peak_hum, display_pressure, display_utility]
+
+# Startup sequence
 change_state((fan_1, fan_2), 1)
 change_state((light_1, light_2, light_3), 0)
 sleep(1)
@@ -204,11 +216,26 @@ change_state((light_1, light_2, light_3), 0)
 
 while True:
     temp_in, hum_in, pres_in, peak_temp_in, peak_hum_in, low_temp_in, low_hum_in = get_stat(aht_in, bmp_in, float(peak_temp_in), float(peak_hum_in), float(low_temp_in), float(low_hum_in))
+    
+    # Limit list size to prevent memory overflow
     temp_avg_in.append(float(temp_in))
+    if len(temp_avg_in) > MAX_AVG_SAMPLES:
+        temp_avg_in.pop(0)
+        
     hum_avg_in.append(float(hum_in))
+    if len(hum_avg_in) > MAX_AVG_SAMPLES:
+        hum_avg_in.pop(0)
+    
     temp_out, hum_out, pres_out, peak_temp_out, peak_hum_out, low_temp_out, low_hum_out = get_stat(aht_out, bmp_out, float(peak_temp_out), float(peak_hum_out), float(low_temp_out), float(low_hum_out))
+    
     temp_avg_out.append(float(temp_out))
+    if len(temp_avg_out) > MAX_AVG_SAMPLES:
+        temp_avg_out.pop(0)
+        
     hum_avg_out.append(float(hum_out))
+    if len(hum_avg_out) > MAX_AVG_SAMPLES:
+        hum_avg_out.pop(0)
+    
     display.fill(0)
     menu[pos]()
     display.show()
@@ -237,16 +264,13 @@ while True:
         pos += 1
         if pos > len(menu) - 1:
             pos = len(menu) - 1
+            
     print(time)    
     time += 1
-    if gc.mem_free() < 22000:
+    
+    # Run garbage collection periodically
+    if time % 10 == 0:
         gc.collect()
-    elif gc.mem_free() < 8000 or time == 500:
-        time = 0
-        temp_avg_in = []
-        hum_avg_out = []
-        temp_avg_in = []
-        hum_avg_out = []
-        gc.collect()
+        print(f"Memory free: {gc.mem_free()}")
 
     sleep(wait)
