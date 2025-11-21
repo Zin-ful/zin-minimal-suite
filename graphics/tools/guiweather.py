@@ -24,7 +24,7 @@ if "weathertool" not in os.listdir(curusr+"/.zinapp"):
 
 conf_path = curusr + conf_path
 
-print("Tool Version: 1.4\n")
+print("Tool Version: 1.7\n")
 
 name = ""
 state = "TX"
@@ -42,7 +42,7 @@ NE = "????"
 SW = "????" 
 SE = "????"
 connect_to_server = "false"
-server_ip = "0.0.0.0"
+server_ip = "?.?.?.?"
 wait_time = "120"
 
 url = "https://api.weather.gov/alerts/active?area="
@@ -58,6 +58,23 @@ parameters = {"state": state, "county": county, "alternate server": connect_to_s
 "north east": NE, "south east": SE, "south west": SW, "north west": NW,  
 "bind 1": bind_1, "bind 2": bind_2, "bind 3": bind_3}
 
+help_list = [
+"Ctrl+R > Sends a request to update your current alerts with the latest one.",
+"If alternate server is true, the server updates based on wait-time)",
+"Ctrl+C > Opens the configuration. The directions (north, west, etc) are nearby locations that will set the map values.",
+"Ctrl+S > Sorts the current alert list by alert type.",
+"Ctrl+Q > Return to previous screen",
+"Ctrl+H > Displays the help screen",
+"Ctrl+V > Displays the map"
+"binds 1-3 > Custom phrases for sorting, trigged by Shift+1 through 3",
+"Center/Directions > 'center' is the town you reside in inside of your county",
+"setting this and directions will build a map of alerts.",
+"Alt server > If you download and have the srvweather.py file from zin-minimal-suite and",
+"start it on a device that you can connect to, enabling this will allow connection to that server",
+"instead of weather.gov which can be several times faster as the server",
+"automatically parses the data for you"
+
+]
 
 directions = {"north":"N", "south":"S","west":"W", "east":"E", 
 "south west":"SW", "south east":"SE","north west":"NW", "north east":"NE"}
@@ -70,6 +87,8 @@ fetch_cmd = ["curl", "-s", url]
 pos = 0
 offset = 1
 list_pos = 0
+
+connected = 0
 
 port = 49021
 server = netcom.socket(ipv4, tcp)
@@ -111,6 +130,7 @@ def main(stdscr):
     stdscr.refresh()
     top_bar = curses.newwin(0, width, 0, 0)
     main_win = curses.newwin(height - 5, width, 2, 0)
+    help_screen = curses.newwin(height - 8, width - 4, 4, 4)
     user_input = curses.newwin(1, width - 1, height - 1, 1)
     tbox = Textbox(user_input)
     screens.update({"top": top_bar})
@@ -118,6 +138,7 @@ def main(stdscr):
     screens.update({"box": user_input})
     screens.update({"text": tbox})
     screens.update({"source": stdscr})
+    screens.update({"help": help_screen})
     colors.update({"highlight": highlight, "water": wet, "spark": spark, "heat": heat, "bad": bad, "cold": cold, "wind": wind})
     inps()
 
@@ -130,9 +151,33 @@ def clear_all():
 
 def init():
     clear_all()
-    if parameters["server ip"] == "0.0.0.0":
-        return 0
-    server.connect((parameters["server ip"], port))
+    if parameters["server ip"] == "?.?.?.?":
+        print_text("invalid IP address, to connect, configure it. Press C to configure, Q to return with alt server off config", 1)
+        while True:
+            key = screens["main"].getch()
+            if key == ord("C"):
+                config()
+                return 0
+            elif key == ord("Q"):
+                parameters["alternate server"] = "false"
+                paraupd()
+                clear_all()
+                return 1
+    try:
+        server.connect((parameters["server ip"], port))
+    except ConnectionRefusedError:
+        print_text("Failed to initalize with server.\nEither the server is down\nyour not connected to internet\nor you dont have a direct path to the server (hamachi, wireguard, openvpn, etc)\nPress C to configure, Q to exit with alt server off, or R to retry", 1)
+        while True:
+            key = screens["main"].getch()
+            if key == ord("C"):
+                config()
+                return 0
+            elif key == ord("R"):
+                return 0
+            elif key == ord("Q"):
+                parameters["alternate server"] = "false"
+                paraupd()
+                return 1
     print_text("connecting", 0)
     screens["main"].refresh()
     time.sleep(0.1)
@@ -147,7 +192,7 @@ def init():
     time.sleep(0.1)
     screens["main"].clear()
     screens["main"].refresh()
-    
+    return 1    
     
 def sort_list(text_list, top, middle, bottom, sortby):
     new_list = []
@@ -195,12 +240,14 @@ def simple_input(menu):
 
 
 def inps():
-    global list_pos
+    global connected, list_pos
     pos = 0
+    connected = 0
     alert_list = 0
     screens["main"].clear()
     if parameters["alternate server"] != "false":
-        init()
+        while not connected:
+            connected = init()
     while not alert_list:
         if parameters["alternate server"] == "false":
             alert_list, alert_details, alert_link = get_alert(None)
@@ -210,6 +257,8 @@ def inps():
     cache_list = alert_list
     print_list(alert_list, 1)
     while True:
+        while not connected and parameters["alternate server"] != "false":
+            connected = init()
         key = screens["main"].getch()
         if key == ord("w") or key == ord("s"):
             if not alert_list:
@@ -222,6 +271,20 @@ def inps():
                 continue
             examine(alert_details, pos)
             screens["main"].clear()
+            print_list(alert_list, 1)
+        elif key == ord("H"):
+            screens["help"].clear()
+            i = 0
+            for item in help_list:
+                if ">" in item:
+                    i += 1
+                screens["help"].addstr(i, 0, item)
+                i += 1
+            screens["help"].refresh()
+            screens["main"].getch()
+            screens["help"].clear()
+            screens["help"].refresh()
+            
             print_list(alert_list, 1)
         elif key == ord("S"):
             if not list_pos:
@@ -245,7 +308,13 @@ def inps():
             if parameters["alternate server"] == "false":
                 alert_list, alert_details, alert_link = get_alert(None)
             else:
+                while not connected and parameters["alternate server"] != "false":
+                    connected = init()
+        
                 alert_list, alert_details, alert_link = alt_alert("*") 
+                while not alert_list:
+                    alert_list, alert_details, alert_link = get_alert(None)
+                    
             print_list(alert_list, 1)
 
         elif key == ord("C"):
@@ -254,7 +323,12 @@ def inps():
             if parameters["alternate server"] == "false":
                 alert_list, alert_details, alert_link = get_alert(None)
             else:
+                while not connected and parameters["alternate server"] != "false":
+                    connected = init()
                 alert_list, alert_details, alert_link = alt_alert(parameters["state"])
+                while not alert_list:
+                    alert_list, alert_details, alert_link = get_alert(None)
+                    
             print_list(alert_list, 1)
 
         elif key == ord("!"):
@@ -405,7 +479,7 @@ def timer():
             break
 
 def alt_alert(state):
-    global server
+    global server, connected
     clear_all()
     time.sleep(0.1)
     screens["top"].addstr(0, 0, "getting data...")
@@ -413,92 +487,81 @@ def alt_alert(state):
     alert_list = []
     alert_details = []
     alert_link = {}
+    y = 1
     try:
-        y = 1
+        sending = 1
         server.send(state.encode("utf-8"))
-        alert_data = server.recv(10000).decode("utf-8")
-        if alert_data == "#none":
-            screens["main"].addstr(y, 0, f"No alerts for {parameters['state']}, YAYYYY :DDD")
-            screens["main"].addstr(y + 1, 0, f"Shift+R to refresh")
-            screens["main"].addstr(y + 2, 0, f"Shift+C for config")
-            screens["main"].refresh()
-            while True:
-                key = screens["main"].getch()
-                if key == ord("R"):
-                    return 0, 0, 0
-                elif key == ord("C"):
-                    config()
-                    return 0, 0, 0                       
-        else:
-            all_alerts = []
-            with open("recent_alert.txt", "w") as file:
-                file.write(alert_data)
-            with open ("recent_alert.txt", "r") as file:
-                alert_data = file.read()
-            alert_data_copy = alert_data
-            for item in alert_data_copy:
-                if item == "#":
-                    alert, alert_data = alert_data.split("##", 1)
-                    all_alerts.append(alert)
-                    if "##" not in alert_data:
-                        break
-                    
-            screens["top"].clear()
-            msg = f"{len(all_alerts)} Alerts for {parameters['state']}"
-            screens["top"].addstr(0, 0, msg)
-
-        screens["top"].addstr(0, width - width // 2, "Shift+C for config")
-        screens["top"].addstr(0, width - width // 4 - (width // 10),"Shift+R to update")
-        screens["top"].addstr(0, width - width // 5,"Shift+S to sort")
+        sending = 0
+        getting = 1
+        alert_data = server.recv(60000).decode("utf-8")
+    except (ConnectionResetError, ConnectionRefusedError, TimeoutError, BrokenPipeError):
+        connected = 0
+        if sending:
+            print_text("Lost connection to the server during send.\nIts likely you have lost complete connection to the server or it went down.\nPress C for config, R to retry, or Q to swap off the alernative server and back out", 1)
+        elif getting:
+            print_text("Lost connection to the server during receive.\nIts likely there was a service interruption on your end due to a spotty connection.\nR to try again, C for configuration, or Q to back out and stop using the alt server", 1)
+        while True:
+            key = screens["main"].getch()
+            if key == ord("R"):
+                return 0, 0, 0
+            elif key == ord("C"):
+                config()
+                return 0, 0, 0
+            elif key == ord("Q"):
+                parameters["alternate server"] = "false"
+                paraupd()
+                clear_all()
+                return 0, 0, 0
+    if alert_data == "%":
+        screens["main"].addstr(y, 0, f"No alerts for {parameters['state']}, YAYYYY :DDD")
+        screens["main"].addstr(y + 1, 0, f"Shift+R to refresh")
+        screens["main"].addstr(y + 2, 0, f"Shift+C for config")
+        screens["main"].refresh()
+        while True:
+            key = screens["main"].getch()
+            if key == ord("R"):
+                clear_all()
+                return 0, 0, 0
+            elif key == ord("C"):
+                config()
+                return 0, 0, 0
+    else:
+        current_time, alert_data = alert_data.split("%", 1)
+        all_alerts = []
+        with open("recent_alert.txt", "w") as file:
+            file.write(alert_data)
+        with open ("recent_alert.txt", "r") as file:
+            alert_data = file.read()
+        alert_data_copy = alert_data
+        i = 0
+        while "##" in alert_data:
+            alert, alert_data = alert_data.split("##", 1)
+            all_alerts.append(alert)
+            with open ("log.txt", "a") as file:
+                file.write(f"{i} >>> {alert}\n")
+            i += 1
+        screens["top"].clear()
+        screens["top"].addstr(0, 0, f"{len(all_alerts)} Alerts for {parameters['state']}")
+        screens["top"].addstr(0, width - width // 2, current_time)
+        screens["top"].addstr(0, width - width // 4, "Shift+H for help")
+        #if connected:
+        #    screens["top"].addstr(0, width - width // 4 - (width // 10),"Connected!  ")
+        #else:
+        #    screens["top"].addstr(0, width - width // 4 - (width // 10) - 2,"Disconnected")
         screens["top"].refresh()
         y += 1
 
         for item in all_alerts:
-            headline, event = item.split("!@", 1)
+            headline, event = item.split("@!", 1)
             headline = headline.strip()
-            event, details = item.split("@!", 1)
+            event, details = event.split("!@", 1)
             event = event.strip()
             details = details.strip()
-            
-            if parameters["county"] in details.lower():
-                headline = "In County>>> " + headline
-            nearby = ""
-            count = 0
-            for direction, abbr  in directions.items():
-                if parameters[direction] in details.lower():
-                    nearby += f"{abbr}:"
-                    count += 1
-            if nearby:
-                nearby += ">>>"
-                if ">>>" in headline:
-                    cache, headline = headline.split(">>>")
-                if count > 2:
-                    nearby = "Large Area>>>"
-                headline = nearby + headline
-            if parameters["center"] in details.lower():
-                if ">>>" in headline:
-                    cache, headline = headline.split(">>>")
-                headline = "NEARBY>>> " + headline
             alrhead = f"{headline}"
             alrmore = f"{event}\n{details}"
             alert_details.append(alrmore)
             alert_list.append(alrhead)
             alert_link.update({alrhead: alrmore})
-    except (BrokenPipeError, ConnectionResetError, TimeoutError) as e:
-        clear_all()
-        print_text("Connection failed, timed out, or reset. Press any key and try again or press Shift+C to enter config", 0)
-        print_text(str(e), 3)
-        key = screens["main"].getch()
-        if key == ord("C"):
-            config()
-            server.shutdown(shutdown)
-            server.close()
-            del server
-            server = netcom.socket(ipv4, tcp)
-            #init()
-            return 0, 0, 0
-        else:
-            exit()
     return alert_list, alert_details, alert_link
 
 
@@ -530,14 +593,12 @@ def get_alert(param):
                     return 0, 0, 0
                 elif key == ord("C"):
                     config()
-                    return 0, 0, 0                       
-        else:
-            screens["top"].clear()
-            msg = f"{len(alert_data)} Alerts for {parameters['state']}"
-            screens["top"].addstr(0, 0, msg)
-        screens["top"].addstr(0, width - width // 2, "Shift+C for config")
-        screens["top"].addstr(0, width - width // 4 - (width // 10),"Shift+R to update")
-        screens["top"].addstr(0, width - width // 5,"Shift+S to sort")
+                    return 0, 0, 0
+        current_time = datetime.now().strftime("%m-%d %H:%M")
+        screens["top"].clear()
+        screens["top"].addstr(0, 0, f"{len(alert_data)} Alerts for {parameters['state']}")
+        screens["top"].addstr(0, width - width // 2, current_time)
+        screens["top"].addstr(0, width - width // 4, "Shift+H for help")
         screens["top"].refresh()
         y += 1
         for alert in alert_data:
@@ -546,31 +607,6 @@ def get_alert(param):
             headline = properties.get("headline", "no headline")
             details = properties.get("description", "no description")
             effective = properties.get("effective")
-            if parameters["county"] in details.lower():
-                headline = "In County>>> " + headline
-            nearby = ""
-            count = 0
-            for direction, abbr  in directions.items():
-                if parameters[direction] in details.lower():
-                    nearby += f"{abbr}:"
-                    count += 1
-            if nearby:
-                nearby += ">>>"
-                if ">>>" in headline:
-                    cache, headline = headline.split(">>>")
-                if count > 2:
-                    nearby = "Large Area>>>"
-                headline = nearby + headline
-            if parameters["center"] in details.lower():
-                if ">>>" in headline:
-                    cache, headline = headline.split(">>>")
-                headline = "NEARBY>>> " + headline
-
-            if effective:
-                time = datetime.fromisoformat(effective.rstrip('Z'))
-                time = (time.month, time.day, time.hour, time.minute)
-            if not effective:
-                time = "Unknown time"
             alrhead = f"{headline}"
             alrmore = f"{event}\n{details}"
             alert_details.append(alrmore)
