@@ -24,7 +24,7 @@ if "weathertool" not in os.listdir(curusr+"/.zinapp"):
 
 conf_path = curusr + conf_path
 
-print("Tool Version: 1.7\n")
+print("Tool Version: 1.8\n")
 
 name = ""
 state = "TX"
@@ -59,13 +59,13 @@ parameters = {"state": state, "county": county, "alternate server": connect_to_s
 "bind 1": bind_1, "bind 2": bind_2, "bind 3": bind_3}
 
 help_list = [
-"Ctrl+R > Sends a request to update your current alerts with the latest one.",
+"Shift+R > Sends a request to update your current alerts with the latest one.",
 "If alternate server is true, the server updates based on wait-time)",
-"Ctrl+C > Opens the configuration. The directions (north, west, etc) are nearby locations that will set the map values.",
-"Ctrl+S > Sorts the current alert list by alert type.",
-"Ctrl+Q > Return to previous screen",
-"Ctrl+H > Displays the help screen",
-"Ctrl+V > Displays the map"
+"Shift+C > Opens the configuration. The directions (north, west, etc) are nearby locations that will set the map values.",
+"Shift+S > Sorts the current alert list by alert type.",
+"Shift+Q > Return to previous screen",
+"Shift+H > Displays the help screen",
+"Shift+V > Displays the map",
 "binds 1-3 > Custom phrases for sorting, trigged by Shift+1 through 3",
 "Center/Directions > 'center' is the town you reside in inside of your county",
 "setting this and directions will build a map of alerts.",
@@ -76,9 +76,8 @@ help_list = [
 
 ]
 
-directions = {"north":"N", "south":"S","west":"W", "east":"E", 
-"south west":"SW", "south east":"SE","north west":"NW", "north east":"NE"}
-            
+directions = {"center": "????", "north":"????", "south":"????","west":"????", "east":"????", 
+"south west":"????", "south east":"????","north west":"????", "north east":"????"}
 
 sorting_phrases = ["warning", "alert", "outlook", "advisory", "watch"]
 
@@ -105,6 +104,8 @@ else:
                 continue
             key, value = item.split("=")
             parameters[key] = value.strip().strip('\n')
+    for key, val in directions.items():
+        directions[key] = parameters[key]
 
 fetch_time = 0
 done = 0
@@ -119,6 +120,9 @@ def main(stdscr):
     curses.init_pair(5, curses.COLOR_BLACK, curses.COLOR_RED)
     curses.init_pair(6, curses.COLOR_WHITE, curses.COLOR_BLACK)
     curses.init_pair(7, curses.COLOR_BLUE, curses.COLOR_WHITE)
+    curses.init_pair(8, curses.COLOR_BLACK, curses.COLOR_YELLOW)
+    curses.init_pair(9, curses.COLOR_BLACK, curses.COLOR_BLUE)
+    
     highlight = curses.color_pair(1)
     wet = curses.color_pair(2)
     cold = curses.color_pair(7)
@@ -126,20 +130,27 @@ def main(stdscr):
     heat = curses.color_pair(4)
     bad = curses.color_pair(5)
     wind = curses.color_pair(6)
+    caution = curses.color_pair(8)
+    lookout = curses.color_pair(9)
     stdscr.clear()
     stdscr.refresh()
-    top_bar = curses.newwin(0, width, 0, 0)
-    main_win = curses.newwin(height - 5, width, 2, 0)
-    help_screen = curses.newwin(height - 8, width - 4, 4, 4)
+
+    top_win = curses.newwin(0, width, 0, 0)
+    main_win = curses.newwin(height - 2, width, 1, 0)
+    help_win = curses.newwin(height - 8, width - 4, 4, 4)
     user_input = curses.newwin(1, width - 1, height - 1, 1)
+    map_win = curses.newwin(height - 10, width - 15, 1, 5)
     tbox = Textbox(user_input)
-    screens.update({"top": top_bar})
+    screens.update({"top": top_win})
     screens.update({"main": main_win})
     screens.update({"box": user_input})
     screens.update({"text": tbox})
     screens.update({"source": stdscr})
-    screens.update({"help": help_screen})
-    colors.update({"highlight": highlight, "water": wet, "spark": spark, "heat": heat, "bad": bad, "cold": cold, "wind": wind})
+    screens.update({"help": help_win})
+    screens.update({"map": map_win})
+    colors.update({"highlight": highlight, "water": wet, "spark": spark, "heat": heat, 
+    "bad": bad, "caution": caution, "lookout": lookout,
+    "cold": cold, "wind": wind})
     inps()
 
 def clear_all():
@@ -219,10 +230,6 @@ def sort_list(text_list, top, middle, bottom, sortby):
         return text_list
     return new_list
 
-
-def cast():
-    return
-
 def simple_input(menu):
     pos = 0
     print_list(menu, 1)
@@ -238,7 +245,46 @@ def simple_input(menu):
             return None
 
 
+def map(alert_list, alert_details):
+    map_y, map_x = screens["map"].getmaxyx()
+    i = 0
+    dir_color = {"center": 0, "north west": 0, "north": 0, "north east": 0, "south west": 0, "south": 0, "south east": 0, "east": 0, "west": 0}
+    dirs = ["center", "north west", "north", "north east", "south west", "south", "south east", "east", "west"]
+    for item in alert_details:
+        for dir in dirs:
+            if parameters[dir].lower() in item.lower():
+                if "warning" in alert_list[i].lower():
+                    dir_color[dir] = colors["bad"]
+                elif "advisory" in alert_list[i].lower():
+                    dir_color[dir] = colors["caution"]
+                elif "watch" in alert_list[i].lower():
+                    dir_color[dir] = colors["lookout"]
+                else:
+                    dir_color[dir] = colors["wind"]
 
+        i += 1       
+    screens["map"].clear()
+    
+    screens["map"].addstr(0, 0, "Red = ")
+    screens["map"].addstr(1, 0, "Yellow =")
+    screens["map"].addstr(2, 0, "Blue = ")
+    screens["map"].addstr(0, len("Red =  "), "Warning", colors["bad"])
+    screens["map"].addstr(1, len("Yellow = "), "Advisory", colors["caution"])
+    screens["map"].addstr(2, len("Blue =  "), "Watch", colors["lookout"])
+    
+    
+    screens["map"].addstr(map_y // 2, map_x // 2, directions["center"], dir_color["center"])
+    screens["map"].addstr((map_y // 7) + 2, (map_x // 6) + 6, directions["north west"], dir_color["north west"])
+    screens["map"].addstr((map_y // 7) - 2, map_x // 2, directions["north"], dir_color["north"])
+    screens["map"].addstr((map_y // 7) + 2, (map_x - map_x // 6) - 6, directions["north east"], dir_color["north east"])
+    screens["map"].addstr((map_y - (map_y // 7)) - 2, (map_x // 6) + 6, directions["south west"], dir_color["south west"])
+    screens["map"].addstr((map_y - (map_y // 7)) + 2, map_x // 2, directions["south"], dir_color["south"])
+    screens["map"].addstr((map_y - (map_y // 7)) - 2, (map_x - map_x // 6) - 6, directions["south east"], dir_color["south east"])
+    screens["map"].addstr(map_y // 2, map_x // 6, directions["east"], dir_color["east"])
+    screens["map"].addstr(map_y // 2, map_x - (map_x // 6), directions["west"], dir_color["west"])
+
+    screens["map"].refresh()
+    
 def inps():
     global connected, list_pos
     pos = 0
@@ -256,6 +302,7 @@ def inps():
             
     cache_list = alert_list
     print_list(alert_list, 1)
+    y, x = screens["main"].getmaxyx() 
     while True:
         while not connected and parameters["alternate server"] != "false":
             connected = init()
@@ -263,7 +310,19 @@ def inps():
         if key == ord("w") or key == ord("s"):
             if not alert_list:
                 continue
-            pos = select(alert_list, key, pos)
+            if len(alert_list) > y:
+                i = len(alert_list) // 2
+                for i in range(len(alert_list) // 2):
+                    alert_list_2.append(alert_list[i])
+                i = 0
+                for i in range(len(alert_list) // 2):
+                    alert_list_1.append(alert_list[i])
+                if pos >= len(alert_list_1):
+                    pos = select(alert_list_2, key, pos)
+                else:
+                    pos = select(alert_list_1, key, pos)
+            else:        
+                pos = select(alert_list, key, pos)
             if not pos:
                 pos = 0
         elif key == ord("e"):
@@ -271,6 +330,12 @@ def inps():
                 continue
             examine(alert_details, pos)
             screens["main"].clear()
+            print_list(alert_list, 1)
+        elif key == ord("V"):
+            map(alert_list, alert_details)
+            screens["main"].getch()
+            screens["map"].clear()
+            screens["map"].refresh()
             print_list(alert_list, 1)
         elif key == ord("H"):
             screens["help"].clear()
@@ -284,7 +349,6 @@ def inps():
             screens["main"].getch()
             screens["help"].clear()
             screens["help"].refresh()
-            
             print_list(alert_list, 1)
         elif key == ord("S"):
             if not list_pos:
@@ -544,10 +608,6 @@ def alt_alert(state):
         screens["top"].addstr(0, 0, f"{len(all_alerts)} Alerts for {parameters['state']}")
         screens["top"].addstr(0, width - width // 2, current_time)
         screens["top"].addstr(0, width - width // 4, "Shift+H for help")
-        #if connected:
-        #    screens["top"].addstr(0, width - width // 4 - (width // 10),"Connected!  ")
-        #else:
-        #    screens["top"].addstr(0, width - width // 4 - (width // 10) - 2,"Disconnected")
         screens["top"].refresh()
         y += 1
 
@@ -670,6 +730,7 @@ def print_list(text_list, y):
             if event in item.lower():
                 color = colors["bad"]
                 break
+
         if not color:		
             screens["main"].addstr(y, 0, item)
         else:
