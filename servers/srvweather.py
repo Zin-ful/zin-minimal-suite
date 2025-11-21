@@ -24,6 +24,8 @@ print(f"bound to {port}")
 connections = {}
 
 threads = {}
+client_counter = 0
+id_lock = task.Lock()
 
 recent_time = 0
 
@@ -39,12 +41,16 @@ def init():
         try:
             client, client_ip = server.accept()
             print(f"client accepted: {client_ip}")
-            thread_client = task.Thread(target=client_start, args=[client, client_ip])
+            with id_lock:
+                global client_counter
+                client_counter += 1
+                client_name = f"client_{client_counter}"
+            thread_client = task.Thread(target=client_start, args=[client, client_ip, client_name])
             thread_client.start()
         except Exception as e:
             print(e)
 
-def client_start(client, client_ip):
+def client_start(client, client_ip, client_name):
     state = client.recv(2).decode("utf-8")
     state = state.upper()
     wait_time = client.recv(10).decode("utf-8")
@@ -56,18 +62,18 @@ def client_start(client, client_ip):
         client_count = 0
     pause = 0
     client_exists = 1
-
-    threads.update({client: {"pause": pause, "exists": client_exists}})
-    alert_thread = task.Thread(target=get_alert, args=[state, wait_time, 0, client])
+    print(f"updating threads: {client_name}, pause: {pause}, exists: {client_exists}")
+    threads.update({client_name: {"pause": pause, "exists": client_exists}})
+    alert_thread = task.Thread(target=get_alert, args=[state, wait_time, 0, client_name])
     alert_thread.start()
 
     print(state, wait_time)
     client.send("*".encode("utf-8"))
-    while threads[client]["exists"]:
+    while threads[client_name]["exists"]:
         try:
             alert_request = client.recv(2).decode("utf-8")
             if alert_request:
-                while threads[client]["pause"]:
+                while threads[client_name]["pause"]:
                     sleep(0.1)
                     print("requesting paused.. waiting")
                 if alert_request == "*":
@@ -91,10 +97,14 @@ def client_start(client, client_ip):
                     with open(f"{conf_path}/{state}/alert_{num - 1}.txt", "r") as file:
                         alert = file.read()
                     client.send(f"{recent_time}%{alert}".encode("utf-8"))
-                    
+            else:
+                print("disconnecting client")
+                threads[client_name]["exists"] = 0
+                client_end(client)
+                alert_thread.join()            
         except (BrokenPipeError, ConnectionResetError, TimeoutError):
             print("disconnecting client")
-            threads[client]["exists"] = 0
+            threads[client_name]["exists"] = 0
             client_end(client)
             alert_thread.join()
             break
@@ -155,6 +165,8 @@ def get_alert(state, wait_time, temp, client):
         threads[client]["pause"] = 0
         print(f"alert gotten. written to alert_{num - 1}.txt waiting...")
         sleep(wait_time)
-    print(f"ending thread {client_name}")
-        
+    if not temp:
+        print(f"ending thread {client}")
+    else:
+        print("temp call, no client")
 init()
