@@ -117,10 +117,18 @@ def save(state, header, event, details, properties, num):
     with open(f"{conf_path}/{state}/alert_{num}.txt", "a") as file:
         file.write(f"{header}\n@!\n{event}\n!@\n{details}\n##\n")
 
+def err(data):
+    with open(conf_path+"/requests_err.txt", "w") as file:
+        file.write(str(data))
+        
+
 def get_ftime(state, alert_number):
     global recent_time
+    if f"alert_{alert_number - 1}.txt" not in os.listdir(f"{conf_path}/{state}"):
+        recent_time = "Unknown date/time"
+        return
     creation_time = datetime.fromtimestamp(os.path.getctime(f"{conf_path}/{state}/alert_{alert_number - 1}.txt"))
-    recent_time =  f"{creation_time.month}-{creation_time.day}-{creation_time.hour}-{creation_time.minute}"
+    recent_time =  f"{creation_time.month}-{creation_time.day} {creation_time.hour}:{creation_time.minute}"
 
 def get_time():
     global recent_time
@@ -134,8 +142,6 @@ def get_alert(state, wait_time, temp, client):
         num = len(os.listdir(f"{conf_path}/{state}"))
         if not num:
             num = 0
-        print("pausing client")
-        threads[client]["pause"] = 1
         try:
             print("getting alert data")
             weatherdata = requests.get(url+state)
@@ -143,7 +149,15 @@ def get_alert(state, wait_time, temp, client):
             data = weatherdata.json()
             alert_data = data.get("features", [])
             if not alert_data:
-                return
+                print("pausing client")
+                threads[client]["pause"] = 1
+                save(state, "%", "%", "%", "%", num)
+                print("unpausing client")
+                threads[client]["pause"] = 0
+                sleep(wait_time)
+                continue
+            print("pausing client")
+            threads[client]["pause"] = 1
             for alert in alert_data:
                 properties = alert.get("properties", {})
                 event = properties.get("event", "unknown event")
@@ -154,6 +168,7 @@ def get_alert(state, wait_time, temp, client):
             get_time()
         except requests.exceptions.RequestException as e:
             get_ftime(state, num)
+            err(e)
             print("unpausing client")
             threads[client]["pause"] = 0
             print("error. waiting..")
@@ -163,7 +178,7 @@ def get_alert(state, wait_time, temp, client):
             break
         print("unpausing client")
         threads[client]["pause"] = 0
-        print(f"alert gotten. written to alert_{num - 1}.txt waiting...")
+        print(f"alert gotten. written to alert_{num}.txt waiting...")
         sleep(wait_time)
     if not temp:
         print(f"ending thread {client}")
