@@ -1,0 +1,35 @@
+#!/bin/sh
+
+echo "RUN WITH SUDO OR AS ROOT"
+sleep 2
+echo "removing old directory"
+rm -rf zin-minimal-suite
+echo "cloning new"
+sleep 1
+
+git clone https://github.com/Zin-ful/zin-minimal-suite
+cd zin-minimal-suite/graphics
+echo "copying files"
+sleep 1
+cp tools/guiweather.py /usr/local/bin/weather
+cp connection/guimsg.py /usr/local/bin/msg
+cp tools/guistatus.py /usr/local/bin/status
+cp tools/guiclock.py /usr/local/bin/clock
+cp sys-tools/guiusbctrl.py /usr/local/bin/usb
+
+chmod +x /usr/local/bin/usb
+chmod +x /usr/local/bin/clock
+chmod +x /usr/local/bin/msg
+chmod +x /usr/local/bin/weather
+chmod +x /usr/local/bin/status
+
+echo "files copied and marked as executables"
+echo ""
+echo ""
+echo ""
+echo "NEW COMMANDS:"
+echo "weather"
+echo "usb"
+echo "status"
+echo "clock"
+echo "msg"
