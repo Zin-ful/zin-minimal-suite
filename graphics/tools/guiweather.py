@@ -67,6 +67,7 @@ help_list = [
 "Shift+A > Displays the most recent archived alert",
 "Shift+H > Displays the help screen",
 "Shift+V > Displays the map",
+"Shift+F > Searches alerts for a given phrase",
 "binds 1-3 > Custom phrases for sorting, trigged by Shift+1 through 3",
 "Center/Directions > 'center' is the town you reside in inside of your county",
 "setting this and directions will build a map of alerts.",
@@ -138,7 +139,7 @@ def main(stdscr):
 
     top_win = curses.newwin(0, width, 0, 0)
     main_win = curses.newwin(height - 2, width, 1, 0)
-    help_win = curses.newwin(height - 8, width - 4, 4, 4)
+    help_win = curses.newwin(height - 4, width - 4, 3, 4)
     user_input = curses.newwin(1, width - 1, height - 1, 1)
     map_win = curses.newwin(height - 10, width - 15, 1, 5)
     tbox = Textbox(user_input)
@@ -280,11 +281,65 @@ def map(alert_list, alert_details):
     screens["map"].addstr((map_y - (map_y // 7)) - 2, (map_x // 6) + 6, directions["south west"], dir_color["south west"])
     screens["map"].addstr((map_y - (map_y // 7)) + 2, map_x // 2, directions["south"], dir_color["south"])
     screens["map"].addstr((map_y - (map_y // 7)) - 2, (map_x - map_x // 6) - 6, directions["south east"], dir_color["south east"])
-    screens["map"].addstr(map_y // 2, map_x // 6, directions["east"], dir_color["east"])
-    screens["map"].addstr(map_y // 2, map_x - (map_x // 6), directions["west"], dir_color["west"])
+    screens["map"].addstr(map_y // 2, map_x // 6, directions["west"], dir_color["west"])
+    screens["map"].addstr(map_y // 2, map_x - (map_x // 6), directions["east"], dir_color["east"])
 
     screens["map"].refresh()
+
+def find(alert_list, alert_details):
+    screens["source"].clear()
+    screens["source"].refresh()
+    screens["top"].addstr(0, 0, "Type in the phrase you want to search for:", colors["wind"])
+    screens["top"].refresh()
+    phrase = screens["text"].edit().strip()
+    found = []
+    found_list = []
+    if phrase:
+        i = 0
+        for item in alert_details:
+            if phrase.lower() in item.lower():
+                found.append(alert_details[i])
+                found_list.append(alert_list[i])
+            i += 1
     
+    clear_all()
+    if found:
+        pos = 0
+        screens["top"].addstr(0, 0, f"'{phrase}' found in {len(found)} alerts:", colors["wind"])
+        screens["top"].refresh()
+        print_list(found_list, 1)
+        y, x = screens["main"].getmaxyx()
+        while True:
+            key = screens["main"].getch()
+            if key == ord("w") or key == ord("s"):
+                if len(found_list) > y:
+                    i = len(found_list) // 2
+                    for i in range(len(found_list) // 2):
+                        alert_list_2.append(found_list[i])
+                    i = 0
+                    for i in range(len(found_list) // 2):
+                        alert_list_1.append(found_list[i])
+                    if pos >= len(found_list_1):
+                        pos = select(found_list_2, key, pos)
+                    else:
+                        pos = select(found_list_1, key, pos)
+                else:        
+                    pos = select(found_list, key, pos)
+            if not pos:
+                pos = 0
+            elif key == ord("e"):
+                examine(found, pos)
+                screens["main"].clear()
+                print_list(found_list, 1)
+            elif key == ord("q"):
+                break
+    else:
+        screens["top"].addstr(0, 0, f"'{phrase}' not found in alerts", colors["wind"])
+        screens["top"].refresh()
+        print_text("Any key to continue", 1)
+        screens["main"].getch()
+    clear_all()
+
 def inps():
     global connected, list_pos
     pos = 0
@@ -331,6 +386,19 @@ def inps():
             examine(alert_details, pos)
             screens["main"].clear()
             print_list(alert_list, 1)
+        elif key == ord("F"):
+            find(alert_list, alert_details)
+            screens["source"].clear()
+            screens["source"].refresh()
+            if parameters["alternate server"] == "false":
+                alert_list, alert_details, alert_link = get_alert(None)
+            else:
+                if not connected and parameters["alternate server"] != "false":
+                    connected = init()
+                alert_list, alert_details, alert_link = alt_alert("*") 
+            print_list(alert_list, 1)
+        elif key == ord("T"):
+            pass #put auto refresh here
         elif key == ord("A"):
             temp_al, temp_ad, temp_ak = archive()
             if temp_al:
@@ -380,7 +448,7 @@ def inps():
             if parameters["alternate server"] == "false":
                 alert_list, alert_details, alert_link = get_alert(None)
             else:
-                while not connected and parameters["alternate server"] != "false":
+                if not connected and parameters["alternate server"] != "false":
                     connected = init()
                 alert_list, alert_details, alert_link = alt_alert("*") 
             print_list(alert_list, 1)
