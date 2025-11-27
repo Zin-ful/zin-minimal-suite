@@ -24,7 +24,7 @@ if "weathertool" not in os.listdir(curusr+"/.zinapp"):
 
 conf_path = curusr + conf_path
 
-print("Tool Version: 1.8\n")
+print("Tool Version: 1.9\n")
 
 name = ""
 state = "TX"
@@ -64,6 +64,7 @@ help_list = [
 "Shift+C > Opens the configuration. The directions (north, west, etc) are nearby locations that will set the map values.",
 "Shift+S > Sorts the current alert list by alert type.",
 "Shift+Q > Return to previous screen",
+"Shift+A > Displays the most recent archived alert",
 "Shift+H > Displays the help screen",
 "Shift+V > Displays the map",
 "binds 1-3 > Custom phrases for sorting, trigged by Shift+1 through 3",
@@ -244,7 +245,6 @@ def simple_input(menu):
         elif key == ord("q"):
             return None
 
-
 def map(alert_list, alert_details):
     map_y, map_x = screens["map"].getmaxyx()
     i = 0
@@ -304,7 +304,7 @@ def inps():
     print_list(alert_list, 1)
     y, x = screens["main"].getmaxyx() 
     while True:
-        while not connected and parameters["alternate server"] != "false":
+        if not connected and parameters["alternate server"] != "false":
             connected = init()
         key = screens["main"].getch()
         if key == ord("w") or key == ord("s"):
@@ -330,6 +330,14 @@ def inps():
                 continue
             examine(alert_details, pos)
             screens["main"].clear()
+            print_list(alert_list, 1)
+        elif key == ord("A"):
+            temp_al, temp_ad, temp_ak = archive()
+            if temp_al:
+                alert_list = temp_al
+                alert_details = temp_ad
+                alert_link = temp_ak
+
             print_list(alert_list, 1)
         elif key == ord("V"):
             map(alert_list, alert_details)
@@ -374,11 +382,7 @@ def inps():
             else:
                 while not connected and parameters["alternate server"] != "false":
                     connected = init()
-        
                 alert_list, alert_details, alert_link = alt_alert("*") 
-                while not alert_list:
-                    alert_list, alert_details, alert_link = get_alert(None)
-                    
             print_list(alert_list, 1)
 
         elif key == ord("C"):
@@ -387,12 +391,9 @@ def inps():
             if parameters["alternate server"] == "false":
                 alert_list, alert_details, alert_link = get_alert(None)
             else:
-                while not connected and parameters["alternate server"] != "false":
+                if not connected and parameters["alternate server"] != "false":
                     connected = init()
-                alert_list, alert_details, alert_link = alt_alert(parameters["state"])
-                while not alert_list:
-                    alert_list, alert_details, alert_link = get_alert(None)
-                    
+                alert_list, alert_details, alert_link = alt_alert(parameters["state"])                   
             print_list(alert_list, 1)
 
         elif key == ord("!"):
@@ -542,6 +543,89 @@ def timer():
         if done:
             break
 
+def save(data, mode):
+    with open(conf_path+"/archive_alert.txt", mode) as file:
+         file.write(data)
+def clear_save():
+    with open(conf_path+"/archive_alert.txt", "w") as file:
+        file.write("")
+
+def load():
+    with open(conf_path+"/archive_alert.txt", "r") as file:
+        data = file.read()
+    return data
+
+def archive_time():
+     creation_time = datetime.fromtimestamp(os.path.getctime(conf_path+"/archive_alert.txt"))
+     return f"{creation_time.month}-{creation_time.day} {creation_time.hour}:{creation_time.minute}"
+
+def archive():
+    clear_all()
+    time.sleep(0.1)
+    alert_list = []
+    alert_details = []
+    alert_link = {}
+    y = 1
+    if "archive_alert.txt" in os.listdir(conf_path):
+        alert_data = load()
+    else:
+        screens["main"].addstr(y, 0, f"No archive file.")
+        screens["main"].addstr(y + 1, 0, f"Shift+R to refresh")
+        screens["main"].addstr(y + 2, 0, f"Shift+C for config")
+        screens["main"].refresh()
+        while True:
+            key = screens["main"].getch()
+            if key == ord("R"):
+                clear_all()
+                return 0, 0, 0
+            elif key == ord("C"):
+                 config()
+                 return 0, 0, 0
+
+    if alert_data == "%":
+        screens["main"].addstr(y, 0, f"No alerts for {parameters['state']}, YAYYYY :DDD")
+        screens["main"].addstr(y + 1, 0, f"Shift+R to refresh")
+        screens["main"].addstr(y + 2, 0, f"Shift+C for config")
+        screens["main"].refresh()
+        while True:
+            key = screens["main"].getch()
+            if key == ord("R"):
+                clear_all()
+                return 0, 0, 0
+            elif key == ord("C"):
+                config()
+                return 0, 0, 0
+    else:
+        if "%" not in alert_data:
+            current_time = archive_time()
+        else:
+            current_time, alert_data = alert_data.split("%", 1)
+        all_alerts = []
+        i = 0
+        while "##" in alert_data:
+            alert, alert_data = alert_data.split("##", 1)
+            all_alerts.append(alert)
+        screens["top"].clear()
+        screens["top"].addstr(0, 0, f"{len(all_alerts)} Alerts for {parameters['state']}")
+        screens["top"].addstr(0, width - width // 2, f"archived at: {archive_time()}")
+        screens["top"].addstr(0, width - width // 4, "Shift+H for help")
+        screens["top"].refresh()
+        y += 1
+        for item in all_alerts:
+            headline, event = item.split("@!", 1)
+            headline = headline.strip()
+            event, details = event.split("!@", 1)
+            event = event.strip()
+            details = details.strip()
+            alrhead = f"{headline}"
+            alrmore = f"{event}\n{details}"
+            alert_details.append(alrmore)
+            alert_list.append(alrhead)
+            alert_link.update({alrhead: alrmore})
+    return alert_list, alert_details, alert_link
+
+
+
 def alt_alert(state):
     global server, connected
     clear_all()
@@ -571,12 +655,15 @@ def alt_alert(state):
             elif key == ord("C"):
                 config()
                 return 0, 0, 0
+            elif key == ord("A"):
+                return archive()
+                
             elif key == ord("Q"):
                 parameters["alternate server"] = "false"
                 paraupd()
                 clear_all()
                 return 0, 0, 0
-    if alert_data == "%":
+    if alert_data == "%" or alert_data == f"%\n@!\n%\n!@\n%\n##\n":
         screens["main"].addstr(y, 0, f"No alerts for {parameters['state']}, YAYYYY :DDD")
         screens["main"].addstr(y + 1, 0, f"Shift+R to refresh")
         screens["main"].addstr(y + 2, 0, f"Shift+C for config")
@@ -590,20 +677,15 @@ def alt_alert(state):
                 config()
                 return 0, 0, 0
     else:
-        current_time, alert_data = alert_data.split("%", 1)
         all_alerts = []
-        with open("recent_alert.txt", "w") as file:
-            file.write(alert_data)
-        with open ("recent_alert.txt", "r") as file:
-            alert_data = file.read()
-        alert_data_copy = alert_data
+        save(alert_data, "w")
+        alert_data = load()
+        current_time, alert_data = alert_data.split("%", 1)
         i = 0
         while "##" in alert_data:
             alert, alert_data = alert_data.split("##", 1)
             all_alerts.append(alert)
-            with open ("log.txt", "a") as file:
-                file.write(f"{i} >>> {alert}\n")
-            i += 1
+
         screens["top"].clear()
         screens["top"].addstr(0, 0, f"{len(all_alerts)} Alerts for {parameters['state']}")
         screens["top"].addstr(0, width - width // 2, current_time)
@@ -622,6 +704,7 @@ def alt_alert(state):
             alert_details.append(alrmore)
             alert_list.append(alrhead)
             alert_link.update({alrhead: alrmore})
+            
     return alert_list, alert_details, alert_link
 
 
@@ -654,6 +737,8 @@ def get_alert(param):
                 elif key == ord("C"):
                     config()
                     return 0, 0, 0
+                elif key == ord("A"):
+                    return archive()
         current_time = datetime.now().strftime("%m-%d %H:%M")
         screens["top"].clear()
         screens["top"].addstr(0, 0, f"{len(alert_data)} Alerts for {parameters['state']}")
@@ -661,17 +746,20 @@ def get_alert(param):
         screens["top"].addstr(0, width - width // 4, "Shift+H for help")
         screens["top"].refresh()
         y += 1
+        clear_save()
         for alert in alert_data:
             properties = alert.get("properties", {})
             event = properties.get("event", "unknown event")
             headline = properties.get("headline", "no headline")
             details = properties.get("description", "no description")
             effective = properties.get("effective")
+            save(f"{headline}\n@!\n{event}\n!@\n{details}\n##\n", "a")
             alrhead = f"{headline}"
             alrmore = f"{event}\n{details}"
             alert_details.append(alrmore)
             alert_list.append(alrhead)
             alert_link.update({alrhead: alrmore})
+            
         if param:
             parameters['state'] = state_cache
     except requests.exceptions.RequestException as e:
@@ -693,7 +781,9 @@ def get_alert(param):
                 return 0, 0, 0
             elif key == ord("C"):
                 config()
-                return 0, 0, 0           
+                return 0, 0, 0
+            elif key == ord("A"):
+                return archive()     
         if param:
             parameters['state'] = state_cache
         time.sleep(0.5)
