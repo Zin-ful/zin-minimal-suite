@@ -627,6 +627,25 @@ def archive_time():
      creation_time = datetime.fromtimestamp(os.path.getctime(conf_path+"/archive_alert.txt"))
      return f"{creation_time.month}-{creation_time.day} {creation_time.hour}:{creation_time.minute}"
 
+def recv_exact(sock, bytes):
+    buf = b""
+    while len(buf) < bytes:
+        chunk = sock.recv(bytes - len(buf))
+        if not chunk:
+            raise ConnectionError("Socket closed")
+        buf += chunk
+    return buf
+
+def recv_packet(sock):
+    header = b""
+    while not header.endswith(b"\n"):
+        chunk = sock.recv(1)
+        if not chunk:
+            raise ConnectionError("Socket closed while reading header")
+        header += chunk
+    length = int(header.strip())
+    return recv_exact(sock, length)
+
 def archive():
     clear_all()
     time.sleep(0.1)
@@ -709,7 +728,7 @@ def alt_alert(state):
         server.send(state.encode("utf-8"))
         sending = 0
         getting = 1
-        alert_data = server.recv(60000).decode("utf-8")
+        alert_data = recv_packet(server).decode("utf-8")
     except (ConnectionResetError, ConnectionRefusedError, TimeoutError, BrokenPipeError):
         connected = 0
         if sending:
