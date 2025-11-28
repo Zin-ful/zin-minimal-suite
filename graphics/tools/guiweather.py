@@ -253,7 +253,7 @@ def map(alert_list, alert_details):
     dirs = ["center", "north west", "north", "north east", "south west", "south", "south east", "east", "west"]
     for item in alert_details:
         for dir in dirs:
-            if parameters[dir].lower() in item.lower():
+            if parameters[dir].lower() in item.lower() or parameters[dir].lower() in alert_list[i].lower():
                 if "warning" in alert_list[i].lower():
                     dir_color[dir] = colors["bad"]
                 elif "advisory" in alert_list[i].lower():
@@ -297,7 +297,7 @@ def find(alert_list, alert_details):
     if phrase:
         i = 0
         for item in alert_details:
-            if phrase.lower() in item.lower():
+            if phrase.lower() in item.lower() or phrase.lower() in alert_list[i].lower():
                 found.append(alert_details[i])
                 found_list.append(alert_list[i])
             i += 1
@@ -750,7 +750,7 @@ def alt_alert(state):
                 paraupd()
                 clear_all()
                 return 0, 0, 0
-    if alert_data == "%" or alert_data == f"%\n@!\n%\n!@\n%\n##\n":
+    if alert_data.startswith("%") and alert_data.count("##") == 0:
         screens["main"].addstr(y, 0, f"No alerts for {parameters['state']}, YAYYYY :DDD")
         screens["main"].addstr(y + 1, 0, f"Shift+R to refresh")
         screens["main"].addstr(y + 2, 0, f"Shift+C for config")
