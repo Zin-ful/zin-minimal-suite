@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from socket import AF_INET as ipv4
 from socket import SOCK_STREAM as tcp
 import socket as netcom
