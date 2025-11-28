@@ -85,7 +85,7 @@ def client_start(client, client_ip, client_name):
                         alert = file.read()
                     print("sending time")
                     print(f"sending alert number {num - 1}")
-                    client.send(f"{recent_time}%{alert}".encode("utf-8"))
+                    send_packet(client, f"{recent_time}%{alert}".encode("utf-8"))
                 else:
                     state = alert_request.upper()
                     get_alert(state, wait_time, 1, client)
@@ -96,7 +96,7 @@ def client_start(client, client_ip, client_name):
                     print(f"location request, sending alert {num - 1}")
                     with open(f"{conf_path}/{state}/alert_{num - 1}.txt", "r") as file:
                         alert = file.read()
-                    client.send(f"{recent_time}%{alert}".encode("utf-8"))
+                    send_packet(client, f"{recent_time}%{alert}".encode("utf-8"))
             else:
                 print("disconnecting client")
                 threads[client_name]["exists"] = 0
@@ -108,7 +108,12 @@ def client_start(client, client_ip, client_name):
             client_end(client)
             alert_thread.join()
             break
-            
+
+def send_packet(client, data):
+    length = len(data)
+    client.sendall(str(length).encode() + b"\n")
+    client.sendall(data)            
+
 def client_end(client):
     print("closing client")
     client.close()
