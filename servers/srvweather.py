@@ -88,7 +88,7 @@ def client_start(client, client_ip, client_name):
                     send_packet(client, f"{recent_time}%{alert}".encode("utf-8"))
                 else:
                     state = alert_request.upper()
-                    get_alert(state, wait_time, 1, client)
+                    get_alert(state, wait_time, 1, client_name)
                     num = len(os.listdir(f"{conf_path}/{state}"))
                     if not num:
                         send_packet(client, "%".encode("utf-8"))
@@ -144,7 +144,8 @@ def get_alert(state, wait_time, temp, client):
     if state not in os.listdir(conf_path):
         os.mkdir(f"{conf_path}/{state}")
     while threads[client]["exists"]:
-        num = len(os.listdir(f"{conf_path}/{state}"))
+        files = [f for f in os.listdir(f"{conf_path}/{state}") if f.startswith("alert_")]
+        num = len(files)
         if not num:
             num = 0
         try:
@@ -170,6 +171,8 @@ def get_alert(state, wait_time, temp, client):
                 details = properties.get("description", "no description")
                 effective = properties.get("effective")
                 save(state, headline, event, details, properties, num)
+            print("unpausing client")
+            threads[client]["pause"] = 0
             get_time()
         except requests.exceptions.RequestException as e:
             get_ftime(state, num)
@@ -179,11 +182,9 @@ def get_alert(state, wait_time, temp, client):
             print("error. waiting..")
             sleep(wait_time // 4)
             continue
+        print(f"alert gotten. written to alert_{num}.txt waiting...")
         if temp:
             break
-        print("unpausing client")
-        threads[client]["pause"] = 0
-        print(f"alert gotten. written to alert_{num}.txt waiting...")
         sleep(wait_time)
     if not temp:
         print(f"ending thread {client}")
