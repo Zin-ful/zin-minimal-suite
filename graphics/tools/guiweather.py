@@ -325,8 +325,8 @@ def find(alert_list, alert_details):
                         pos = select(found_list_1, key, pos)
                 else:        
                     pos = select(found_list, key, pos)
-            if not pos:
-                pos = 0
+                if not pos:
+                    pos = 0
             elif key == ord("e"):
                 examine(found, pos)
                 screens["main"].clear()
