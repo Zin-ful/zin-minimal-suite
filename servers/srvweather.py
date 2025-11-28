@@ -79,7 +79,7 @@ def client_start(client, client_ip, client_name):
                 if alert_request == "*":
                     num = len(os.listdir(f"{conf_path}/{state}"))
                     if not num:
-                        client.send("%".encode("utf-8"))
+                        send_packet(client, "%".encode("utf-8"))
                         continue
                     with open(f"{conf_path}/{state}/alert_{num - 1}.txt", "r") as file:
                         alert = file.read()
@@ -91,7 +91,7 @@ def client_start(client, client_ip, client_name):
                     get_alert(state, wait_time, 1, client)
                     num = len(os.listdir(f"{conf_path}/{state}"))
                     if not num:
-                        client.send("%".encode("utf-8"))
+                        send_packet(client, "%".encode("utf-8"))
                         continue
                     print(f"location request, sending alert {num - 1}")
                     with open(f"{conf_path}/{state}/alert_{num - 1}.txt", "r") as file:
