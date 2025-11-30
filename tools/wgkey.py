@@ -31,7 +31,7 @@ def main():
 		if "ex" in inp:
 			exit()
 		server.send(inp.encode("utf-8"))
-		response = server.recv(1024).decode("utf-8")
+		response = server.recv(4196).decode("utf-8")
 		for key, val in flags.items():
 			if val in response:
 				response = response.strip(val)
