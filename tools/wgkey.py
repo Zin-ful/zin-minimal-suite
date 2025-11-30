@@ -29,7 +29,7 @@ def main():
 		executed = 0
 		inp = input(">>> ")
 		if "ex" in inp:
-			exit()
+		    exit()
 	    elif "auto" in inp:
 	        auto_start()
 	        continue
@@ -51,7 +51,7 @@ def auto_start():
         return
     if "1" in inp:
         print("Wireguard on Systemd installations usually already creates a service for itself. Verify the service doesnt exist at:\n/etc/systemd/system/\nbefore continuing")
-        inp = input("Continue?"):
+        inp = input("Continue?")
         if "y" not in inp:
             return
         with open("/etc/systemd/system/wg-quick@.service", "w") as file:
@@ -59,13 +59,13 @@ def auto_start():
         print("wg-quick@.service written. if needed, run 'systemctl daemon-reload' and 'systemctl enable wg-quick@wg0.service'")
     elif "2" in inp:
         start_path = "/etc/runit/runsvdir/default/wg"
-        os.mkdir(start_path, exist_ok=true)
+        os.makedirs(start_path, exist_ok=True)
         print("writing run")
         with open(start_path+"/run", "w") as file:
-            file.write("#!/bin/sh\necho 'RUN: attempting wireguard start' > /dev/kmsg\nPATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\nexport PATH\nexec 2>&1\nWG_CONF='/etc/wireguard/wg0.conf'\nsleep 5\nif [ -f '$WG_CONF' ]; then\n    echo 'RUN: Starting wg0...' > /dev/kmsg\n    wg-quick up '$WG_CONF'\nelse\n    echo 'RUN: wireguard config not found' > /dev/kmsg\n    exit 1\nfi\necho 'RUN: wireguard brought up successfully' > /dev/kmsg\nexec tail -f /dev/null")
+            file.write("#!/bin/sh\necho 'RUN: attempting wireguard start' > /dev/kmsg\nPATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\nexport PATH\nexec 2>&1\nWG_CONF='/etc/wireguard/wg0.conf'\nsleep 5\nif [ -f $WG_CONF ]; then\n    echo 'RUN: Starting wg0...' > /dev/kmsg\n    wg-quick up $WG_CONF\nelse\n    echo 'RUN: wireguard config not found' > /dev/kmsg\n    exit 1\nfi\necho 'RUN: wireguard brought up successfully' > /dev/kmsg\nexec tail -f /dev/null")
         print("writing finish")
         with open(start_path+"/finish", "w") as file:
-            file.write("#!/bin/sh\necho 'RUN: attempting to bring wireguard down' > /dev/kmsg\nPATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\nexport PATH\nexec 2>&1\nWG_CONF='/etc/wireguard/wg0.conf'\nif [ -f '$WG_CONF' ]; then\n    echo 'RUN: Bringing down wg0...' > /dev/kmsg\n    wg-quick down '$WG_CONF'\nelse\n    echo 'RUN: WireGuard config not found at $WG_CONF' > /dev/kmsg\nfi\nexit 1")
+            file.write("#!/bin/sh\necho 'RUN: attempting to bring wireguard down' > /dev/kmsg\nPATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\nexport PATH\nexec 2>&1\nWG_CONF='/etc/wireguard/wg0.conf'\nif [ -f $WG_CONF ]; then\n    echo 'RUN: Bringing down wg0...' > /dev/kmsg\n    wg-quick down $WG_CONF\nelse\n    echo 'RUN: WireGuard config not found at $WG_CONF' > /dev/kmsg\nfi\nexit 1")
         print("marking both as executable")
         os.chmod(start_path+"/run", 0o755)
         os.chmod(start_path+"/finish", 0o755)
