@@ -150,6 +150,11 @@ def download(client, name):
 		response = client.recv(1024).decode("utf-8")
 		client.send("To make sure your key and ip arent reused, make a username, ID, anything really\nso we can add it to our conf file to prevent selections\nfor example: sarahs iphone.\nenter your username now:".encode("utf-8"))
 		name = client.recv(1024).decode("utf-8")
+        while True:
+            client.send("FILE OPTIONS:\n1. Normal file - only route destined packets to server\n2. Isolated file - reject all other traffic other than that to or from the server".encode("utf-8"))
+            choice = client.recv(1024).decode("utf-8")
+            if "1" in choice or "2" in choice:
+                break
 		if "y" in response:
 			server_ip = "#!!ServerIP = "
 			server_pubkey = "#!!PublicKey = "
@@ -160,7 +165,10 @@ def download(client, name):
 					server_pubkey = item.strip(server_pubkey)
 				if "ListenPort =" in item:
 					server_port = item.strip("ListenPort = ").strip("\n")
-			conf_file = f"#!!Keys={aval_pubkeys[selection]}&{aval_privkeys[selection]}:[Interface]\nPrivateKey = {aval_privkeys[selection]}\nAddress = {aval_ips[selection]}/24\n\n[Peer]\nPublicKey = {server_pubkey}\nAllowedIPs = 10.0.0.0/24\nEndpoint = {server_ip}:{server_port}\nPersistentKeepalive = 25"
+			if "2" in choice:
+			    conf_file = f"#!!Keys={aval_pubkeys[selection]}&{aval_privkeys[selection]}:[Interface]\nPrivateKey = {aval_privkeys[selection]}\nAddress = {aval_ips[selection]}/24\n\nPostUp = iptables -I OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) -j REJECT\nPostUp = ip6tables -I OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) -j REJECT\nPostUp = iptables -D OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) -j REJECT\nPostUp = ip6tables -D OUTPUT ! -o %i -m mark ! --mark $(wg show %i fwmark) -j REJECT\n\n[Peer]\nPublicKey = {server_pubkey}\nAllowedIPs = 0.0.0.0/0, ::/0\nEndpoint = {server_ip}:{server_port}\nPersistentKeepalive = 25"
+            else:
+                conf_file = f"#!!Keys={aval_pubkeys[selection]}&{aval_privkeys[selection]}:[Interface]\nPrivateKey = {aval_privkeys[selection]}\nAddress = {aval_ips[selection]}/24\n\n[Peer]\nPublicKey = {server_pubkey}\nAllowedIPs = 10.0.0.0/24\nEndpoint = {server_ip}:{server_port}\nPersistentKeepalive = 25"
 			client.send(f"{flags['-w']+conf_file}".encode("utf-8"))
 			i = 0
 			for item in peers:
