@@ -44,11 +44,11 @@ def main():
 
 def download(data):
 	keys, data = data.split(":", 1)
-	inp = input("Would you like to create a conf file?\n>>> ")
+	inp = input("Would you like to create a local configuration  file? (yes will continue to creation options)\n>>> ")
 
 	if "n" in inp:
 		return
-	inp = input("Would you like to use this file with wireguard?")
+	inp = input("Would you like write this file to /etc/wireguard? (no will save it to your running directory)\n>>>")
 	if "n" in inp:
 		path = ""
 	else:
