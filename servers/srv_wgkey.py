@@ -8,7 +8,7 @@ import threading as task
 import subprocess as proc
 
 conf_path = "/etc/keygetsrv"
-flags = {"-w": "*%_@"}
+flags = {"-w": "*%_@", "-d": "^#(*"}
 
 
 
@@ -115,7 +115,6 @@ def download(client, name):
         peers = file.readlines()
         i = 1
         for item in peers:
-            print(item)
             if "[Peer]" in item:
                 if "!!None" in item:
                     print("avaliable peer found")
@@ -146,7 +145,7 @@ def download(client, name):
         if not aval_pubkeys:
             return "No peer with that name found."
         selection = randint(0, len(aval_pubkeys) - 1)
-        client.send(f"Avaliable key and ip found:\n{aval_pubkeys[selection]}\n{aval_ips[selection]}\ndo you accept?".encode("utf-8"))
+        client.send(f"{flags['-d']}Avaliable key and ip found:\n{aval_pubkeys[selection]}\n{aval_ips[selection]}\ndo you accept?".encode("utf-8"))
         response = client.recv(1024).decode("utf-8")
         client.send("To make sure your key and ip arent reused, make a username, ID, anything really\nso we can add it to our conf file to prevent selections\nfor example: sarahs iphone.\nenter your username now:".encode("utf-8"))
         name = client.recv(1024).decode("utf-8")
