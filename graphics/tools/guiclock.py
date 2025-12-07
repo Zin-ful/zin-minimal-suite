@@ -39,11 +39,33 @@ nights = ["jiiiiiglyy puuuufff jiggillyyyy puffff", "Everyones asleep? Would be 
          "check siggy", "kicking this mf in the BALLs", "i hate this fat bald bitch you dont know shit", "im up late? nigga these candles arent gonna pour themselves", "i made 80 bucks :D", "'on fucking GOD i did'", "up late i see, possibly, dragon ball?", "BULMA SEX MAKES BABIES", "i wonder if they ever finished watching fnaf", "so. figured out what you wanna do yet?", "hmm. hmm. neat.", "senzu bean!", "hey krillin, 'senzu bean'", "im pissed i cant finish this day in my mobile game"]
 bar = ""
 
+all_messages = {}
+all_times = [mornings, noons, afternoons, evenings, nights]
+
+for unit in all_times:
+    for item in unit:
+        all_messages.update({item: "false"})
+
+
+
 if ".zinapp" not in os.listdir(curusr):
     os.mkdir(curusr+".zinapp")
 
 if "ztime" not in os.listdir(curusr+"/.zinapp"):
     os.mkdir(conf_path)
+
+if "ach.conf" not in os.listdir(conf_path):
+    with open(f"{conf_path}/ach.conf", "w") as file:
+        for times, state in all_messages.items():
+            file.write(f"{times}={state}\n")
+else:
+    all_messages = {}
+    with open(f"{conf_path}/ach.conf", "r") as file:
+        stuff = file.readlines()
+        for item in stuff:
+            times, state = item.split("=")
+            all_messages.update({times.strip(): state.strip()})
+
 
 if "clock.conf" not in os.listdir(conf_path):
     with open(f"{conf_path}/clock.conf", "w") as file:

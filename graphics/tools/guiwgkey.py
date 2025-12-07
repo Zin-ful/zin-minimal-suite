@@ -1,28 +1,39 @@
 from socket import AF_INET as ipv4
 from socket import SOCK_STREAM as tcp
+import curses
+from curses.textpad import Textbox
+from curses import wrapper
 import socket as netcom
 import os
-import curses
-from curses import wrapper
-from curses.textpad import Textbox
 
-height = 0
-width = 0
-colors = {}
-screens = {}
-pos = 0
-ylimit = 6
-globalpos = 0
+curusr = os.path.expanduser("~")
 
-conf_path = "/etc/keyget"
-flags = {"-w": "*%_@"}
+conf_path = curusr+"/.zinapp/keyget"
+flags = {"-w": "*%_@", "-d": "^#(*"}
+
+cmd_list = ["get", "check", "auto", "exit"]
+
+if ".zinapp" not in os.listdir(curusr):
+    os.mkdir(curusr+"/.zinapp")
+if "keyget" not in os.listdir(curusr+"/.zinapp"):
+    os.mkdir(conf_path)
+
+if "wireguard" not in os.listdir("/etc"):
+    print("wireguard is not installed.")
+    exit()
+else:
+    print("wireguard is installed")
 
 server = netcom.socket(ipv4, tcp)
-
-ip = "localhost"
 port = 10592
 
-cmds = ["help", "get", "mkconf", "check", "list"]
+
+screens = {}
+colors = {}
+
+def ref(screen):
+    screen.clear()
+    screen.refresh()
 
 def main(stdscr):
     global height, width, colors, screens
@@ -35,6 +46,7 @@ def main(stdscr):
     stdscr.refresh()
     top_bar = curses.newwin(0, width, 0, 0)
     main_win = curses.newwin(height - 5, width, 2, 0)
+    link_win = curses.newwin(height - 5, (width // 3) - 1, 2, (width // 3) * 2)
     user_input = curses.newwin(1, width - 1, height - 1, 1)
     tbox = Textbox(user_input)
     screens.update({"top": top_bar})
@@ -43,150 +55,207 @@ def main(stdscr):
     screens.update({"text": tbox})
     screens.update({"source": stdscr})
     colors.update({"highlight": highlight})
-    colors.update({"search": curpage})
-	print_list(screens, colors, cmds, 0, globalpos)
+    print_text(main_win, "Enter IP Address:", 0)
+    ip = tbox.edit().strip()
+    if not ip:
+        ip = "localhost"
+    server.connect((ip, port))
+    server.recv(3)
+    server.send("ack".encode("utf-8"))
+    ref(main_win)
     inps(screens, colors)
+
+
 
 def inps(screens, colors):
     while True:
-        screens["main"].getch()
-		if key == ord("s") or key == ord("w"):
-			select(key, screens, colors)
-		if key == ord("e"):
-			execute(cmds[pos])
+        pos = 0
+        executed = 0
+        ref(screens["main"])
+        print_list(screens["main"], cmd_list, 0, 0)
+        while True:
+            key = screens["main"].getch()
+            if key == ord("s") or key == ord("w"):
+                pos = select(pos, key, screens["main"], cmd_list)
+            elif key == ord('\x1b'):
+                exit()
+            elif key == ord("e"):
+                choice = cmd_list[pos]
+                if choice == "Configure Autostart":
+                    autostart()
+                    continue
+                server.send(choice.encode("utf-8"))
+                response = server.recv(4186).decode("utf-8")
+                for key, val in flags.items():
+                    if val in response:
+                        response = response.strip(val)
+                        xcute = cmd.get(key)
+                        if xcute:
+                            xcute(response)
+                            executed = 1
+                            break
+                if not executed:
+                    display(response)
+                break
 
-def select(key, screens, colors):
-    global pos, globalpos
+def get(start):
+    ref(screens["main"])
+    print_text(screens["main"], start, 5)
+    inp = simple_input(screens["main"], ["Yes", "No"])
+    server.send((inp.lower()).encode("utf-8"))
+    response = server.recv(4186).decode("utf-8")
+    ref(screens["main"])
+    print_text(screens["main"], response, 5)
+    inp = simple_text()
+    server.send(inp.encode("utf-8"))
+    response = server.recv(4186).decode("utf-8")
+    ref(screens["main"])
+    print_text(screens["main"], response, 5)
+    inp = simple_input(screens["main"], ["1. Normal File", "2. Isolated File"])
+    server.send(inp.encode("utf-8"))
+    response = server.recv(4186).decode("utf-8")
+    ref(screens["main"])
+    download(response.strip(flags["-w"]))
+    ref(screens["main"])
+
+def simple_text():
+    inp = screens["text"].edit().strip()
+    ref(screens["box"])
+    return inp
+
+def display(text):
+    print_text(screens["main"], text, 5)
+    screens["main"].getch()
+    ref(screens["main"])
+
+def simple_input(screen, menu):
+    pos = 0
+    print_list(screen, menu, 0, 0)
+    screen.refresh()
+    while True:
+        if not pos:
+            pos = 0
+        key = screen.getch()
+        if key == ord("s") or key == ord("w"):
+            pos = select(pos, key, screen, menu)
+        elif key == ord("e"):
+            return menu[pos]
+        elif key == ord("q"):
+            return
+
+def auto_start():
+    print_text(screens["top"], "Select daemon type for autostart", 5) 
+    menu = ["1. Systemd", "2. Runit"]
+    inp = simple_input(screens["main"], menu)
+
+    if "1" in inp:
+        ref(screens["top"])
+        ref(screens["main"])
+        print_text(screens["main"], "Wireguard on Systemd installations usually already creates a service for itself.", 5)
+        print_text(screens["main"], "This exists at /etc/systemd/system", 6)
+        inp = simple_input(screens["main"], ["Yes", "No"])
+        if "y" not in inp.lower():
+            return
+        ref(screens["main"])
+        with open("/etc/systemd/system/wg-quick@.service", "w") as file:
+            file.write("[Unit]\nDescription=WireGuard via wg-quick(8) for %I\nAfter=network.target\nDocumentation=man:wg-quick(8)\nDocumentation=man:wg(8)\nDocumentation=https://www.wireguard.com/\nDocumentation=https://www.wireguard.com/quickstart/\n[Service]\nType=oneshot\nRemainAfterExit=yes\nExecStart=/usr/bin/wg-quick up %i\nExecStop=/usr/bin/wg-quick down %i\nExecReload=/usr/bin/wg-quick down %i ; /usr/bin/wg-quick up %i\nEnvironment=WG_ENDPOINT_RESOLUTION_RETRIES=infinity\n[Install]\nWantedBy=multi-user.target")    
+        print_text(screens["main"], "wg-quick@.service written. if needed, run 'systemctl daemon-reload' and 'systemctl enable wg-quick@wg0.service'", 5)
+    elif "2" in inp:
+        start_path = "/etc/runit/runsvdir/default/wg"
+        os.makedirs(start_path, exist_ok=True)
+        print("writing run")
+        with open(start_path+"/run", "w") as file:
+            file.write("#!/bin/sh\necho 'RUN: attempting wireguard start' > /dev/kmsg\nPATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\nexport PATH\nexec 2>&1\nWG_CONF='/etc/wireguard/wg0.conf'\nsleep 5\nif [ -f $WG_CONF ]; then\n    echo 'RUN: Starting wg0...' > /dev/kmsg\n    wg-quick up $WG_CONF\nelse\n    echo 'RUN: wireguard config not found' > /dev/kmsg\n    exit 1\nfi\necho 'RUN: wireguard brought up successfully' > /dev/kmsg\nexec tail -f /dev/null")
+        print("writing finish")
+        with open(start_path+"/finish", "w") as file:
+            file.write("#!/bin/sh\necho 'RUN: attempting to bring wireguard down' > /dev/kmsg\nPATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\nexport PATH\nexec 2>&1\nWG_CONF='/etc/wireguard/wg0.conf'\nif [ -f $WG_CONF ]; then\n    echo 'RUN: Bringing down wg0...' > /dev/kmsg\n    wg-quick down $WG_CONF\nelse\n    echo 'RUN: WireGuard config not found at $WG_CONF' > /dev/kmsg\nfi\nexit 1")
+        os.chmod(start_path+"/run", 0o755)
+        os.chmod(start_path+"/finish", 0o755)
+        ref(screens["main"])
+        print_text(screens["main"], "run and finish file created, if needed, run 'sudo sv enable wg' to enable at start", 5)
+    else:
+        return
+    ref(screens["main"])
+
+def download(data):
+    keys, data = data.split(":", 1)
+    inp = simple_input(screens["main"], ["1. Dont save configuration file", "2. Save configuration file to current directory", "3. Save configuration file to /etc/wireguard"])
+    ref(screens["main"])
+    if "1" in inp:
+        print_text(screens["main"], data, 0)
+    elif "2" in inp:
+        path = ""
+    else:
+        path = "/etc/wireguard/"
+    with open(path+"wg0.conf", "w") as file:
+        file.write(data)
+
+    cache, keys = keys.split("=", 1)
+    pubkey, privkey = keys.split("&")
+
+    with open(path+"public.key", "w") as file:
+        file.write(pubkey)
+    cache, pubkey = pubkey.split("=", 1)
+    with open(path+"private.key", "w") as file:
+        file.write(privkey) 
+    print_list(screens["main"], [f"file created at: {path}wg0.conf", f"pubkey created at {path}public.key", f"privkey created at {path}private.key"], 0, 0)
+    screens["main"].getch()
+    ref(screens["main"])
+
+def search():
+    return
+
+cmd = {"-w": download, "-s": search, "-d": get}
+
+def select(pos, key, screen, page):
     if key == ord("s"):
         pos += 1
-        if pos + globalpos >= len(cmds) - 1:
+        if pos >= len(page):
             pos -= 1
         back = 1
-        if pos == height - ylimit:
-            globalpos += pos
-            pos = 0
-            back = 0
-            print_list(screens, colors, cmds, 0, globalpos)
     elif key == ord("w"):
         pos -= 1
-        if pos <= 0:
+        if pos < 0:
             pos = 0
         back = -1
-        if pos < 1 and globalpos:
-            globalpos -= height - ylimit
-            pos = height - ylimit - 1
-            back = 0
-            screens["main"].clear()
-            print_list(screens, colors, cmds, 0, globalpos)
-    
-    screens["main"].addstr(pos - back, 0, cmds[pos + globalpos - back])
-    screens["main"].addstr(pos, 0, cmds[pos + globalpos], colors["highlight"])
+    if len(page) > 1:
+        screen.addstr(pos - back, 0, page[pos - back])
+    screen.addstr(pos, 0, page[pos], colors["highlight"])
+    return pos
 
-def print_text(screens, colors, string, y):
+
+
+def print_text(screen, string, y):
     to_print = []
     for char in string:
         if char == '\n':
             text, string = string.split('\n', 1)
             to_print.append(text)
     to_print.append(string)
-    for item in cache_list:
-        if y >= height - ylimit:
+    for item in to_print:
+        if y >= height:
             break
-        screens["main"].addstr(y, 0, item)
+        screen.addstr(y, 0, item)
         y += 1
-    screens["main"].refresh()
+    screen.refresh()
 
 
-def print_list(screens, colors, text_list, y, offset):
+def print_list(screen, text_list, y, offset):
     cache_list = []
     for item in text_list:
         cache_list.append(item)
     if offset:
-        screens["main"].clear()
+        screen.clear()
         while offset != 0:
             cache_list.remove(text_list[offset])
             offset -= 1
-        with open("list2.txt", "w") as file:
-            for item in cache_list:
-                file.write(f"{item}\n")
-    if not offset:
-        with open("list.txt","w") as file:
-            for item in cache_list:
-                file.write(f"{item}\n")
     for item in cache_list:
-        if y >= height - ylimit:
+        if y >= height:
             break
-        with open("text.txt", "w") as file:
-            file.write(f"{item}\n")
-        screens["main"].addstr(y, 0, item)
+        screen.addstr(y, 0, item)
         y += 1
-    screens["main"].refresh()
-
-def userwait(screens):
-    key = screens["main"].getch()
-    if key:
-        return key
-
-"""Actual program functions"""
-
-def init():
-	if "keyget" not in os.listdir("/etc"):
-		os.makedirs(conf_path, exist_ok=True)
-
-	if "wireguard" not in os.listdir("/etc"):
-		print("wireguard is not installed.")
-		exit()
-	else:
-		print("wireguard is installed")
-	cmd = {"-w": download}
-	server.connect((ip, int(port)))
-	ack = server.recv(3).decode("utf-8")
-	if ack == "ack":
-		server.send("ack".encode("utf-8"))
-
-def execute(inp):
-	server.send(inp.encode("utf-8"))
-	response = server.recv(1024).decode("utf-8")
-	for key, val in flags.items():
-		if val in response:
-			response = response.strip(val)
-			xcute = cmd.get(key)
-			if xcute:
-				xcute(response)
-				executed = 1
-				break
-	if executed:
-		return response
-	else:
-		return 0
-
-def download(screens, data):
-	keys, data = data.split(":", 1)
-	print_text(screens, colors, "Would you like to create a conf file?", 0)
-	if "y" in userwait(screens):
-		pass
-	else:
-		return 0
-
-	print_text(screens, colors, "Would you like to create a conf file?", 0)
-	if "y" in userwait(screens):
-		path = ""
-	else:
-		path = "/etc/wireguard/"
-	with open(path+"wg0.conf", "w") as file:
-		file.write(data)
-
-	cache, keys = keys.split("=", 1)
-	pubkey, privkey = keys.split("&")
-	
-
-	with open(path+"public.key", "w") as file:
-		file.write(pubkey)
-	cache, pubkey = pubkey.split("=", 1)
-	with open(path+"private.key", "w") as file:
-		file.write(privkey)
-		print_text(screens, colors, f"file created at: {path}wg0.conf\npubkey created at {path}public.key\nprivkey created at {path}private.key", 0)
+    screen.refresh()
 
 
-cmd = init()
 wrapper(main)
+
