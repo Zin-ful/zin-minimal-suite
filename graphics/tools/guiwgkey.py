@@ -9,9 +9,9 @@ import os
 curusr = os.path.expanduser("~")
 
 conf_path = curusr+"/.zinapp/keyget"
-flags = {"-w": "*%_@", "-d": "^#(*"}
+flags = {"-w": "*%_@", "-c": "$@^#"}
 
-cmd_list = ["get", "check", "auto", "exit"]
+cmd_list = ["Get Key", "Check Users", "Configure Autostart", "Exit"]
 
 if ".zinapp" not in os.listdir(curusr):
     os.mkdir(curusr+"/.zinapp")
@@ -82,9 +82,18 @@ def inps(screens, colors):
             elif key == ord("e"):
                 choice = cmd_list[pos]
                 if choice == "Configure Autostart":
-                    autostart()
+                    auto_start()
+                    print_list(screens["main"], cmd_list, 0, 0)
                     continue
-                server.send(choice.encode("utf-8"))
+                elif choice == "Get Key":
+                    choice = "get"
+                elif choice == "Check Users":
+                    search()
+                    print_list(screens["main"], cmd_list, 0, 0)
+                    continue
+                elif choice == "Exit":
+                    exit()
+                server.send((choice.lower()).encode("utf-8"))
                 response = server.recv(4186).decode("utf-8")
                 for key, val in flags.items():
                     if val in response:
@@ -97,26 +106,6 @@ def inps(screens, colors):
                 if not executed:
                     display(response)
                 break
-
-def get(start):
-    ref(screens["main"])
-    print_text(screens["main"], start, 5)
-    inp = simple_input(screens["main"], ["Yes", "No"])
-    server.send((inp.lower()).encode("utf-8"))
-    response = server.recv(4186).decode("utf-8")
-    ref(screens["main"])
-    print_text(screens["main"], response, 5)
-    inp = simple_text()
-    server.send(inp.encode("utf-8"))
-    response = server.recv(4186).decode("utf-8")
-    ref(screens["main"])
-    print_text(screens["main"], response, 5)
-    inp = simple_input(screens["main"], ["1. Normal File", "2. Isolated File"])
-    server.send(inp.encode("utf-8"))
-    response = server.recv(4186).decode("utf-8")
-    ref(screens["main"])
-    download(response.strip(flags["-w"]))
-    ref(screens["main"])
 
 def simple_text():
     inp = screens["text"].edit().strip()
@@ -163,26 +152,44 @@ def auto_start():
     elif "2" in inp:
         start_path = "/etc/runit/runsvdir/default/wg"
         os.makedirs(start_path, exist_ok=True)
-        print("writing run")
         with open(start_path+"/run", "w") as file:
             file.write("#!/bin/sh\necho 'RUN: attempting wireguard start' > /dev/kmsg\nPATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\nexport PATH\nexec 2>&1\nWG_CONF='/etc/wireguard/wg0.conf'\nsleep 5\nif [ -f $WG_CONF ]; then\n    echo 'RUN: Starting wg0...' > /dev/kmsg\n    wg-quick up $WG_CONF\nelse\n    echo 'RUN: wireguard config not found' > /dev/kmsg\n    exit 1\nfi\necho 'RUN: wireguard brought up successfully' > /dev/kmsg\nexec tail -f /dev/null")
-        print("writing finish")
         with open(start_path+"/finish", "w") as file:
             file.write("#!/bin/sh\necho 'RUN: attempting to bring wireguard down' > /dev/kmsg\nPATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\nexport PATH\nexec 2>&1\nWG_CONF='/etc/wireguard/wg0.conf'\nif [ -f $WG_CONF ]; then\n    echo 'RUN: Bringing down wg0...' > /dev/kmsg\n    wg-quick down $WG_CONF\nelse\n    echo 'RUN: WireGuard config not found at $WG_CONF' > /dev/kmsg\nfi\nexit 1")
         os.chmod(start_path+"/run", 0o755)
         os.chmod(start_path+"/finish", 0o755)
         ref(screens["main"])
         print_text(screens["main"], "run and finish file created, if needed, run 'sudo sv enable wg' to enable at start", 5)
+        screens["main"].getch()
     else:
         return
     ref(screens["main"])
 
-def download(data):
+def download(arg):
+    ref(screens["main"])
+    print_text(screens["main"], arg, 5)
+    inp = simple_input(screens["main"], ["Yes", "No"])
+    server.send((inp.lower()).encode("utf-8"))
+    response = server.recv(4186).decode("utf-8")
+    ref(screens["main"])
+    print_text(screens["main"], response, 5)
+    inp = simple_text()
+    server.send(inp.encode("utf-8"))
+    response = server.recv(4186).decode("utf-8")
+    ref(screens["main"])
+    print_text(screens["main"], response, 5)
+    inp = simple_input(screens["main"], ["1. Normal File", "2. Isolated File"])
+    server.send(inp.encode("utf-8"))
+    response = server.recv(4186).decode("utf-8")
+    ref(screens["main"])
+    data = response.strip(flags["-w"])
+    ref(screens["main"])
     keys, data = data.split(":", 1)
     inp = simple_input(screens["main"], ["1. Dont save configuration file", "2. Save configuration file to current directory", "3. Save configuration file to /etc/wireguard"])
     ref(screens["main"])
     if "1" in inp:
         print_text(screens["main"], data, 0)
+        return
     elif "2" in inp:
         path = ""
     else:
@@ -203,9 +210,18 @@ def download(data):
     ref(screens["main"])
 
 def search():
-    return
+    ref(screens["main"])
+    print_text(screens["main"], "Type out which user name you would like to check", 5)
+    inp = simple_text()
+    server.send(f"check {inp}".encode("utf-8"))
+    response = server.recv(4196).decode("utf-8")
+    response = response.strip(flags["-c"])
+    ref(screens["main"])
+    print_text(screens["main"], response, 5)
+    screens["main"].getch()
+    ref(screens["main"])
 
-cmd = {"-w": download, "-s": search, "-d": get}
+cmd = {"-w": download, "-c": search}
 
 def select(pos, key, screen, page):
     if key == ord("s"):

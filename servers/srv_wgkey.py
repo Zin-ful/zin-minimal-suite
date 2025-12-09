@@ -8,11 +8,8 @@ import threading as task
 import subprocess as proc
 
 conf_path = "/etc/keygetsrv"
-flags = {"-w": "*%_@", "-d": "^#(*"}
+flags = {"-w": "*%_@", "-c": "$@^#"}
 
-
-
-#port = int(input("port: "))
 port = 10592
 server = netcom.socket(ipv4, tcp)
 print("socket created")
@@ -117,35 +114,35 @@ def download(client, name):
         for item in peers:
             if "[Peer]" in item:
                 if "!!None" in item:
-                    print("avaliable peer found")
+                    #print("avaliable peer found")
                     j = 0
                     while peers[i + j] == '\n':
                         j += 1
                     cache, pubkey = peers[i + j].split("=", 1)
-                    print("pubkey found")
+                    #print("pubkey found")
                     pubkey = pubkey.strip()
                     j += 1
                     while peers[i + j] == '\n':
                         j += 1
                     cache, privkey = peers[i + j].split("=", 1)
-                    print("privkey found")
+                    #print("privkey found")
                     privkey = privkey.strip()
                     j += 1
                     while peers[i + j] == '\n':
                         j += 1
                     cache, ip = peers[i + j].split("=", 1)
-                    print("ip found")
+                    #print("ip found")
                     ip = ip.strip().strip("/32")
 
                     aval_pubkeys.append(pubkey)
                     aval_privkeys.append(privkey)
                     aval_ips.append(ip)
-                    print("peer added to list")
+                    #print("peer added to list")
             i += 1
         if not aval_pubkeys:
             return "No peer with that name found."
         selection = randint(0, len(aval_pubkeys) - 1)
-        client.send(f"{flags['-d']}Avaliable key and ip found:\n{aval_pubkeys[selection]}\n{aval_ips[selection]}\ndo you accept?".encode("utf-8"))
+        client.send(f"{flags['-w']}Avaliable key and ip found:\n{aval_pubkeys[selection]}\n{aval_ips[selection]}\ndo you accept?".encode("utf-8"))
         response = client.recv(1024).decode("utf-8")
         client.send("To make sure your key and ip arent reused, make a username, ID, anything really\nso we can add it to our conf file to prevent selections\nfor example: sarahs iphone.\nenter your username now:".encode("utf-8"))
         name = client.recv(1024).decode("utf-8")
@@ -189,13 +186,18 @@ def view(client, data):
 
 def verify(client, name):
     with open(f"/etc/wireguard/{wg_title}{wg_number}.conf", "r") as file:
+        result = ""
         for item in file.readlines():
-            print(item)
             if "[Peer]" in item:
                 cache, user = item.split("#")
+                if "!!None" in user:
+                    continue
                 if name.lower() in user.lower():
-                    return "That name/device is active."
-        return "No peer with that name found."
+                    result += "{name} is in {user}\n"
+        if result:
+            return flags["-c"]+result
+        else:
+            return "No peer with that name found."
 
 def sort(request):
     if "get" in request:
@@ -226,7 +228,7 @@ def sort(request):
 def client_start(client):
     while True: 
         if not client:
-            return print("client data not passed, returning")
+            return #print("client data not passed, returning")
         try:
             print("request...")
             request = client.recv(1024).decode("utf-8")
@@ -243,7 +245,7 @@ def client_start(client):
                 client.send(response.encode("utf-8"))
         except Exception as e:
             print(e)
-            print("returning to main thread")
+            #print("returning to main thread")
             client.close()
             return
 
@@ -251,10 +253,10 @@ def server_init():
     while True:
         try:
             client, client_ip = server.accept()
-            print("client accepted, acking")
+            #print("client accepted, acking")
             client.send("ack".encode("utf-8"))
             ack = client.recv(3).decode("utf-8")
-            print(f"acked '{ack}' starting thread")
+            #print(f"acked '{ack}' starting thread")
             thread_client = task.Thread(target=client_start, args=[client])
             thread_client.start()
         except Exception as e:
