@@ -41,6 +41,11 @@ if ".zinapp" not in os.listdir(curusr):
     os.mkdir(curusr+"/.zinapp")
 if "ztext" not in os.listdir(curusr+"/.zinapp"):
     os.mkdir(curusr+"/.zinapp/ztext")
+if "msg_server.conf" not in os.listdir(curusr+"/.zinapp/ztext"):
+    with open(curusr+"/.zinapp/ztext/msg_server.conf", "w") as file:
+        for item, val in attr_dict.items():
+            file.write(f"{item}={val}\n")
+
 if "phonebook" not in os.listdir(curusr+"/.zinapp"):
     os.mkdir(curusr+"/.zinapp/phonebook")
 
@@ -92,23 +97,37 @@ def main(stdscr):
     while i < width:
         screens["bar"].addstr(0, i, " ", HIGHLIGHT)
         i += 1
+    success = 0
     while True:
+        ref(stdscr)
         choice = inps(main_menu)
-        success = gc_config_init()
+        if not success:
+            success = gc_config_init()
         if success == 2:
             continue
         if not success:
             ref(stdscr)
             exit()
         ref(stdscr)
+        threads_started = 0
         if choice == main_menu[0]:
-            contact_selection()
-        else:
             screens["bar"].refresh()
-            update_thread = task.Thread(target=update)
-            message_thread = task.Thread(target=message_recv, daemon=True)
-            update_thread.start()
-            message_thread.start()
+            if not threads_started:
+                update_thread = task.Thread(target=update)
+                message_thread = task.Thread(target=message_recv, daemon=True)
+                update_thread.start()
+                message_thread.start()
+                threads_started = 1
+            if not contact_selection():
+                continue    
+        else:
+            if not threads_started:
+                screens["bar"].refresh()
+                update_thread = task.Thread(target=update)
+                message_thread = task.Thread(target=message_recv, daemon=True)
+                update_thread.start()
+                message_thread.start()
+                threads_started = 1
             group_message()
 
 """menu functions"""
@@ -526,6 +545,9 @@ def contact_selection():
     y = 0
     clean_names = []
     names = os.listdir(curusr+"/.zinapp/phonebook")
+    if not names:
+        print_text(y, 0, ("No contacts found. Add contacts by seeing a user in group chat mode.",), colors["hl1"])
+        return 0
     for name in names:
         screens["chat"].addstr(y, 0, name.strip(".txt"), colors["hl1"])
         clean_names.append(name.strip(".txt"))

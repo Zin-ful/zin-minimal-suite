@@ -11,10 +11,18 @@ passwd = "admin"
 linky = "none"
 contact = "none"
 
+missed_path = "/opt/zinapp/ztext/missed/" 
+
 attr_dict = {"contact": contact, "link": linky, "passwd": passwd}
 
 if not "zinapp" in os.listdir("/opt"):
     os.mkdir("/opt/zinapp")
+
+if not "ztext" in os.listdir("/opt/zinapp"):
+    os.mkdir("/opt/zinapp/ztext")
+
+if not "missed" in os.listdir("/opt/zinapp/ztext"):
+    os.mkdir("/opt/zinapp/ztext/missed")
 
 def load():
     try:
@@ -176,6 +184,43 @@ def receive_message(client):
     except (BrokenPipeError, ConnectionResetError):
         client_end(client)
         return 0
+
+def save_missed(name, message):
+    with open(missed_path+f"{name}.txt", "a") as file:
+        file.write(message+"\n")
+
+def check_missed(name):
+    missed = None
+    if f"{name}.txt" not in missed_path:
+        return None
+    with open(missed_path+f"{name}.txt", "r") as file:
+        check = file.readlines()
+        while True:
+            if len(check) < 15:
+                for item in check:
+                    missed += item
+            else:
+                i = 0
+                while i < 10:
+                    check.pop(i)
+                    i += 1
+    if missed:
+        return missed
+    else:
+        return None
+
+def direct_send(message, source_user):
+    try:
+        username, message = message.split(":", 1)
+    except:
+        return
+    username = username.strip("@")
+    for id, user in users_name.items():
+        if username.lower().strip() == user.lower().strip():
+            send_message(id, f"\n@{source_user}: {msg.decode('utf-8')}\n")
+            break
+    save_missed(username, message)
+            
 def messenger(client_socket, addr):
     addr_id = str(addr)
     user_id, user_ip = addr_id.split(",")
@@ -194,11 +239,17 @@ def messenger(client_socket, addr):
         if other_client != client_socket:
             if not send_message(other_client, startmsg):
                 break
+    missed = check_missed(username)
+    if missed:
+        client.send("SYSTEM MISSED MESSAGES\n{missed}")
     while True:
         msg = receive_message(client_socket)
         if not msg:
             break
         message = f"{msg.decode('utf-8')}\n"
+        if message[0] == "@":
+            direct_send(message, users_name.get(user_id))
+            continue
         if "server.main." in message and '"' not in message:
             cmd = message.replace("server.main.", "")
             log(client_socket, cmd)

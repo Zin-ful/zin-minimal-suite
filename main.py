@@ -8,7 +8,9 @@ import sys
 import subprocess as proc
 import time
 import datetime
-conf_path = "/etc/homescreen"
+
+curusr = os.path.expanduser("~")
+conf_path = curusr+"/.zinapp/homescreen"
 screens = {}
 apps = {}
 nametopath = {}
@@ -20,12 +22,19 @@ timecolor = None
 recent_app = ""
 done = 0
 status_bar = None
+wait = 50
+remaining = "getting time..."
 bar = ""
 
 user = proc.run("whoami", capture_output=True, text=True)
 user = user.stdout.strip()
 
-if "homescreen" not in os.listdir("/etc"):
+
+
+if ".zinapp" not in os.listdir(curusr):
+	os.makedirs(conf_path, exist_ok=True)
+
+if "homescreen" not in os.listdir(curusr+"/.zinapp"):
 	os.makedirs(conf_path, exist_ok=True)
 
 if "apps.conf" not in os.listdir(conf_path):
@@ -54,19 +63,73 @@ def main(stdscr):
         i += 1
     status_bar = task.Thread(target=updatetop, args=[screens,])
     status_bar.start()
+    batt_status = task.Thread(target=get_batt_time)
+    batt_status.start()
     getapps()
     listapps(screens)
     inps(screens)
 
-def updatetop(screens):
+def get_batt_time():
+    global remaining
+    temp = get_batt()
     while True:
-        if not done:
-            screens["top"].addstr(0,0,bar,timecolor)
-            screens["top"].addstr(0, 4, f"{user}: {recent_app.strip()}", timecolor)
-            now = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-            screens["top"].addstr(height-height, width // 2 + width // 3, now, timecolor)
-            screens["top"].refresh()
-            time.sleep(0.2)
+        if temp != get_batt():
+            break
+
+    end = 1
+    start = get_batt()
+    count = 0
+    while not done:
+        while get_batt() > start - end:
+            time.sleep(1)
+            count += 1
+        per_min = (start - get_batt()) / (count / 60)
+        remaining = round(get_batt() / per_min, 3)
+        total_time = 100 / per_min
+        save(per_min)
+
+def get_batt():
+    batteries = []
+    sys_path = "/sys/class/power_supply/" 
+    for item in os.listdir(sys_path):
+        if item.startswith('BAT'):
+            battery_path = os.path.join(sys_path, item)
+            capacity_file = os.path.join(battery_path, "capacity")
+            if os.path.exists(capacity_file):
+                try:
+                    with open(capacity_file, "r") as file:
+                        batteries.append(int(file.read().strip()))
+                except (ValueError, IOError):
+                    continue
+    if batteries:
+        return round_list(batteries, len(batteries))
+
+    return "No batt found"
+
+def save(data):
+    with open(conf_path+"/battery_rate", "w") as file:
+        file.write(str(data))
+
+def round_list(list1, length):
+    total = 0
+    for item in list1:
+        total += item
+    return item / length
+
+def updatetop(screens):
+    while not done:
+        screens["top"].addstr(0, 0, bar, timecolor)
+        screens["top"].addstr(0, 4, f"{user}: {recent_app.strip()}", timecolor)
+        now = time.strftime("%Y-%m-%d %H:%M", time.localtime())
+        if int(time.strftime("%H", time.localtime())) > 12:
+            now += " PM"
+        else:
+            now += " AM"
+        screens["top"].addstr(0, (width // 2) - (len(now) // 2), now, timecolor)
+        screens["top"].addstr(0, width // 2 + width // 4, f"{str(get_batt())}%" + f" - {remaining} minutes left", timecolor)         
+        screens["top"].refresh()
+        time.sleep(20)
+
 def inps(screens):
     global done, status_bar, recent_app, height, width, pos
     while True:
@@ -146,6 +209,12 @@ def getapps():
             applist.append(name)
             nametopath.update({name: path})
             apps.update({path: style})
+
+
+if "battery_rate" in os.listdir(conf_path):
+    with open(conf_path+"/battery_rate", "r") as file:
+        rate = float(file.read())
+        remaining = round(get_batt() / rate, 3)
 
 
 

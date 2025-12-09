@@ -1,1 +1,4 @@
 
+sys-tools/benchmarks/main.o
+sys-tools/benchmarks/pixel.o
+sys-tools/benchmarks/zintest
