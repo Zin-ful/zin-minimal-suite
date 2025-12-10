@@ -7,148 +7,228 @@ import time
 users = []
 usernames = {}
 clients_lock = task.Lock()
-calling = 0
 
-codes = {"call-start": "001",  "call-confirmation": "002", "call-end": "003", "call-timeout": "004", "err": "000"}
+codes = {"call-start": "001", "call-confirmation": "002", "call-end": "003", "call-timeout": "004", "err": "000"}
 
 host_ip = "0.0.0.0"
 port = 10874
-
 buffer_size = 2048
 timeout_limit = 15
 
 self = netcom.socket(ipv4, tcp)
+self.setsockopt(netcom.SOL_SOCKET, netcom.SO_REUSEADDR, 1)  # Allow port reuse
 self.bind((host_ip, port))
 
-
-
-
+def cleanup_client(client, username):
+    """Clean up client resources"""
+    with clients_lock:
+        if username and username in usernames:
+            del usernames[username]
+        if client in users:
+            users.remove(client)
+    try:
+        client.close()
+    except:
+        pass
+    print(f"Cleaned up client {username}")
 
 def init_client(client, addr):
-    global calling, buffer_size
+    global buffer_size
     waittime = 0
+    caller = None
     print(f"thread started for {addr}")
-    addr_id = str(addr)
-    user_id, user_ip = addr_id.split(",")
-    user_ip = user_ip.strip("(").strip("'").strip(")")
-    if not ack(client, 0):
-        print(f"sync err with client {addr}")
-        return
-    else:
-        ack(client, 1)
-    print("waiting for caller ID")
-    user_info = recv_text(client)
-    caller, buffer_size = user_info.split("&")
-    buffer_size = int(buffer_size)
-    if caller:
-        usernames.update({caller: client})
-        print("caller added")
-    with clients_lock:
-        users.append(client)
-    ack(client, 1)
-    listener = None
-    while not listener:
-        print("waiting for call request")
-        listener = recv_text(client)
-        time.sleep(1)
-        print("call request incoming")
-    while listener not in usernames.keys():
-        print(f"waiting for other user. time waited = {waittime} & timeout limit = {timeout_limit}")
-        time.sleep(1)
-        waittime += 1
-        if waittime >= timeout_limit:
-            send_text(client, codes["call-timeout"])
-            print("call timed out")
+    
+    try:
+        if not ack(client, 0):
+            print(f"sync err with client {addr}")
+            cleanup_client(client, None)
             return
-    calling = 1
-    confirm = send_call_request(listener, buffer_size)
-    if confirm:
-        pass
-    elif not confirm:
-        send_text(client, codes["call-end"])
-        print("call rejected")
-        returns
-    start_call(client, listener, buffer_size)
+        else:
+            ack(client, 1)
+            
+        print("waiting for caller ID")
+        user_info = recv_text(client)
+        if not user_info or "&" not in user_info:
+            print("Invalid user info received")
+            cleanup_client(client, None)
+            return
+            
+        caller, client_buffer = user_info.split("&")
+        buffer_size = int(client_buffer)
+        
+        if caller:
+            with clients_lock:
+                usernames.update({caller: client})
+                users.append(client)
+            print(f"caller {caller} added")
+            
+        ack(client, 1)
+        
+        # Keep handling call requests until client disconnects
+        while True:
+            listener = None
+            print(f"waiting for call request from {caller}")
+            
+            try:
+                listener = recv_text(client)
+            except:
+                print(f"{caller} disconnected")
+                break
+                
+            if not listener:
+                print(f"{caller} disconnected or sent empty request")
+                break
+                
+            print(f"call request from {caller} to {listener}")
+            
+            # Reset wait time for each new call
+            waittime = 0
+            while listener not in usernames.keys():
+                print(f"waiting for {listener}. time waited = {waittime} & timeout limit = {timeout_limit}")
+                time.sleep(1)
+                waittime += 1
+                if waittime >= timeout_limit:
+                    send_text(client, codes["call-timeout"])
+                    print("call timed out")
+                    break
+                    
+            # Only proceed if user was found
+            if listener in usernames.keys():
+                confirm = send_call_request(caller, listener, buffer_size)
+                if confirm:
+                    send_text(client, codes["call-confirmation"])
+                    start_call(caller, listener, buffer_size)
+                else:
+                    send_text(client, codes["call-end"])
+                    print("call rejected")
+            
+            # Continue listening for more call requests
+            
+    except Exception as e:
+        print(f"Error with client {caller}: {e}")
+    finally:
+        cleanup_client(client, caller)
 
-def send_call_request(listener, buffer_size):
-    name = listener
-    listener = usernames[listener]
-    send_text(listener, codes["call-start"]+":"+name)
-    confirm = recv_text(listener)
-    while not confirm:
-        time.sleep(0.2)
+def send_call_request(caller_name, listener_name, buffer_size):
+    listener = usernames.get(listener_name)
+    if not listener:
+        return 0
+        
+    send_text(listener, codes["call-start"]+":"+caller_name)
+    
+    confirm = None
+    wait = 0
+    while not confirm and wait < timeout_limit:
+        confirm = recv_text(listener)
+        if not confirm:
+            time.sleep(0.5)
+            wait += 0.5
+            
     if confirm == codes["call-confirmation"]:
         return 1
     elif confirm == codes["call-end"]:
         return 0
-    
-
+    return 0
 
 def send_text(client, string):
-    print(f"sending {string}")
-    client.send(string.encode("utf-8"))
+    try:
+        print(f"sending {string}")
+        client.send(string.encode("utf-8"))
+    except:
+        print("send failed")
 
 def ack(client, mode):
-    if mode:
-        print("sending ack")
-        client.send("ACK".encode("utf-8"))
-    else:
-        print("reciving ack")
-        is_ack = client.recv(3).decode("utf-8")
-        if is_ack.strip() == "ACK" or is_ack.strip() == "REQ":
+    try:
+        if mode:
+            print("sending ack")
+            client.send("ACK".encode("utf-8"))
             return True
+        else:
+            print("receiving ack")
+            is_ack = client.recv(3).decode("utf-8")
+            if is_ack.strip() == "ACK" or is_ack.strip() == "REQ":
+                return True
+            return False
+    except:
+        return False
 
 def recv_text(client):
-    print("recieving...")
-    data = client.recv(128).decode("utf-8")
-    print("Recv + ", data)
-    return data
-
-
-def start_call(caller, listener, buffer):
-    global calling
-    listener = usernames[listener]
-    caller_thread = task.Thread(target=send_audio_to_user, args=[caller, listener, buffer])
-    listener_thread = task.Thread(target=send_audio_to_listener, args=[caller, listener, buffer])
     try:
-        while True:
-            listener.send(codes["call-start"])
-            if ack(listener, 0):
-                break
+        data = client.recv(128).decode("utf-8")
+        if data:
+            print("Recv: ", data)
+        return data
+    except:
+        return None
+
+def start_call(caller_name, listener_name, buffer):
+    caller = usernames.get(caller_name)
+    listener = usernames.get(listener_name)
+    
+    if not caller or not listener:
+        print("caller or listener not found")
+        return
+        
+    # Use flags to control thread execution
+    call_active = [True]  # Use list to allow modification in nested scope
+    
+    def send_audio_to_caller():
+        try:
+            while call_active[0]:
+                send_to_caller = listener.recv(buffer)
+                if not send_to_caller:
+                    call_active[0] = False
+                    break
+                caller.send(send_to_caller)
+        except:
+            call_active[0] = False
+
+    def send_audio_to_listener():
+        try:
+            while call_active[0]:
+                send_to_listener = caller.recv(buffer)
+                if not send_to_listener:
+                    call_active[0] = False
+                    break
+                listener.send(send_to_listener)
+        except:
+            call_active[0] = False
+    
+    caller_thread = task.Thread(target=send_audio_to_listener, daemon=True)
+    listener_thread = task.Thread(target=send_audio_to_caller, daemon=True)
+    
+    try:
         caller_thread.start()
         listener_thread.start()
-        while calling:
-            pass
-    except BrokenPipeError:
-        pass
-    finally:
-        pass
-
-def send_audio_to_caller(caller, listener, buffer):
-    listener = usernames[listener]
-    while True:
-        send_to_listener = caller.recv(buffer)
-        print(send_to_listener)
-        if send_to_listener:
-            listener.send(send_to_listener)
-
-def send_audio_to_listener(caller, listener, buffer):
-    listener = usernames[listener]
-    while True:
-        send_to_caller = listener.recv(buffer)
-        print(send_to_caller)
-        if send_to_caller:
-            caller.send(send_to_caller)
-
-
-
-while True:
-    try:
-        print("listening..")
-        self.listen(10)
-        client_socket, addr = self.accept()
-        client_thread = task.Thread(target=init_client, args=[client_socket, addr])
-        client_thread.start()
+        print(f"call started between {caller_name} and {listener_name}")
+        
+        # Wait for either thread to finish
+        while caller_thread.is_alive() and listener_thread.is_alive() and call_active[0]:
+            time.sleep(0.5)
+            
+        call_active[0] = False  # Signal both threads to stop
+        
     except Exception as e:
-        print(e)
-        exit()
+        print(f"Call error: {e}")
+        call_active[0] = False
+    finally:
+        print(f"call ended between {caller_name} and {listener_name}")
+
+print(f"Server starting on {host_ip}:{port}")
+try:
+    while True:
+        try:
+            print("listening..")
+            self.listen(10)
+            client_socket, addr = self.accept()
+            print(f"connection from {addr}")
+            client_thread = task.Thread(target=init_client, args=[client_socket, addr], daemon=True)
+            client_thread.start()
+        except KeyboardInterrupt:
+            raise  # Re-raise to be caught by outer try
+        except Exception as e:
+            print(f"Error: {e}")
+finally:
+    print("\nShutting down server...")
+    self.close()
+    print("Server closed")
