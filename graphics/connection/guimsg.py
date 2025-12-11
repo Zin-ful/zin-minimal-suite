@@ -10,6 +10,13 @@ from curses import wrapper
 from curses.textpad import Textbox
 import sys
 
+"""
+FIX
+
+Change shitty UI to make it more readable
+Add user information to UI such as name, ip address, etc
+"""
+
 curusr = os.path.expanduser("~")
 
 session_usr = []
@@ -29,6 +36,7 @@ y = 0
 server = ''
 qkeys = {}
 pause = 0
+threads_started = 0
 
 main_menu = ["Messenger", "Group Chat"]
 
@@ -52,7 +60,7 @@ if "phonebook" not in os.listdir(curusr+"/.zinapp"):
 """utility functions"""
 
 def main(stdscr):
-    global height, width, message_thread, update_thread
+    global height, width, message_thread, update_thread, pause
     height, width = stdscr.getmaxyx()
     curses.init_pair(1, curses.COLOR_BLUE, curses.COLOR_BLUE)
     HIGHLIGHT = curses.color_pair(1)
@@ -98,36 +106,22 @@ def main(stdscr):
         screens["bar"].addstr(0, i, " ", HIGHLIGHT)
         i += 1
     success = 0
+    pause = 1
     while True:
         ref(stdscr)
         choice = inps(main_menu)
-        if not success:
-            success = gc_config_init()
-        if success == 2:
-            continue
-        if not success:
-            ref(stdscr)
-            exit()
         ref(stdscr)
-        threads_started = 0
         if choice == main_menu[0]:
             screens["bar"].refresh()
-            if not threads_started:
-                update_thread = task.Thread(target=update)
-                message_thread = task.Thread(target=message_recv, daemon=True)
-                update_thread.start()
-                message_thread.start()
-                threads_started = 1
             if not contact_selection():
-                continue    
+                ref(screens["chat"])
+                ref(screens["bar"])
+                screens["chat"].addstr(5, 0, "No contacts found, add users to your contacts in group chat")
+                screens["chat"].addstr(6, 0, "Press any key to continue")
+                screens["chat"].refresh()
+                screens["chat"].getch()
+                continue
         else:
-            if not threads_started:
-                screens["bar"].refresh()
-                update_thread = task.Thread(target=update)
-                message_thread = task.Thread(target=message_recv, daemon=True)
-                update_thread.start()
-                message_thread.start()
-                threads_started = 1
             group_message()
 
 """menu functions"""
@@ -149,6 +143,37 @@ def inps(menu):
             screens["source"].clear()
             screens["source"].refresh()
             print_list(0, 0, menu)
+
+def dynamic_inps(menu, offset):
+    print_list(0 + offset, 0, menu)
+    pos = 0
+    while True:
+        inp = screens["source"].getch()
+        if inp == ord("e"):
+            return menu[pos]
+        elif inp == ord("w") or inp == ord("s"):
+            pos = dynamic_select(menu, inp, pos, offset)
+        elif inp == ord("R"):
+            screens["source"].clear()
+            screens["source"].refresh()
+            print_list(0 + offset, 0, menu)
+
+def dynamic_select(menu, key, pos, offset):
+    if key == ord("s"):
+        pos += 1
+        if pos >= len(menu):
+            pos = len(menu) - 1
+        back = 1
+    elif key == ord("w"):
+        pos -= 1
+        if pos <= 0:
+            pos = 0
+        back = -1
+    if len(menu) > 1:
+        screens["source"].addstr(pos - back + offset, 0, menu[pos - back])
+    screens["source"].addstr(pos + offset, 0, menu[pos], colors["server"])
+    return pos
+
 
 def print_list(y, x, menu):
     i = 0
@@ -183,6 +208,9 @@ def select(menu, key, pos):
 def update():
     global security, network, users, inp, msg
     while True:
+        if pause:
+            time.sleep(1)
+            continue
         time.sleep(1)
         screens["bar"].addstr(0, width // 2 - (len(security) // 2), security, colors["hl2"])
         screens["bar"].addstr(0, width - width // 3, "              ", colors["hl1"])
@@ -209,8 +237,9 @@ def message_recv():
     x = 0
     while True:
         num = 0
-        msg = server.recv(2048)
+        msg = server.recv(4096)
         if pause:
+            time.sleep(1)
             continue
         if msg:
             msg = msg.decode("utf-8")
@@ -258,7 +287,7 @@ def query():
     global y
     success = 0
     ref(screens["input"])
-    clr(None, screens["chat"], None, None)
+    clr()
     screens["chat"].addstr(y, 0, "Users:", colors["hl1"])
     y += 1
     names = os.listdir(curusr+"/.zinapp/phonebook")
@@ -296,68 +325,47 @@ def savenick():
         return
     success = 0
     pause = 1
+    data = []
+
     ref(screens["input"])
-    clr(None, screens["chat"], None, None)
-    print_text(y, 0, ("Users:",), colors["hl1"])
-    y += 1
-    for name in session_usr:
-        print_text(y, 0, (name), colors["hl1"])
-        y += 1
-    y += 1
+    ref(screens["chat"])
+    y = 2
     print_text(y, 0, ("Who would you like to add to your contacts?",), colors["hl1"])
-    inp = screens["text"].edit().strip()
+    y += 1
+    inp = dynamic_inps(session_usr, y)
+    data.append(inp.strip("@"))
     if inp:
-        ref(screens["input"])
-        clr(None, screens["chat"], None, None)
-        for name in session_usr:
-            if inp.lower() == name.lower() or name.strip("@").lower() == inp.strip("@").lower():
-                data = []
-                print_text(y, 0, ("Were going to fill out information for this user.", "Name:"), colors["hl1"])
-                inp = screens["text"].edit().strip()
-                if inp:
-                    if "@" in inp:
-                        inp = inp.strip("@")
-                    newname = inp
-                    data.append(inp)
-                clr(None, screens["chat"], None, None)
-                ref(screens["input"])
-                
-                print_text(y, 0, ("Nickname:",), colors["hl1"])
-                inp = screens["text"].edit().strip()
-                if inp:
-                    data.append(inp)
-                clr(None, screens["chat"], None, None)
-                ref(screens["input"])
-                
-                print_text(y, 0, ("IP Address:",), colors["hl1"])
-                inp = screens["text"].edit().strip()
-                if inp:
-                    data.append(inp)
-                clr(None, screens["chat"], None, None)
-                ref(screens["input"])
-                
-                print_text(y, 0, ("Notes:",), colors["hl1"])
-                inp = screens["text"].edit().strip()
-                if inp:
-                    data.append(inp)
-                clr(None, screens["chat"], None, None)
-                ref(screens["input"])
-                with open(curusr+f"/.zinapp/phonebook/{newname}.txt", "w") as file:
-                    file.write(f"name: {data[0]}\n")
-                    file.write(f"nickname: {data[1]}\n")
-                    file.write(f"ip address: {data[2]}\n")
-                    file.write(f"notes: {data[3]}\n")
-                    success = 1
-    
-    ref(screens["input"])
+        clr()        
+        print_text(y, 0, ("Next we will fill out extra information about the user.\nNickname:",), colors["hl1"])
+        inp = get_input()
+        if inp:
+            data.append(inp)
+        clr()
+        print_text(y, 0, ("IP Address:",), colors["hl1"])
+        inp = get_input()
+        if inp:
+            data.append(inp)
+        clr()
+        print_text(y, 0, ("Notes:",), colors["hl1"])
+        inp = get_input()
+        if inp:
+            data.append(inp)
+        clr()
+        with open(curusr+f"/.zinapp/phonebook/{data[0]}.txt", "w") as file:
+            file.write(f"name: {data[0]}\n")
+            file.write(f"nickname: {data[1]}\n")
+            file.write(f"ip address: {data[2]}\n")
+            file.write(f"notes: {data[3]}\n")
+            success = 1
     if success:
         msg = "Writing to file, please wait..."
     else:
         msg = "User does not exist. Exiting..."
     print_text(y + 1, 0, (msg,), colors["hl1"])
     time.sleep(1)
-    clr(None, screens["chat"], None, None)
+    clr()
     pause = 0
+    return "User added", 0
 
 def notrase(inp, upd, yplus):
     i = 0
@@ -480,7 +488,17 @@ commands = {"#help": listcmd, "#exit": shutoff, "#query-user": query, "#add-user
 """init and main functions"""
 
 def group_message():
-    global y
+    global y, pause, threads_started
+    while not gc_config_init():
+        continue
+    if not threads_started:
+        screens["bar"].refresh()
+        update_thread = task.Thread(target=update)
+        message_thread = task.Thread(target=message_recv, daemon=True)
+        update_thread.start()
+        message_thread.start()
+        threads_started = 1
+    pause = 0
     x = 0
     while True:
         try:
@@ -519,8 +537,18 @@ def group_message():
             screens["source"].refresh()
 
 def direct_message(name):
-    global y
+    global y, pause, threads_started
     x = 0
+    while not gc_config_init():
+        continue
+    if not threads_started:
+        screens["bar"].refresh()
+        update_thread = task.Thread(target=update)
+        message_thread = task.Thread(target=message_recv, daemon=True)
+        update_thread.start()
+        message_thread.start()
+        threads_started = 1
+    pause = 0
     while True:
         try:
             inp = screens["text"].edit().strip()
@@ -546,7 +574,6 @@ def contact_selection():
     clean_names = []
     names = os.listdir(curusr+"/.zinapp/phonebook")
     if not names:
-        print_text(y, 0, ("No contacts found. Add contacts by seeing a user in group chat mode.",), colors["hl1"])
         return 0
     for name in names:
         screens["chat"].addstr(y, 0, name.strip(".txt"), colors["hl1"])
@@ -555,8 +582,6 @@ def contact_selection():
     y += 1
     print_text(y, 0, ("Who would you like to message?",), colors["hl1"])
     name = inps(clean_names)
-    message_thread = task.Thread(target=message_recv, daemon=True)
-    message_thread.start()
     direct_message(name)
 
 def gc_config_init():

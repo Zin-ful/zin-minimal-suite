@@ -4,6 +4,15 @@ import socket as netcom
 import threading as task
 import datetime
 import os
+
+"""
+FIX
+
+In direct message, make sure the direct messanger doesnt recieve group chat texts
+In direct message, make sure users dont see the system connected message
+Test missed message sending
+"""
+
 conf_path = "/opt/zinapp/ztext_srvr"
 port = 34983
 ip = "0.0.0.0"
@@ -44,6 +53,7 @@ def load():
             file.write("")
 
 server = netcom.socket(ipv4, tcp)
+server.setsockopt(netcom.SOL_SOCKET, netcom.SO_REUSEADDR, 1)
 server.bind((ip, port))
 
 
@@ -217,7 +227,7 @@ def direct_send(message, source_user):
     username = username.strip("@")
     for id, user in users_name.items():
         if username.lower().strip() == user.lower().strip():
-            send_message(id, f"\n@{source_user}: {msg.decode('utf-8')}\n")
+            send_message(id, f"\n@{source_user}: {message}\n")
             break
     save_missed(username, message)
             
@@ -229,7 +239,7 @@ def messenger(client_socket, addr):
 
     username = client_socket.recv(128)
     if username:
-        users_name.update({str(user_id): username.decode("utf-8")})
+        users_name.update({client_socket: username.decode("utf-8")})
 
     print(f"user connected: {addr}")
     with clients_lock:
