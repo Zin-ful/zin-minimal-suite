@@ -131,6 +131,7 @@ def main(stdscr):
 """menu functions"""
 def get_input():
     inp = screens["text"].edit().strip()
+    ref(screens["input"])
     if inp:
         return inp
 
@@ -514,55 +515,120 @@ def contact_edit():
     y = 1
     clean_names = []
     names = os.listdir(curusr+"/.zinapp/phonebook")
-    if not names:
-        return 0
     for name in names:
         clean_names.append(name.strip(".txt"))
         
     menu = ["Add Contact", "Edit Contact", "Remove Contact"]
-    print_text(y, 0, ("Who's contact would you like to edit?",), colors["hl1"])
-    y += 3
-    name = dynamic_inps(clean_names, y)
-    if not name:
-        return 0
-    with open(curusr+f"/.zinapp/phonebook/{name}.txt", "r") as file:
-        data = file.readlines()
-    contact_info = {}
-    titles = []
-    for item in data:
-        title, val = item.split(": ")
-        titles.append(title.strip())
-        contact_info.update({title.strip(): val.strip()})
+    choice = dynamic_inps(menu, 2)
     clr()
-    y = 1
-    print_text(y, 0, ("Select the value to update",), colors["hl1"])
-    y += 3
-    title = dynamic_inps(titles, y)
-    if not title:
-        return 0
-    clr()
-    print_text(1, 0, (f"Old Value: {contact_info[title]}\nNew Value: ",), colors["hl1"])
-    new_value = get_input()
-    if not new_value:
-        return 0
-    if title == titles[0]:
-        os.remove(curusr+f"/.zinapp/phonebook/{contact_info[titles[0]]}.txt")
-    contact_info[title] = new_value
+    if not choice:
+        return 1
     
-    with open(curusr+f"/.zinapp/phonebook/{contact_info[titles[0]]}.txt", "w") as file:
-        file.write(f"name: {contact_info[titles[0]]}\n")
-        file.write(f"nickname: {contact_info[titles[1]]}\n")
-        file.write(f"ip address: {contact_info[titles[2]]}\n")
-        file.write(f"notes: {contact_info[titles[3]]}\n")
-        success = 1
-    if success:
-        msg = "Writing to file, please wait..."
+    if choice == menu[0]:
+        success = 0
+        data = []
+        print_text(y, 0, ("Type in the name of your new contact",), colors["hl1"])
+        inp = get_input()
+        data.append(inp)
+        if inp:
+            clr()        
+            print_text(1, 0, ("Nickname:",), colors["hl1"])
+            inp = get_input()
+            if inp:
+                data.append(inp)
+            else:
+                data.append(inp)
+            clr()
+            print_text(1, 0, ("IP Address:",), colors["hl1"])
+            inp = get_input()
+            if inp:
+                data.append(inp)
+            else:
+                data.append("none")
+            clr()
+            print_text(1, 0, ("Notes:",), colors["hl1"])
+            inp = get_input()
+            if inp:
+                data.append(inp)
+            else:
+                data.append("none")
+            clr()
+            with open(curusr+f"/.zinapp/phonebook/{data[0]}.txt", "w") as file:
+                file.write(f"name: {data[0]}\n")
+                file.write(f"nickname: {data[1]}\n")
+                file.write(f"ip address: {data[2]}\n")
+                file.write(f"notes: {data[3]}\n")
+                success = 1
+        else:
+            return 0
+        if success:
+            msg = "Writing to file, please wait..."
+        else:
+            msg = "User does not exist. Exiting..."
+        print_text(1, 0, (msg,), colors["hl1"])
+        time.sleep(0.5)
+        clr()
+        return 1
+    elif choice == menu[1]:
+        if not names:
+            return 0
+        y = 1
+        print_text(y, 0, ("Who's contact would you like to edit?",), colors["hl1"])
+        y += 3
+        name = dynamic_inps(clean_names, y)
+        if not name:
+            return 0
+        with open(curusr+f"/.zinapp/phonebook/{name}.txt", "r") as file:
+            data = file.readlines()
+        contact_info = {}
+        titles = []
+        for item in data:
+            title, val = item.split(": ")
+            titles.append(title.strip())
+            contact_info.update({title.strip(): val.strip()})
+        clr()
+        y = 1
+        print_text(y, 0, ("Select the value to update",), colors["hl1"])
+        y += 3
+        title = dynamic_inps(titles, y)
+        if not title:
+            return 0
+        clr()
+        print_text(1, 0, (f"Old Value: {contact_info[title]}\nNew Value: ",), colors["hl1"])
+        new_value = get_input()
+        if not new_value:
+            return 0
+        if title == titles[0]:
+            os.remove(curusr+f"/.zinapp/phonebook/{contact_info[titles[0]]}.txt")
+        contact_info[title] = new_value
+        
+        with open(curusr+f"/.zinapp/phonebook/{contact_info[titles[0]]}.txt", "w") as file:
+            file.write(f"name: {contact_info[titles[0]]}\n")
+            file.write(f"nickname: {contact_info[titles[1]]}\n")
+            file.write(f"ip address: {contact_info[titles[2]]}\n")
+            file.write(f"notes: {contact_info[titles[3]]}\n")
+            success = 1
+        if success:
+            msg = "Writing to file, please wait..."
+        else:
+            msg = "User does not exist. Exiting..."
+        print_text(y + 1, 0, (msg,), colors["hl1"])
+        time.sleep(0.5)
+        clr()
+        return 1
     else:
-        msg = "User does not exist. Exiting..."
-    print_text(y + 1, 0, (msg,), colors["hl1"])
-    time.sleep(0.5)
-    clr()
-    return 1
+        if not names:
+            return 0
+        print_text(y, 0, ("Who's contact would you like to remove?",), colors["hl1"])
+        y += 3
+        name = dynamic_inps(clean_names, y)
+        if not name:
+            return 1
+        print_text(y + 1, 0, ("Contact removed",), colors["hl1"])
+        time.sleep(0.5)
+        clr()
+        os.remove(curusr+f"/.zinapp/phonebook/{name}.txt")
+        return 1
 
 def settings():
     with open(f"{conf_path}/msg_server.conf", "r") as file:
