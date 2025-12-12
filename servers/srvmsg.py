@@ -19,6 +19,7 @@ ip = "0.0.0.0"
 passwd = "admin"
 linky = "none"
 contact = "none"
+header_size = 10
 
 missed_path = "/opt/zinapp/ztext/missed/" 
 
@@ -59,8 +60,40 @@ server.bind((ip, port))
 
 
 users = []
+user_direct = []
 users_name = {}
 clients_lock = task.Lock()
+
+def send(client, data):
+    try:
+        head = str(len(data)).zfill(header_size)
+        data = head + data
+        print("sending data")
+        client.send(data.encode("utf-8"))
+        return 1
+    except (BrokenPipeError, ConnectionResetError):
+        client_end(client)
+        return 0
+
+def receive(client):
+    try:
+        data_received = b''
+        print("receiving header..")
+        packet_size = client.recv(header_size).decode("utf-8")
+        if not packet_size:
+            return 0
+        packet_size = int(packet_size)
+        print(f"header size is: {packet_size}")
+        while len(data_received) < packet_size:
+            data_received += client.recv(packet_size - len(data_received))
+            print(f"data being received: {packet_size} | {len(data_received)} = {data_received}")
+        if not data_received:
+            return 0
+        data_received = data_received.decode("utf-8")
+        return data_received
+    except (BrokenPipeError, ConnectionResetError):
+        client_end(client)
+        return 0
 
 def contact(client_socket, msg):
     return f"server.message.from.server.{attr_dict['contact']}"
@@ -72,10 +105,9 @@ def helpy(client_socket, msg):
     return "server.message.from.server.bug-report\nlist-users\nget-link\nget-contact\nset-link\nset-contact\nset-password\nhelp"
 
 def bug_report(client_socket, msg):
-    client_socket.send("server.message.from.server.Please submit the issue you encountered and the steps to reproduce (if any)".encode("utf-8"))
-    bug = client_socket.recv(1024)
+    send(client_socket, "server.message.from.server.Please submit the issue you encountered and the steps to reproduce (if any)")
+    bug = receive(client_socket)
     if bug:
-        bug = bug.decode("utf-8")
         with open(f"{conf_path}/reports.txt", "a") as file:
             file.write(f"{datetime.datetime.now()} report: {bug}\n")
         return "server.message.from.server.Submitted!"
@@ -90,10 +122,9 @@ def list_users(client_socket, msg):
         return f"server.message.from.server. {msg}"
 
 def updlink(client_socket, msg):
-    client_socket.send("server.message.from.server.Updating link. Submit your response in this format: {password}:{link}".encode("utf-8"))
-    response = client_socket.recv(1024)
+    send(client_socket, "server.message.from.server.Updating link. Submit your response in this format: {password}:{link}")
+    response = receive(client_socket)
     if response:
-        response = response.decode("utf-8")
         try:
             auth, link = response.split(":", 1)
         except:
@@ -116,10 +147,9 @@ def updlink(client_socket, msg):
     return "server.message.from.server.link updated"
 
 def updcontact(client_socket, msg):
-    client_socket.send("server.message.from.server.Updating contact information. Submit your response in this format: {password}:{contact}".encode("utf-8"))
-    response = client_socket.recv(1024)
+    send(client_socket, "server.message.from.server.Updating contact information. Submit your response in this format: {password}:{contact}")
+    response = receive(client_socket)
     if response:
-        response = response.decode("utf-8")
         try:
             auth, cont = response.split(":", 1)
         except:
@@ -142,10 +172,9 @@ def updcontact(client_socket, msg):
     return "server.message.from.server.contact updated"
 
 def updpasswd(client_socket, msg):
-    client_socket.send("server.message.from.server.Updating admin password. Submit your response in this format: {oldpass}:{newpass}".encode("utf-8"))
-    response = client_socket.recv(1024)
+    send(client_socket, "server.message.from.server.Updating admin password. Submit your response in this format: {oldpass}:{newpass}")
+    response = receive(client_socket)
     if response:
-        response = response.decode("utf-8")
         try:
             old, new = response.split(":", 1)
         except:
@@ -175,25 +204,6 @@ def log(client_socket, msg):
         with open(f"{conf_path}/log.txt", "a") as file:
             file.write(f"from {client_socket}: {msg}\n")
 
-def send_message(client, msg):
-    try:
-        client.sendall(msg.encode("utf-8"))
-        return 1
-    except (BrokenPipeError, ConnectionResetError):
-        client_end(client)
-        return 0
-
-def receive_message(client):
-    try:
-        msg = client.recv(2048)
-        if msg:
-            return msg
-        else:
-            client_end(client)
-            return 0
-    except (BrokenPipeError, ConnectionResetError):
-        client_end(client)
-        return 0
 
 def save_missed(name, message):
     with open(missed_path+f"{name}.txt", "a") as file:
@@ -227,7 +237,8 @@ def direct_send(message, source_user):
     username = username.strip("@")
     for id, user in users_name.items():
         if username.lower().strip() == user.lower().strip():
-            send_message(id, f"\n@{source_user}: {message}\n")
+            print(f"sending DM to {source_user}")
+            send(id, f"\n@{source_user} (direct): {message}\n")
             break
     save_missed(username, message)
             
@@ -237,28 +248,33 @@ def messenger(client_socket, addr):
     user_ip = user_ip.strip("(").strip("'").strip(")")
     user_id = user_ip.strip("(").strip("'").strip(")")
 
-    username = client_socket.recv(128)
+    username = receive(client_socket)
     if username:
-        users_name.update({client_socket: username.decode("utf-8")})
+        users_name.update({client_socket: username})
+    
+    if receive(client_socket) == "d":
+        user_direct.append(client_socket)
 
     print(f"user connected: {addr}")
     with clients_lock:
         users.append(client_socket)
     startmsg = f"server.message.from.server.users: {len(users)} !###########\nSYSTEM MESSAGE: user connected: {addr}\n###########"
     for other_client in users:
-        if other_client != client_socket:
-            if not send_message(other_client, startmsg):
+        if other_client != client_socket or if other_client not in user_direct:
+            if not send(other_client, startmsg):
                 break
     missed = check_missed(username)
     if missed:
         client.send("SYSTEM MISSED MESSAGES\n{missed}")
     while True:
-        msg = receive_message(client_socket)
-        if not msg:
+        message = receive(client_socket)
+        if not message:
             break
-        message = f"{msg.decode('utf-8')}\n"
+        message += '\n'
         if message[0] == "@":
-            direct_send(message, users_name.get(user_id))
+            direct_send(message, users_name.get(client_socket))
+            continue
+        if client_socket in user_direct:
             continue
         if "server.main." in message and '"' not in message:
             cmd = message.replace("server.main.", "")
@@ -269,18 +285,18 @@ def messenger(client_socket, addr):
             else:
                 message = "server.message.from.server.invalid"
             log(client_socket, message)
-            if not send_message(client_socket, message):
+            if not send(client_socket, message):
                 break
             continue
         else:
-            message = f"\n@{users_name.get(user_id)}: {msg.decode('utf-8')}\n"
+            message = f"\n@{users_name.get(client_socket)}: {message}\n"
         if len(users) <= 1:
             with open(f"{conf_path}/missed.txt", "a") as file:
                 file.write(f"{message}\n")
         with clients_lock:
             for other_client in users:
                 if other_client != client_socket:
-                    if not send_message(other_client, message):
+                    if not send(other_client, message):
                         break
         
 def client_end(client):

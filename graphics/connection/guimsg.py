@@ -37,8 +37,8 @@ server = ''
 qkeys = {}
 pause = 0
 threads_started = 0
-
-main_menu = ["Messenger", "Group Chat"]
+header_size = 10
+main_menu = ["Messenger", "Group Chat", "Settings"]
 
 attr_dict = {"ipaddr": ip, "name": username, "autoconnect": autoconn, "idaddr": ipid, "alias":alias}
 
@@ -62,9 +62,9 @@ if "phonebook" not in os.listdir(curusr+"/.zinapp"):
 def main(stdscr):
     global height, width, message_thread, update_thread, pause
     height, width = stdscr.getmaxyx()
-    curses.init_pair(1, curses.COLOR_BLUE, curses.COLOR_BLUE)
+    curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_BLACK)
     HIGHLIGHT = curses.color_pair(1)
-    curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_BLUE)
+    curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_BLACK)
     HIGHLIGHT_1 = curses.color_pair(2)
     curses.init_pair(3, curses.COLOR_BLUE, curses.COLOR_BLACK)
     HIGHLIGHT_2 = curses.color_pair(3)
@@ -100,11 +100,6 @@ def main(stdscr):
     screens.update({"input":user_input})
     screens.update({"text":tbox})
     screens.update({"source":stdscr})
-    security = "CHATS ARE NOT ENCRYPTED"
-    i = 0
-    while i < width:
-        screens["bar"].addstr(0, i, " ", HIGHLIGHT)
-        i += 1
     success = 0
     pause = 1
     while True:
@@ -121,9 +116,10 @@ def main(stdscr):
                 screens["chat"].refresh()
                 screens["chat"].getch()
                 continue
-        else:
+        elif choice == main_menu[1]:
             group_message()
-
+        elif choice == main_menu[2]:
+            settings()
 """menu functions"""
 def get_input():
     inp = screens["text"].edit().strip()
@@ -157,6 +153,8 @@ def dynamic_inps(menu, offset):
             screens["source"].clear()
             screens["source"].refresh()
             print_list(0 + offset, 0, menu)
+        elif inp == ord("q"):
+            return 0
 
 def dynamic_select(menu, key, pos, offset):
     if key == ord("s"):
@@ -206,18 +204,21 @@ def select(menu, key, pos):
     return pos
 
 def update():
-    global security, network, users, inp, msg
     while True:
         if pause:
             time.sleep(1)
             continue
-        time.sleep(1)
-        screens["bar"].addstr(0, width // 2 - (len(security) // 2), security, colors["hl2"])
-        screens["bar"].addstr(0, width - width // 3, "              ", colors["hl1"])
-        screens["bar"].addstr(0, (width - (width // 4)) - (len(network) // 2), network, colors["hl2"])
-        screens["bar"].addstr(0, width // 7, str(len(session_usr)), colors["hl1"])
+        line_erase(len( attr_dict["name"]), 0)
+        screens["bar"].addstr(0, 0, attr_dict["name"], colors["hl2"])
+        screens["bar"].addstr(0, (width // 2) - (len(network) // 2), network, colors["hl2"])
+        screens["bar"].addstr(0, width - 3, str(len(session_usr)), colors["hl1"])
         screens["bar"].refresh()
+        time.sleep(10)
 
+def line_erase(length, i):
+    for _ in range(length):
+        screens["bar"].addstr(0, i, " ", colors["erase"])
+        i += 1
 def print_text(pos_y, pos_x, msg, color):
     i = 0
     for item in msg:
@@ -232,17 +233,31 @@ def clearchk():
         y = 0
         screens["chat"].refresh()
 
+def send(client, data):
+    head = str(len(data)).zfill(header_size)
+    data = head + data
+    client.send(data.encode("utf-8"))
+
+def receive(client):
+    data_received = b''
+    packet_size = server.recv(header_size).decode("utf-8")
+    packet_size = int(packet_size)
+    while len(data_received) < packet_size:
+        data_received += server.recv(packet_size - len(data_received))
+    data_received = data_received.decode("utf-8")
+    return data_received
+
+
 def message_recv():
     global y, msg, users
     x = 0
     while True:
         num = 0
-        msg = server.recv(4096)
+        msg = receive(server)
         if pause:
             time.sleep(1)
             continue
         if msg:
-            msg = msg.decode("utf-8")
             y += 1
             if "@" in msg:
                 recvusr, msg = msg.split(":", 1)
@@ -332,7 +347,7 @@ def savenick():
     y = 2
     print_text(y, 0, ("Who would you like to add to your contacts?",), colors["hl1"])
     y += 1
-    inp = dynamic_inps(session_usr, y)
+    inp = dynamic_inps(session_usr, y + 2)
     data.append(inp.strip("@"))
     if inp:
         clr()        
@@ -485,11 +500,33 @@ def importip():
 
 commands = {"#help": listcmd, "#exit": shutoff, "#query-user": query, "#add-user": savenick, "#change-user": changeuser, "#autoconnect":auto_conf, "#import-ip":importip, "#clear": clr}
 
-"""init and main functions"""
+"""main functions"""
 
+def settings():
+    with open(f"{conf_path}/msg_server.conf", "r") as file:
+        attrs = file.readlines()
+        for item in attrs:
+            title, val = item.split("=")
+            attr_dict[title.strip()] = val.strip()
+    while True:
+        ref(screens["source"])
+        choice = dynamic_inps(list(attr_dict.keys()), 2)
+        if not choice:
+            break
+        clr()
+        print_text(0, 0, (f"{choice}\nCurrent value: {attr_dict[choice]}\nNew value:",),colors["hl1"])
+        new_val = get_input()
+        if new_val:
+            attr_dict[choice] = new_val
+            save_conf()
+            break
+        
+    clr()
+    
 def group_message():
-    global y, pause, threads_started
-    while not gc_config_init():
+    global y, pause, threads_started, network
+    network = "Messaging Group"
+    while not gc_config_init("g"):
         continue
     if not threads_started:
         screens["bar"].refresh()
@@ -526,7 +563,7 @@ def group_message():
                     screens["chat"].addstr(y, x, inp, colors["hl4"])
                 ref(screens["input"])
                 screens["chat"].refresh()
-                server.sendall(inp.encode("utf-8"))
+                send(server, inp)
                 inp = None
         except KeyboardInterrupt:
                 server.close()
@@ -537,9 +574,10 @@ def group_message():
             screens["source"].refresh()
 
 def direct_message(name):
-    global y, pause, threads_started
+    global y, pause, threads_started, network
+    network = f"Messaging {name}"
     x = 0
-    while not gc_config_init():
+    while not gc_config_init("d"):
         continue
     if not threads_started:
         screens["bar"].refresh()
@@ -558,7 +596,7 @@ def direct_message(name):
                 screens["chat"].addstr(y, x, inp, colors["hl4"])
                 ref(screens["input"])
                 screens["chat"].refresh()
-                server.sendall(f"@{name}:{inp}".encode("utf-8"))
+                send(server, f"@{name}:{inp}")
                 inp = None
         except KeyboardInterrupt:
                 server.close()
@@ -568,23 +606,23 @@ def direct_message(name):
             screens["source"].addstr(height // 2, width // 2, str(e))
             screens["source"].refresh()
 
-
 def contact_selection():
-    y = 0
+    y = 1
     clean_names = []
     names = os.listdir(curusr+"/.zinapp/phonebook")
     if not names:
         return 0
     for name in names:
-        screens["chat"].addstr(y, 0, name.strip(".txt"), colors["hl1"])
         clean_names.append(name.strip(".txt"))
-        y += 1
-    y += 1
     print_text(y, 0, ("Who would you like to message?",), colors["hl1"])
-    name = inps(clean_names)
+    y += 3
+    name = dynamic_inps(clean_names, y)
     direct_message(name)
 
-def gc_config_init():
+
+"""server init"""
+
+def gc_config_init(type):
     with open(f"{conf_path}/msg_server.conf", "r") as file:
         attr = file.readlines()
         for item in attr:
@@ -595,13 +633,11 @@ def gc_config_init():
                 attr_dict[item.strip()] = attr.strip()
         if attr_dict["autoconnect"] == "true":
             try:
-                autoconnect()
+                autoconnect(type)
             except netcom.error as e:
                 print_text(height // 2, width // 3, ("Connection refused, try again?",), colors["hl3"])
-                choice = get_input()
-                ref(screens["input"])
-                ref(screens["chat"])
-                if "y" in choice:
+                choice = screens["chat"].getch()
+                if choice == ord("y"):
                     return 2
                 else:
                     return 0
@@ -610,10 +646,10 @@ def gc_config_init():
                 errlog(str(e))
                 return 0
         else:
-            manual_conf("false")
+            manual_conf("false", type)
         return 1
 
-def manual_conf(state):
+def manual_conf(state, type):
     global server
     os.makedirs(conf_path, exist_ok=True)
     ref(screens["input"])
@@ -642,20 +678,23 @@ def manual_conf(state):
     print_text(y + 2, 0, ("Attempting connect. To skip the connection process entirely, configure #autostart",), colors["hl1"])
     time.sleep(1)
     notrase("Attempting connect. To skip the connection process entirely, configure #autostart", 1, 2)
-    if state == "true":
-        with open(f"{conf_path}/msg_server.conf", "w") as file:
-            for title, data in attr_dict.items():
-                file.write(f"{title}={data}\n")
+    save_conf()
     server = netcom.socket(ipv4, tcp)
     server.connect((attr_dict["ipaddr"], port))
-    server.sendall(attr_dict["name"].encode("utf-8"))
-    network = "connected!    "
+    send(server, attr_dict["name"])
+    send(server, type)
+    ref(screens["chat"])
     msg = ("Connection accepted! Moving to shell..",)
-    print_text(y // 2, width // 2 - len(msg), msg, colors["hl3"])
-    time.sleep(1)
+    print_text(2, 0, msg, colors["hl3"])
+    time.sleep(0.2)
     ref(screens["chat"])
 
-def autoconnect():
+def save_conf():
+    with open(f"{conf_path}/msg_server.conf", "w") as file:
+        for title, data in attr_dict.items():
+            file.write(f"{title}={data}\n")
+
+def autoconnect(type):
     global server
     with open(f"{conf_path}/msg_server.conf", "r") as file:
         attrs = file.readlines()
@@ -668,12 +707,12 @@ def autoconnect():
     time.sleep(1)
     server = netcom.socket(ipv4, tcp)
     server.connect((attr_dict["ipaddr"].strip(), port))
-    server.sendall(attr_dict["name"].encode("utf-8"))
-    network = "connected!    "
-    screens["chat"].clear()
+    send(server, attr_dict["name"])
+    send(server, type)
+    ref(screens["chat"])
     msg = "Connection accepted! Moving to shell.."
-    print_text(y // 2, width // 2 - len(msg), (msg,), colors["hl3"])
-    time.sleep(1)
+    print_text(2, 0, (msg,), colors["hl3"])
+    time.sleep(0.2)
     ref(screens["chat"])
   
 wrapper(main)
