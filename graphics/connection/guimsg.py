@@ -38,7 +38,7 @@ qkeys = {}
 pause = 0
 threads_started = 0
 header_size = 10
-main_menu = ["Messenger", "Group Chat", "Settings"]
+main_menu = ["Messenger", "Group Chat", "Contacts", "Settings"]
 
 attr_dict = {"ipaddr": ip, "name": username, "autoconnect": autoconn, "idaddr": ipid, "alias":alias}
 
@@ -119,6 +119,14 @@ def main(stdscr):
         elif choice == main_menu[1]:
             group_message()
         elif choice == main_menu[2]:
+            if not contact_edit():
+                ref(screens["chat"])
+                screens["chat"].addstr(5, 0, "No contacts found, add users to your contacts in group chat")
+                screens["chat"].addstr(6, 0, "Press any key to continue")
+                screens["chat"].refresh()
+                screens["chat"].getch()
+            continue
+        elif choice == main_menu[3]:
             settings()
 """menu functions"""
 def get_input():
@@ -502,6 +510,60 @@ commands = {"#help": listcmd, "#exit": shutoff, "#query-user": query, "#add-user
 
 """main functions"""
 
+def contact_edit():
+    y = 1
+    clean_names = []
+    names = os.listdir(curusr+"/.zinapp/phonebook")
+    if not names:
+        return 0
+    for name in names:
+        clean_names.append(name.strip(".txt"))
+        
+    menu = ["Add Contact", "Edit Contact", "Remove Contact"]
+    print_text(y, 0, ("Who's contact would you like to edit?",), colors["hl1"])
+    y += 3
+    name = dynamic_inps(clean_names, y)
+    if not name:
+        return 0
+    with open(curusr+f"/.zinapp/phonebook/{name}.txt", "r") as file:
+        data = file.readlines()
+    contact_info = {}
+    titles = []
+    for item in data:
+        title, val = item.split(": ")
+        titles.append(title.strip())
+        contact_info.update({title.strip(): val.strip()})
+    clr()
+    y = 1
+    print_text(y, 0, ("Select the value to update",), colors["hl1"])
+    y += 3
+    title = dynamic_inps(titles, y)
+    if not title:
+        return 0
+    clr()
+    print_text(1, 0, (f"Old Value: {contact_info[title]}\nNew Value: ",), colors["hl1"])
+    new_value = get_input()
+    if not new_value:
+        return 0
+    if title == titles[0]:
+        os.remove(curusr+f"/.zinapp/phonebook/{contact_info[titles[0]]}.txt")
+    contact_info[title] = new_value
+    
+    with open(curusr+f"/.zinapp/phonebook/{contact_info[titles[0]]}.txt", "w") as file:
+        file.write(f"name: {contact_info[titles[0]]}\n")
+        file.write(f"nickname: {contact_info[titles[1]]}\n")
+        file.write(f"ip address: {contact_info[titles[2]]}\n")
+        file.write(f"notes: {contact_info[titles[3]]}\n")
+        success = 1
+    if success:
+        msg = "Writing to file, please wait..."
+    else:
+        msg = "User does not exist. Exiting..."
+    print_text(y + 1, 0, (msg,), colors["hl1"])
+    time.sleep(0.5)
+    clr()
+    return 1
+
 def settings():
     with open(f"{conf_path}/msg_server.conf", "r") as file:
         attrs = file.readlines()
@@ -510,7 +572,10 @@ def settings():
             attr_dict[title.strip()] = val.strip()
     while True:
         ref(screens["source"])
-        choice = dynamic_inps(list(attr_dict.keys()), 2)
+        item_list = []
+        for item, value in attr_dict.items():
+            item_list.append(item)
+        choice = dynamic_inps(item_list, 2)
         if not choice:
             break
         clr()
@@ -520,7 +585,6 @@ def settings():
             attr_dict[choice] = new_val
             save_conf()
             break
-        
     clr()
     
 def group_message():
