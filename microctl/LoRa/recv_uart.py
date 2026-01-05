@@ -55,7 +55,7 @@ state = lora.begin(
 
 def init_uart():
     try:
-        uart = UART(uart_bus, baudrate=115200, tx=Pin(uart_tx), rx=Pin(uart_rx))
+        uart = UART(uart_bus, baudrate=9600, tx=Pin(uart_tx), rx=Pin(uart_rx))
         return uart
     except Exception as e:
         print(str(e))
@@ -64,7 +64,7 @@ def init_uart():
     
 def send_uart(msg):
     try:
-        uart.write(msg)
+        uart.write(f"{msg}\n")
         return 1
     except Exception as e:
         print(str(e))
@@ -73,11 +73,8 @@ def send_uart(msg):
 def print_batch(phrases):
     for item in phrases:
         print(item)
-    
-
 uart = init_uart()
 
-uart = 0
 
 if state != 0:
     if uart:
@@ -113,7 +110,7 @@ while True:
                 rssi = lora.getRSSI()
                 snr = lora.getSNR()
                 if uart:
-                    send_uart(f"{message}#RSSI: {rssi} SNR: {snr} dB")
+                    send_uart(f"{message}#RSSI: {rssi}!SNR: {snr} dB")
                 else:
                     print(f"{message}#RSSI: {rssi} SNR: {snr} dB")
 
