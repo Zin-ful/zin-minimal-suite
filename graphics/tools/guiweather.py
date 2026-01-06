@@ -24,10 +24,11 @@ if "weathertool" not in os.listdir(curusr+"/.zinapp"):
 
 conf_path = curusr + conf_path
 
-print("Tool Version: 1.9\n")
+print("Tool Version: 2.0\n")
 
 name = ""
 state = "TX"
+lattlong = "1.000-1.000"
 county = "????"
 bind_1 = "????"
 bind_2 = "????"
@@ -53,7 +54,7 @@ colors = {}
 weather_types = {"surf": "water", "water": "water", "rain": "water", "flood": "water", "fog": "water", "hydro": "water", "wind": "wind", "heat": "heat", "dry":"heat", "fire": "heat", "red flag": "heat", "snow": "cold", "winter": "cold", "freeze": "cold", "frost": "cold", "spark": "spark", "light": "spark", "thunder": "spark", "storm": "spark"}
 intense = ["extreme", "severe", "blizzard", "tornado", "hurri", "typhoon", "flood", "surge"]
 
-parameters = {"state": state, "county": county, "alternate server": connect_to_server, "server ip": server_ip, "refresh time": wait_time,
+parameters = {"state": state, "latt/long": lattlong, "county": county, "alternate server": connect_to_server, "server ip": server_ip, "refresh time": wait_time,
 "center": center, "west": WT, "east": ET, "south": ST, "north": NT, 
 "north east": NE, "south east": SE, "south west": SW, "north west": NW,  
 "bind 1": bind_1, "bind 2": bind_2, "bind 3": bind_3}
@@ -69,13 +70,13 @@ help_list = [
 "Shift+V > Displays the map",
 "Shift+F > Searches alerts for a given phrase",
 "binds 1-3 > Custom phrases for sorting, trigged by Shift+1 through 3",
+"Latt/Long > Your lattitude and longitude, multiple tools can find this. ",
+"Proper syntax is {latt} {long}. Example: 41.14743 23.46758",
 "Center/Directions > 'center' is the town you reside in inside of your county",
 "setting this and directions will build a map of alerts.",
 "Alt server > If you download and have the srvweather.py file from zin-minimal-suite and",
 "start it on a device that you can connect to, enabling this will allow connection to that server",
-"instead of weather.gov which can be several times faster as the server",
-"automatically parses the data for you"
-
+"instead of weather.gov which can be several times faster as the server"
 ]
 
 directions = {"center": "????", "north":"????", "south":"????","west":"????", "east":"????", 
@@ -153,7 +154,16 @@ def main(stdscr):
     colors.update({"highlight": highlight, "water": wet, "spark": spark, "heat": heat, 
     "bad": bad, "caution": caution, "lookout": lookout,
     "cold": cold, "wind": wind})
-    inps()
+    while True:
+        choice = simple_input(["Forecast", "Alerts", "Settings", "Exit"])
+        if choice == "Forecast":
+            forecast_inps()
+        elif choice == "Alerts":
+            alert_inps()
+        elif choice == "Settings":
+            config()
+        elif not choice or choice == "Exit":
+            exit()
 
 def clear_all():
     for item, screen in screens.items():
@@ -340,7 +350,7 @@ def find(alert_list, alert_details):
         screens["main"].getch()
     clear_all()
 
-def inps():
+def alert_inps():
     global connected, list_pos
     pos = 0
     connected = 0
@@ -494,6 +504,140 @@ def inps():
         elif key == ord('\x1b'):
             exit()
 
+def forecast_inps():
+    global connected, list_pos
+    pos = 0
+    connected = 0
+    forecast_list = 0
+    screens["main"].clear()
+    if parameters["alternate server"] != "false":
+        while not connected:
+            connected = init()
+    while not forecast_list:
+        if parameters["alternate server"] == "false":
+            forecast_list, forecast_details, forecast_link = get_forecast(None)
+        else:
+            forecast_list, forecast_details, forecast_link = alt_alert("*")
+            
+    cache_list = forecast_list
+    print_list(forecast_list, 1)
+    y, x = screens["main"].getmaxyx() 
+    while True:
+        if not connected and parameters["alternate server"] != "false":
+            connected = init()
+        key = screens["main"].getch()
+        if key == ord("w") or key == ord("s"):
+            if not forecast_list:
+                continue
+            if len(forecast_list) > y:
+                i = len(forecast_list) // 2
+                for i in range(len(forecast_list) // 2):
+                    forecast_list_2.append(forecast_list[i])
+                i = 0
+                for i in range(len(forecast_list) // 2):
+                    forecast_list_1.append(forecast_list[i])
+                if pos >= len(forecast_list_1):
+                    pos = select(forecast_list_2, key, pos)
+                else:
+                    pos = select(forecast_list_1, key, pos)
+            else:        
+                pos = select(forecast_list, key, pos)
+            if not pos:
+                pos = 0
+        elif key == ord("e"):
+            if not forecast_list:
+                continue
+            examine(forecast_details, pos)
+            screens["main"].clear()
+            print_list(forecast_list, 1)
+        elif key == ord("F"):
+            find(forecast_list, forecast_details)
+            screens["source"].clear()
+            screens["source"].refresh()
+            if parameters["alternate server"] == "false":
+                forecast_list, forecast_details, alert_link = get_alert(None)
+            else:
+                if not connected and parameters["alternate server"] != "false":
+                    connected = init()
+                forecast_list, forecast_details, forecast_link = alt_alert("*") 
+            print_list(forecast_list, 1)
+        elif key == ord("T"):
+            pass #put auto refresh here
+        elif key == ord("A"):
+            temp_al, temp_ad, temp_ak = archive()
+            if temp_al:
+                forecast_list = temp_al
+                forecast_details = temp_ad
+                forecast_link = temp_ak
+
+            print_list(forecast_list, 1)
+        elif key == ord("S"):
+            if not list_pos:
+                forecast_list = cache_list
+                screens["top"].addstr(0, width - (width // 3) * 2, "Sort by: None    ")
+                screens["top"].refresh()
+            else:
+                forecast_list = sort_list(cache_list, None, None, None, sorting_phrases[list_pos - 1])
+                screens["top"].addstr(0, width - (width // 3) * 2, "Sort by: "+forecast_sorting_phrases[list_pos - 1]+"   ")
+                screens["top"].refresh()
+            list_pos += 1
+            if list_pos - 1== len(sorting_phrases):
+                list_pos = 0
+            screens["main"].clear()
+            print_list(forecast_list, 1) 
+
+        elif key == ord("R"):
+            screens["source"].clear()
+            screens["source"].refresh()
+            if parameters["alternate server"] == "false":
+                forecast_list, forecast_details, forecast_link = get_forecast(None)
+            else:
+                if not connected and parameters["alternate server"] != "false":
+                    connected = init()
+                forecast_list, forecast_details, forecast_link = alt_alert("*") 
+            print_list(forecast_list, 1)
+
+        elif key == ord("C"):
+            config()
+            screens["main"].clear()
+            if parameters["alternate server"] == "false":
+                forecast_list, forecast_details, forecast_link = get_forecast(None)
+            else:
+                if not connected and parameters["alternate server"] != "false":
+                    connected = init()
+                forecast_list, forecast_details, forecast_link = alt_alert(parameters["state"])                   
+            print_list(forecast_list, 1)
+
+        elif key == ord("!"):
+            if parameters["bind 1"] != "????":
+                forecast_list = sort_list(cache_list, None, None, None, parameters["bind 1"])
+                screens["top"].addstr(0, width - (width // 3) * 2, "Sort by: "+parameters["bind 1"]+"  ")
+                screens["top"].refresh()
+                list_pos = 0
+                screens["main"].clear()
+                print_list(forecast_list, 1)
+
+        elif key == ord("@"):
+            if parameters["bind 2"] != "????":
+                forecast_list = sort_list(cache_list, None, None, None, parameters["bind 2"])
+                screens["top"].addstr(0, width - (width // 3) * 2, "Sort by: "+parameters["bind 2"]+"  ")
+                screens["top"].refresh()
+                list_pos = 0
+                screens["main"].clear()
+                print_list(forecast_list, 1)
+
+        elif key == ord("#"):
+            if parameters["bind 3"] != "????":
+                forecast_list = sort_list(cache_list, None, None, None, parameters["bind 3"])
+                screens["top"].addstr(0, width - (width // 3) * 2, "Sort by: "+parameters["bind 3"]+"  ")
+                screens["top"].refresh()
+                list_pos = 0
+                screens["main"].clear()
+                print_list(forecast_list, 1)
+               
+        elif key == ord('\x1b'):
+            exit()
+
 def select(listy, key, pos):
     if key == ord("s"):
         pos += 1
@@ -614,6 +758,7 @@ def timer():
 def save(data, mode):
     with open(conf_path+"/archive_alert.txt", mode) as file:
          file.write(data)
+
 def clear_save():
     with open(conf_path+"/archive_alert.txt", "w") as file:
         file.write("")
@@ -711,8 +856,6 @@ def archive():
             alert_link.update({alrhead: alrmore})
     return alert_list, alert_details, alert_link
 
-
-
 def alt_alert(state):
     global server, connected
     clear_all()
@@ -794,7 +937,6 @@ def alt_alert(state):
             
     return alert_list, alert_details, alert_link
 
-
 def get_alert(param):
     screens["top"].addstr(0, 0, "getting data...")
     screens["top"].refresh()
@@ -875,7 +1017,56 @@ def get_alert(param):
             parameters['state'] = state_cache
         time.sleep(0.5)
     return alert_list, alert_details, alert_link
-    
+
+def get_forecast(param=None):
+
+    if param:
+        state_cache = parameters['state']
+        parameters['state'] = param.upper()
+
+    forecast_titles = []
+    forecast_details = []
+    forecast_link = {}
+
+    try:
+        # Expecting parameters["center"] = (lat, lon)
+        lat, lon = parameters["latt/long"].split(" ")
+
+        point_url = f"https://api.weather.gov/points/{lat},{lon}"
+        point_data = requests.get(point_url)
+        point_data.raise_for_status()
+        point_json = point_data.json()
+
+        forecast_url = point_json["properties"]["forecast"]
+
+        forecast_response = requests.get(forecast_url)
+        forecast_response.raise_for_status()
+        forecast_json = forecast_response.json()
+
+        periods = forecast_json["properties"].get("periods", [])
+
+        if not periods:
+            return [], [], {}
+
+        for period in periods:
+            name = period.get("name", "Unknown period")
+            detailed = period.get("detailedForecast", "No forecast text available")
+
+            forecast_titles.append(name)
+            forecast_details.append(detailed)
+            forecast_link[name] = detailed
+
+    except requests.exceptions.RequestException as e:
+        # Let caller handle UI / retry logic
+        raise RuntimeError(f"ERROR GETTING FORECAST DATA:\n{e}")
+
+    finally:
+        if param:
+            parameters['state'] = state_cache
+
+    return forecast_titles, forecast_details, forecast_link
+
+
 def print_text(string, y):
     to_print = []
     for char in string:
@@ -889,7 +1080,6 @@ def print_text(string, y):
         screens["main"].addstr(y, 0, item)
         y += 1
     screens["main"].refresh()
-
 
 def print_list(text_list, y):
     color = None
