@@ -71,7 +71,7 @@ help_list = [
 "Shift+F > Searches alerts for a given phrase",
 "binds 1-3 > Custom phrases for sorting, trigged by Shift+1 through 3",
 "Latt/Long > Your lattitude and longitude, multiple tools can find this. ",
-"Proper syntax is {latt} {long}. Example: 41.14743 23.46758",
+"Proper syntax is {latt} {long}. Example: 41.14743 -23.46758",
 "Center/Directions > 'center' is the town you reside in inside of your county",
 "setting this and directions will build a map of alerts.",
 "Alt server > If you download and have the srvweather.py file from zin-minimal-suite and",
@@ -155,6 +155,8 @@ def main(stdscr):
     "bad": bad, "caution": caution, "lookout": lookout,
     "cold": cold, "wind": wind})
     while True:
+        stdscr.clear()
+        stdscr.refresh()
         choice = simple_input(["Forecast", "Alerts", "Settings", "Exit"])
         if choice == "Forecast":
             forecast_inps()
@@ -390,6 +392,9 @@ def alert_inps():
                 pos = select(alert_list, key, pos)
             if not pos:
                 pos = 0
+        elif key == ord("q"):
+            list_pos = 0
+            return
         elif key == ord("e"):
             if not alert_list:
                 continue
@@ -544,6 +549,9 @@ def forecast_inps():
                 pos = select(forecast_list, key, pos)
             if not pos:
                 pos = 0
+        elif key == ord("q"):
+            list_pos = 0
+            return
         elif key == ord("e"):
             if not forecast_list:
                 continue
