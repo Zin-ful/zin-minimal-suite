@@ -23,7 +23,7 @@ def main(stdscr):
     highlight = curses.color_pair(1)
     curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_GREEN)
     timec = curses.color_pair(2)
-    curses.init_pair(3, curses.COLOR_RED, curses.COLOR_BLACK)
+    curses.init_pair(3, curses.COLOR_RED, curses.COLOR_WHITE)
     warn = curses.color_pair(3)
     colors.update({"time":timec})
     colors.update({"hl":highlight})
@@ -34,7 +34,9 @@ def main(stdscr):
     stdscr.clear()
     stdscr.refresh()
     while True:
-        temperature, humidity, pressure, rssi, snr = test_temp()
+        temperature, humidity, pressure, rssi, snr = get_temp()
+        if not pressure:
+            continue
         if float(str(temperature).strip()) > high:
             high = float(str(temperature).strip())
         elif float(str(temperature).strip()) < low:
@@ -57,20 +59,25 @@ def test_temp():
     return temperature, humidity, pressure, rssi, snr
 
 def get_temp():
-    data = ser.readline()
-    ser.write("ack\n")
-    data = data.decode("utf-8")
-    if data[0] == "!":
-        display_message(data, screens["src"])
+    try:
+        data = ser.readline()
+        ser.write("ack\n".encode("utf-8"))
+        data = data.decode("utf-8")
+        if data[0] == "!":
+            display_message(data.strip("!"), screens["src"])
+            return 0, 0, 0, 0, 0
+        temperature, humidity, pressure = data.split(" ", 2)
+        temperature = str(float(temperature) * 1.8 + 42)
+        rssi, snr = data.strip("#").split(" ", 1)
+        return temperature, humidity, pressure, rssi, snr
+    except Exception as e:
+        display_message(str(e), screens["src"])
         return 0, 0, 0, 0, 0
-    temperature, humidity, pressure = data.split(" ", 3)
-    rssi, snr = data.strip("#").split("!")
-    return temperature, humidity, pressure, rssi, snr
 
 def display_message(msg, screen):
     screen.addstr(0, 0, msg, colors["warn"])
     screen.refresh()
-    time.sleep(3)
+    time.sleep(1)
     #ser.write("!")
     clear = ""
     for item in msg:
@@ -98,7 +105,7 @@ def graph(hum, pres, rssi, snr):
     graph_height = y - 2
     graph_width = x - 3
     if len(avg_temp) >= graph_width:
-        avg_temp.pop(0)
+        avg_temp.pop(1)
     min_temp = min(avg_temp)
     max_temp = max(avg_temp)
     j = 0

@@ -65,6 +65,7 @@ def init_uart():
 def send_uart(msg):
     try:
         uart.write(f"{msg}\n")
+        message = uart.readline()
         return 1
     except Exception as e:
         print(str(e))
@@ -74,8 +75,7 @@ def print_batch(phrases):
     for item in phrases:
         print(item)
 uart = init_uart()
-
-
+#uart = 0
 if state != 0:
     if uart:
         send_uart(f"!LoRa initialization failed! Error: {state}")
@@ -107,6 +107,7 @@ while True:
         if state == 0:
             try:
                 message = data.decode()
+                print(message)
                 rssi = lora.getRSSI()
                 snr = lora.getSNR()
                 if uart:
@@ -139,6 +140,7 @@ while True:
         break
     except Exception as e:
         if uart:
+            print("!Error: {e}")
             send_uart("!Error: {e}")
         else:
             print("!Error: {e}")
