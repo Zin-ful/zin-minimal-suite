@@ -157,15 +157,28 @@ def main(stdscr):
     while True:
         stdscr.clear()
         stdscr.refresh()
-        choice = simple_input(["Forecast", "Alerts", "Settings", "Exit"])
-        if choice == "Forecast":
-            forecast_inps()
+        choice = simple_input(["Weekly Forecast", "Hourly Forecast", "Alerts", "Help", "Settings", "Exit"])
+        if not choice or choice == "Exit":
+            exit()
+        elif "Forecast" in choice:
+            stdscr.clear()
+            stdscr.refresh()
+            if "Weekly" in choice:
+                forecast_inps()
+            elif "Hourly" in choice:
+                forecast_inps("hourly")
         elif choice == "Alerts":
+            stdscr.clear()
+            stdscr.refresh()
             alert_inps()
         elif choice == "Settings":
+            stdscr.clear()
+            stdscr.refresh()
             config()
-        elif not choice or choice == "Exit":
-            exit()
+        elif choice == "Help":
+            stdscr.clear()
+            stdscr.refresh()
+            helpy()
 
 def clear_all():
     for item, screen in screens.items():
@@ -509,7 +522,7 @@ def alert_inps():
         elif key == ord('\x1b'):
             exit()
 
-def forecast_inps():
+def forecast_inps(type="weekly"):
     global connected, list_pos
     pos = 0
     connected = 0
@@ -520,7 +533,7 @@ def forecast_inps():
             connected = init()
     while not forecast_list:
         if parameters["alternate server"] == "false":
-            forecast_list, forecast_details, forecast_link = get_forecast(None)
+            forecast_list, forecast_details, forecast_link = get_forecast(None, type)
         else:
             forecast_list, forecast_details, forecast_link = alt_alert("*")
             
@@ -697,13 +710,18 @@ def cleanfiles(param):
             os.remove(item)
     print("back to shell...")
 
-def helpy(param):
-    print("\nalert (state): gets alerts for the specified state, if no state is specified, then the default is used.")
-    print("clean: removed all HTML files other than alerts.html and past_alerts.html")
-    print("set-default: opens the configuration tool")
-    print("debug: prints the values of in-use parameters")
-    print("help: what do you think?")
-    cmd_list = {"alert": get_upd, "cast": cast, "help": helpy, "set-default":config, "debug": debug, "clean": cleanfiles}
+def helpy():
+    screens["help"].clear()
+    i = 0
+    for item in help_list:
+        if ">" in item:
+            i += 1
+        screens["help"].addstr(i, 0, item)
+        i += 1
+    screens["help"].refresh()
+    screens["main"].getch()
+    screens["help"].clear()
+    screens["help"].refresh()
 
 def paraupd():
     with open(f"{conf_path}/parameters.conf", "w") as file:
@@ -958,6 +976,8 @@ def get_alert(param):
         count = 1
         done = 0
         y = 1
+        screens["top"].addstr(0, 0, "downloading alerts...")
+        screens["top"].refresh()
         weatherdata = requests.get(url+parameters['state'].upper())
         errors = weatherdata.raise_for_status()
         data = weatherdata.json()
@@ -976,6 +996,9 @@ def get_alert(param):
                     return 0, 0, 0
                 elif key == ord("A"):
                     return archive()
+        screens["top"].addstr(0, 0, "                     ")
+        screens["top"].addstr(0, 0, "sorting alerts...")
+        screens["top"].refresh()
         current_time = datetime.now().strftime("%m-%d %H:%M")
         screens["top"].clear()
         screens["top"].addstr(0, 0, f"{len(alert_data)} Alerts for {parameters['state']}")
@@ -1026,8 +1049,9 @@ def get_alert(param):
         time.sleep(0.5)
     return alert_list, alert_details, alert_link
 
-def get_forecast(param=None):
-
+def get_forecast(param=None, forecast_type="weekly"):
+    screens["top"].addstr(0, 0, "getting data...")
+    screens["top"].refresh()
     if param:
         state_cache = parameters['state']
         parameters['state'] = param.upper()
@@ -1037,41 +1061,115 @@ def get_forecast(param=None):
     forecast_link = {}
 
     try:
-        # Expecting parameters["center"] = (lat, lon)
         lat, lon = parameters["latt/long"].split(" ")
-
+        screens["top"].addstr(0, 0, "downloading point_url to find forecast links...")
+        screens["top"].refresh()
         point_url = f"https://api.weather.gov/points/{lat},{lon}"
-        point_data = requests.get(point_url)
-        point_data.raise_for_status()
-        point_json = point_data.json()
+        point_response = requests.get(point_url)
+        point_response.raise_for_status()
+        point_json = point_response.json()
 
-        forecast_url = point_json["properties"]["forecast"]
+        props = point_json["properties"]
 
+        if forecast_type == "hourly":
+            forecast_url = props["forecastHourly"]
+        else:
+            forecast_url = props["forecast"]
+        screens["top"].addstr(0, 0, "                                                        ")
+        screens["top"].addstr(0, 0, "downloading forecast data...")
+        screens["top"].refresh()
         forecast_response = requests.get(forecast_url)
         forecast_response.raise_for_status()
         forecast_json = forecast_response.json()
 
         periods = forecast_json["properties"].get("periods", [])
-
         if not periods:
             return [], [], {}
 
-        for period in periods:
-            name = period.get("name", "Unknown period")
-            detailed = period.get("detailedForecast", "No forecast text available")
+        if forecast_type == "weekly":
+            for period in periods:
+                start_time = period.get("startTime")
+                dt = datetime.fromisoformat(start_time)
+                now = datetime.now(dt.tzinfo)
 
-            forecast_titles.append(name)
-            forecast_details.append(detailed)
-            forecast_link[name] = detailed
+                label = "Today" if dt.date() == now.date() else dt.strftime("%A")
+                date_str = dt.strftime("%b %-d")
+
+                name = f"{label} — {date_str} at {dt.strftime('%-I %p')}"
+                
+                detail = period.get(
+                    "detailedForecast",
+                    "No forecast text available"
+                )
+                sorting_list = []
+                detail_cache = detail
+                for item in detail_cache:
+                    if item == ".":
+                        prev, detail = detail.split(".", 1)
+                        sorting_list.append(prev.strip())
+                detail = ""
+                for item in sorting_list:
+                    detail += item + "\n"
+                temp = period.get("temperature", "N/A")
+                wind = period.get("windSpeed", "N/A")
+                rain = period.get("probabilityOfPrecipitation", {}).get("value")
+                rain_str = f"{rain}%" if rain is not None else "N/A"
+                detail += f"\nTemperature: {temp}\nWind Speed: {wind}\nRain Chance: {rain_str}\n"
+                forecast_titles.append(name)
+                forecast_details.append(detail)
+                forecast_link[name] = detail
+
+        else:
+            for period in periods[:12]:
+                start_time = period.get("startTime")
+                dt = datetime.fromisoformat(start_time)
+                now = datetime.now(dt.tzinfo)
+
+                label = "Today" if dt.date() == now.date() else dt.strftime("%A")
+                date_str = dt.strftime("%b %-d")
+
+                hour = f"{label} — {date_str} at {dt.strftime('%-I %p')}"
+
+                temp = period.get("temperature", "N/A")
+                wind = period.get("windSpeed", "N/A")
+                short = period.get("shortForecast", "No forecast")
+                summary = f"Forecast: {short}\nTemperature: {temp}°\nWind speed: {wind}"
+
+                forecast_titles.append(hour)
+                forecast_details.append(summary)
+                forecast_link[hour] = summary
 
     except requests.exceptions.RequestException as e:
-        # Let caller handle UI / retry logic
-        raise RuntimeError(f"ERROR GETTING FORECAST DATA:\n{e}")
+        if "400" in str(e):
+            msg = f"ERROR GETTING ALERT DATA: 001\nThis error is caused by bad formatting for the state parameter or it doesnt exist\nYou can edit the config file @{conf_path}"
+            print_text(msg, 1)
+        elif "Temporary failure in name resolution" in str(e):
+            msg = f"ERROR GETTING ALERT DATA: 002\nIt seems that your device cannot connect to the NOAA website. Check your internet, wifi, or ethernet\n{url+parameters['state']}"
+            print_text(msg, 1)
+        else:
+            msg = f"ERROR GETTING ALERT DATA (GENERAL FAILURE):\n{e}"
+            print_text(msg, 1)
+        screens["main"].addstr(y + 5, 0, f"Shift+R to retry")
+        screens["main"].addstr(y + 6, 0, f"Shift+C for config")
+        screens["main"].refresh()
+        while True:
+            key = screens["main"].getch()
+            if key == ord("R"):
+                return 0, 0, 0
+            elif key == ord("C"):
+                config()
+                return 0, 0, 0
+            elif key == ord("\x1b"):
+                exit()
 
     finally:
         if param:
             parameters['state'] = state_cache
-
+    current_time = datetime.now().strftime("%m-%d %H:%M")
+    screens["top"].clear()
+    screens["top"].addstr(0, width - width // 2, current_time)
+    screens["top"].addstr(0, width - width // 4, "Shift+H for help")
+    screens["top"].refresh()
     return forecast_titles, forecast_details, forecast_link
 
 

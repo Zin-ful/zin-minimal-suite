@@ -113,7 +113,7 @@ while True:
         else:
             print(f"✗ Send failed with error: {state}")
             
-        time.sleep(2)
+        time.sleep(30)
             
     except KeyboardInterrupt:
         print("\nTransmitter stopped")
