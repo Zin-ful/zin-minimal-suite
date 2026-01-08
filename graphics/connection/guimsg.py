@@ -38,7 +38,7 @@ qkeys = {}
 pause = 0
 threads_started = 0
 header_size = 10
-main_menu = ["Messenger", "Group Chat", "Contacts", "Settings"]
+main_menu = ["Messenger", "Group Chat", "Contacts", "Settings", "Exit"]
 
 attr_dict = {"ipaddr": ip, "name": username, "autoconnect": autoconn, "idaddr": ipid, "alias":alias}
 
@@ -128,6 +128,9 @@ def main(stdscr):
             continue
         elif choice == main_menu[3]:
             settings()
+        elif choice == main_menu[4]:
+            exit()
+
 """menu functions"""
 def get_input():
     inp = screens["text"].edit().strip()

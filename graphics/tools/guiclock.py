@@ -228,7 +228,7 @@ def inps(screens, clock):
     while True:
         global done
         key = screens["main"].getch()
-        if key == ord('\x1b'):
+        if key == ord("q") or key == ord('\x1b'):
             done = 1
             clock.join()
             exit()

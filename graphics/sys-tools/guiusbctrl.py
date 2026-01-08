@@ -103,7 +103,7 @@ def inps(screens, colors):
         elif key == ord("e"):
             actions(screens, colors, mounts[pos])
             getblocks(screens, colors)
-        elif key == ord('\x1b'):
+        elif key == ord("q") or key == ord('\x1b'):
             exit()
 
 def select(key, screens, colors):

@@ -96,8 +96,10 @@ def inps(screens, colors):
             detail *= 10
             if detail > 10000:
                 detail = 10000
-        else:
+        elif key == ord("q") or key == ord('\x1b'):
+            
             break
+            
         
         if update_time < 0.001:
             update_time = 0.001
