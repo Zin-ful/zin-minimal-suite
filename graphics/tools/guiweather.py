@@ -24,7 +24,7 @@ if "weathertool" not in os.listdir(curusr+"/.zinapp"):
 
 conf_path = curusr + conf_path
 
-print("Tool Version: 2.0\n")
+print("Tool Version: 2.3\n")
 
 name = ""
 state = "TX"
@@ -157,7 +157,7 @@ def main(stdscr):
     while True:
         stdscr.clear()
         stdscr.refresh()
-        choice = simple_input(["Weekly Forecast", "Hourly Forecast", "Alerts", "Help", "Settings", "Exit"])
+        choice = simple_input(["Alerts", "Weekly Forecast", "Hourly Forecast", "Manage Coordinates", "Help", "Settings", "Exit"])
         if not choice or choice == "Exit":
             exit()
         elif "Forecast" in choice:
@@ -179,6 +179,79 @@ def main(stdscr):
             stdscr.clear()
             stdscr.refresh()
             helpy()
+        elif choice == "Manage Coordinates":
+            get_coords()
+
+def get_coords():
+    while True:
+        if "coords.conf" not in os.listdir(conf_path):
+            coords_dict = {}
+        else:
+            coords_dict = {}
+            coords_name = []
+            with open(f"{conf_path}/coords.conf","r") as file:
+                coords = file.readlines()
+                for item in coords:
+                    try:
+                        name, coord = item.split("=")
+                        latt, long = coord.split(" ")
+                    except:
+                        screens["main"].clear()
+                        print_text("Improper format for your coordnates file, fix manually by accessing ~/.zinapp/weathertool/coords.conf\nPress any key to continue", 1)
+                        screens["main"].getch()
+                        continue
+                    coords_name.append(name.strip())
+                    coords_dict.update({name.strip(): coord.strip()})
+        if not coords_dict:
+            screens["main"].clear()
+            print_text("It looks like this is your first time creating coordnates, follow the guidelines and youll do fine.\nPress any key to continue", 1)
+            screens["main"].getch()
+            if not create_coords():
+                return
+        else:
+            screens["main"].clear()
+            choice = simple_input(["Select Coordinates", "Create new Coordinates", "Exit"])
+            if not choice:
+                return
+            elif choice == "Exit":
+                return
+            elif "Create" in choice:
+                create_coords()
+            elif "Select" in choice:
+                screens["main"].clear()
+                new_coord = simple_input(coords_name)
+                if not new_coord:
+                    return 
+                print_text(f"Selected: {new_coord}\nValue: {coords_dict[new_coord]}\n\nPress 'q' to deny, any other key to confirm",1)
+                if screens["main"].getch() == ord("q"):
+                    continue
+                parameters["latt/long"] = coords_dict[new_coord]
+                paraupd()
+
+def create_coords():
+    screens["main"].clear()
+    print_text("Please enter the name of your coordnate location. This name can be anything (Entering nothing will exit)", 1)
+    #screens["main"].refresh()
+    name = get_input()
+    if not name:
+        return
+    screens["main"].clear()
+    print_text("Using any tool (website, geolocater, etc) enter your Lattitude and Longitude with a space seperating them.\nExample: 42.23840315 -23.2359014", 1)
+    #screens["main"].refresh()
+    coord = get_input()
+    if not coord:
+        return
+    coords = []
+    if "coords.conf" in os.listdir(conf_path):
+        with open(f"{conf_path}/coords.conf","r") as file:
+            for item in file.readlines():
+                coords.append(item.strip())
+    coords.append(f"{name}={coord}")
+    
+    with open(f"{conf_path}/coords.conf","w") as file:
+        for item in coords:
+            file.write(item+"\n")
+    return 1
 
 def clear_all():
     for item, screen in screens.items():
@@ -730,7 +803,11 @@ def paraupd():
 
 def get_input():
     inp = screens["text"].edit().strip()
+    screens["box"].clear()
+    screens["box"].refresh()
     return inp
+    
+    
 
 def debug(param):
     for key, value in parameters.items():
@@ -1061,6 +1138,7 @@ def get_forecast(param=None, forecast_type="weekly"):
     forecast_link = {}
 
     try:
+        y = 1
         lat, lon = parameters["latt/long"].split(" ")
         screens["top"].addstr(0, 0, "downloading point_url to find forecast links...")
         screens["top"].refresh()
