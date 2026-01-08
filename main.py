@@ -23,7 +23,7 @@ recent_app = ""
 done = 0
 status_bar = None
 wait = 50
-remaining = "getting time..."
+remaining = "finding"
 bar = ""
 
 user = proc.run("whoami", capture_output=True, text=True)
@@ -176,7 +176,7 @@ def inps(screens):
 def listapps(screens):
     i = 0
     for item in applist:
-        time.sleep(0.01)
+        time.sleep(0.05)
         screens["main"].addstr(offset + i, 0, item)
         screens["main"].refresh()
         i += 1
