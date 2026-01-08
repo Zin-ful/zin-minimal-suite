@@ -193,7 +193,7 @@ def get_coords():
                 coords = file.readlines()
                 for item in coords:
                     try:
-                        name, coord = item.split("=")
+                        name, coord = item.split("=", 1)
                         latt, long = coord.split(" ")
                     except:
                         screens["main"].clear()

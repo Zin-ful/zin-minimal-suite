@@ -5,8 +5,8 @@ sleep 1
 cd ~/
 echo "removing old files"
 sleep 1
-#rm -rf zin-minimal-suite
-#git clone https://github.com/Zin-ful/zin-minimal-suite
+rm -rf zin-minimal-suite
+git clone https://github.com/Zin-ful/zin-minimal-suite
 echo " "
 echo "copying files to /usr/local/bin"
 sleep 1
