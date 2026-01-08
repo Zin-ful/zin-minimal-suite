@@ -692,7 +692,7 @@ def forecast_inps(type="weekly"):
             screens["main"].getch()
             screens["help"].clear()
             screens["help"].refresh()
-            print_list(alert_list, 1)
+            print_list(forecast_list, 1)
         elif key == ord("R"):
             screens["source"].clear()
             screens["source"].refresh()
