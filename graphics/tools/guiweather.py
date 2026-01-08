@@ -680,7 +680,19 @@ def forecast_inps(type="weekly"):
                 list_pos = 0
             screens["main"].clear()
             print_list(forecast_list, 1) 
-
+        elif key == ord("H"):
+            screens["help"].clear()
+            i = 0
+            for item in help_list:
+                if ">" in item:
+                    i += 1
+                screens["help"].addstr(i, 0, item)
+                i += 1
+            screens["help"].refresh()
+            screens["main"].getch()
+            screens["help"].clear()
+            screens["help"].refresh()
+            print_list(alert_list, 1)
         elif key == ord("R"):
             screens["source"].clear()
             screens["source"].refresh()
