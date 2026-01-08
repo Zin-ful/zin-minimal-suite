@@ -222,6 +222,7 @@ def get_coords():
                 new_coord = simple_input(coords_name)
                 if not new_coord:
                     return 
+                screens["main"].clear()
                 print_text(f"Selected: {new_coord}\nValue: {coords_dict[new_coord]}\n\nPress 'q' to deny, any other key to confirm",1)
                 if screens["main"].getch() == ord("q"):
                     continue
