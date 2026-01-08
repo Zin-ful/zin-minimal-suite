@@ -132,6 +132,7 @@ def updatetop(screens):
 
 def inps(screens):
     global done, status_bar, recent_app, height, width, pos
+    time.sleep(0.2)
     while True:
         inp = screens["main"].getch()
         if not applist:
@@ -145,9 +146,9 @@ def inps(screens):
             done = 1
             screens["source"].clear()
             screens["source"].refresh()
-            time.sleep(0.1)
+            time.sleep(0.3)
             proc.run([apptype, apprun])
-            time.sleep(0.1)
+            time.sleep(1)
             screens["source"].clear()
             screens["source"].refresh()
             screens["main"].clear()
