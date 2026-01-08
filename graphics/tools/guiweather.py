@@ -602,6 +602,14 @@ def forecast_inps(type="weekly"):
     connected = 0
     forecast_list = 0
     screens["main"].clear()
+    if not parameters["latt/long"]:
+        print_text("Your lattitude and longitude coordinates are not set. Please set them before accessing the forecast.\nPress any key to continue", 1)
+        screens["main"].getch()
+        return
+    elif " " not in parameters["latt/long"]:
+        print_text(f"Your lattitude and longitude coordinates are formatted incorrectly: {parameters['latt/long']}\nThere should be a space between your latt and long coords.\nPress any key to continue", 1)
+        screens["main"].getch()
+        return
     if parameters["alternate server"] != "false":
         while not connected:
             connected = init()

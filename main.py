@@ -68,11 +68,15 @@ def main(stdscr):
     getapps()
     listapps(screens)
     inps(screens)
+    batt_status.join()
+    status_bar.join()
+    exit()
+    
 
 def get_batt_time():
     global remaining
     temp = get_batt()
-    while True:
+    while not done:
         if temp != get_batt():
             break
 
@@ -128,7 +132,20 @@ def updatetop(screens):
         screens["top"].addstr(0, (width // 2) - (len(now) // 2), now, timecolor)
         screens["top"].addstr(0, width // 2 + width // 4, f"{str(get_batt())}%" + f" - {remaining} minutes left", timecolor)         
         screens["top"].refresh()
-        time.sleep(20)
+        time.sleep(5)
+        
+def restore_top():
+    while not done:
+        screens["top"].addstr(0, 0, bar, timecolor)
+        screens["top"].addstr(0, 4, f"{user}: {recent_app.strip()}", timecolor)
+        now = time.strftime("%Y-%m-%d %H:%M", time.localtime())
+        if int(time.strftime("%H", time.localtime())) > 12:
+            now += " PM"
+        else:
+            now += " AM"
+        screens["top"].addstr(0, (width // 2) - (len(now) // 2), now, timecolor)
+        screens["top"].addstr(0, width // 2 + width // 4, f"{str(get_batt())}%" + f" - {remaining} minutes left", timecolor)         
+        screens["top"].refresh()
 
 def inps(screens):
     global done, status_bar, recent_app, height, width, pos
@@ -158,6 +175,7 @@ def inps(screens):
             recent_app = applist[pos]
             j = 0
             pos = 0
+            restore_top()
 
         elif inp == ord("w") or inp == ord("s"):
             select(inp, screens)
@@ -174,6 +192,12 @@ def inps(screens):
                 j += 1
             listapps(screens)
             pos = 0
+        elif inp == ord('\x1b'):
+            screens["source"].clear()
+            screens["source"].refresh()
+            done = 1
+            return
+        
 def listapps(screens):
     i = 0
     for item in applist:
