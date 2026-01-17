@@ -20,7 +20,7 @@ admin_params = {"name": root_name, "user": root_usr, "pass": root_psw}
 
 #pulled from bottom for reference
 #exec_flag = {"-sf": send_file, "-rf": receive_file, "-t": test, "-l": login, "-c": create, "-mk": make_directory, "-br": init_browse}
-flags = {"-rf": "#*$^||", "-sf": "^($#||", "-t": "#%&$||", "-l": "*@%#||", "-c": "!)$@||", "-mk": "(!%)||", "-br": "*!&_"}
+flags = {"-rf": "#*$^||", "-sf": "^($#||", "-t": "#%&$||", "-l": "*@%#||", "-c": "!)$@||", "-mk": "(!%)||", "-br": "*!&_||"}
 cmd_list = ["browse", "get file list","download file","upload file", "make folder", "login","logout", "create", "promote","demote", "server test", "client test", "config", "help","exit"]
 
 white_list = [flags["-c"].strip("||"), flags["-l"].strip("||")]
@@ -87,13 +87,19 @@ def client_start(client):
 
 """client browsing"""
 
-def init_browse(client, data):
-    name = get_user(client)
+def init_browse(client, path):
+    name = get_user(client) #client needs to send data first
     root_path = storage_path+name
-    if total == 0:
-        send(client, "#None", 0)
+    first = 1
     while True:
-        flag, path = receive(client, 0)
+        print(first)
+        if not first:
+            flag, path = receive(client, 0)
+        else:
+            first = 0
+            path = ""
+            flag = None
+
         path = root_path + path
         if flag:
             print("flag found")
@@ -101,11 +107,14 @@ def init_browse(client, data):
                 if val.strip("||") == flag:
                     print(f"flag: {key}")
                     execute = exec_flag.get(key)
-                    execute(client, data)
-                    break
+                    execute(client, path)
+                    continue
         if path == "br":
             break
         files = get_directory(path)
+        if not files:
+            send(client, "#None", 0)
+            continue
         send(client, files, 0)
         
 def get_directory(path):
@@ -116,9 +125,17 @@ def get_directory(path):
         data += dir+"::"
     return data
     
-def make_directory():
-    return
-
+def make_directory(client, path):
+    name = get_user(client) #making dirs is not working, its creating them at root. remove the leading / or complete the file path properly
+    print(f"making directory for {name}")
+    root_path = name
+    if path[0] != "/":
+        root_path += "/"
+    root_path += path
+    os.makedirs(root_path, exist_ok=True)
+    print("directory made")
+    send(client, f"Direcotry made at {root_path}", 0)
+    print("informed client")
 """helper functions"""
 def test(client, data):
     for i in range(9):
@@ -347,5 +364,5 @@ def server_init():
         except Exception as e:
             print(e)
 
-exec_flag = {"-sf": send_file, "-rf": receive_file, "-t": test, "-l": login, "-c": create, "-mk": make_directory}
+exec_flag = {"-br": init_browse, "-sf": send_file, "-rf": receive_file, "-t": test, "-l": login, "-c": create, "-mk": make_directory}
 server_init()

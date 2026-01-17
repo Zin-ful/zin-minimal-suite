@@ -13,7 +13,6 @@ import threading as task
 #some vars loaded in config
 height = 0
 width = 0
-pos = 0
 offset = 0
 ylimit = 6
 colors = {}
@@ -37,7 +36,7 @@ ACK = 'ACK'
 parameters = {"download": download_path}
 server = netcom.socket(ipv4, tcp) #creates and defines sock obj
 
-flags = {"-rf": "#*$^||", "-sf": "^($#||", "-t": "#%&$||", "-l": "*@%#||", "-c": "!)$@||", "-mk": "(!%)||", "-br": "*!&_"}
+flags = {"-rf": "#*$^||", "-sf": "^($#||", "-t": "#%&$||", "-l": "*@%#||", "-c": "!)$@||", "-mk": "(!%)||", "-br": "*!&_||"}
 cmd_extras = ["browse", "promote","demote", "server test", "client test", "help", "config", "logout", "exit"]
 cmd_list = ["login", "create", "config", "exit"]
 
@@ -103,19 +102,20 @@ def select(pos, key, listy):
         back = 1
     elif key == ord("w"):
         pos -= 1
-        if pos <= 0:
+        if pos < 0:
             pos = 0
         back = -1
     screens["main"].addstr(pos + offset - back, 0, listy[pos - back])
     screens["main"].addstr(pos + offset, 0, listy[pos], colors["highlight"])
+    return pos
 
 def init_browse():
-    send(screens, "" 0) #need to send data first
+    send(screens, flags["-br"]+"browse", 0) #need to send data first
     while True:
-        current_path = receive(screens, 0)
-        if current_path == "#None":
-            print_text(1, "No files in directory", width // 2, height // 3)
-            user_wait(screens)
+        flag, current_path = receive(screens, 0)
+        if current_path.strip() == "#None":
+            print_text(1, "No files in directory", height // 3, getmid("No files in directory"))
+            userwait(screens)
             choice = simple_input(screens["main"], ["Upload File", "Create Directory", "Exit"])
             if "Upload" in choice:
                 upload() #confirm this works
@@ -139,7 +139,7 @@ def upload():
     send(screens, flags["-dw"]+name, 0)
     send_file(screens, path+"/"+name)
     flag, response = receive(screens, 0)
-    print_text(1, screens, None, response, height // 2, getmid(response))
+    print_text(1, response, height // 2, getmid(response))
     userwait(screens)
     screens["source"].clear()
     return 1
@@ -154,13 +154,15 @@ def simple_input(screen, menu):
             pos = 0
         key = screen.getch()
         if key == ord("s") or key == ord("w"):
-            pos = select(pos, key, screen, menu)
+            pos = select(pos, key, menu)
+            if not pos:
+                pos = 0
         elif key == ord("e"):
             return menu[pos]
         elif key == ord("q"):
             return
 
-def print_text(clr, screens, colors, string, y, x):
+def print_text(clr, string, y, x):
     if clr:
         screens["main"].clear()    
     to_print = []
@@ -211,35 +213,35 @@ def init_server(screens, colors):
     if server == None:
         server = netcom.socket(ipv4, tcp)
     msg = f'trying {IP}:{PORT}'
-    print_text(1, screens, colors, msg, height // 3, getmid(msg))
+    print_text(1, msg, height // 3, getmid(msg))
     time.sleep(0.7)
     try:
         server.connect((IP, PORT))
         msg = "connected, moving to shell.."
-        print_text(1, screens, colors, msg, height // 3, getmid(msg))
+        print_text(1, msg, height // 3, getmid(msg))
         server.send(ACK.encode("utf-8"))
         time.sleep(0.5)
         return
     except Exception as e:
         msg = f"error: {e}"
-        print_text(0, screens, colors, msg, height // 3, getmid(msg))
+        print_text(0, msg, height // 3, getmid(msg))
         msg = "lost connection to server. do you want to retry?"
-        print_text(0, screens, colors, msg, height // 3 + 3, getmid(msg))
+        print_text(0, msg, height // 3 + 3, getmid(msg))
         inp = get_input(screens)
         if "y" in inp:
             if server.fileno() != -1:
                 msg = "attempting shutdown..."
-                print_text(1, screens, colors, msg, height // 3 + 3, getmid(msg))
+                print_text(1, msg, height // 3 + 3, getmid(msg))
                 time.sleep(0.5)
                 try:
                     server.shutdown(netcom.SHUT_RDWR)
                 except OSError:
-                    msg = "No endpoint to shutdown. Closing server"
-                    print_text(1, screens, colors, msg, height // 3 + 3, getmid(msg))
+                    msg = "No endpoint to shutdown. Closing server connection"
+                    print_text(1, msg, height // 3 + 3, getmid(msg))
                     time.sleep(1)
                 server.close()
             msg = "retrying... (waiting for server, be patient)"
-            print_text(1, screens, colors, msg, height // 3, getmid(msg))
+            print_text(1, msg, height // 3, getmid(msg))
             time.sleep(6)
             init_server(screens, colors)
         else:
@@ -265,7 +267,7 @@ def menu(screens, colors):
             continue
         send(screens, inp, 0)
         flag, response = receive(screens, 0)
-        print_text(1, screens, colors, response, 1, getmid(response))
+        print_text(1, response, 1, getmid(response))
         userwait(screens)
 
 """helper functions"""
@@ -304,7 +306,7 @@ def send_file(screens, path):
         file_size = file.tell()
     head = str(file_size).zfill(header_size)
     msg = f"file size {header_size}, sending..."
-    print_text(1, screens, None, msg, height // 3, getmid(msg))
+    print_text(1, msg, height // 3, getmid(msg))
     time.sleep(0.5)
     server.send(str(head).encode("utf-8"))
     ack(0)
@@ -315,7 +317,7 @@ def send_file(screens, path):
             if not part:
                 break
             msg = f"sending part {i}"
-            print_text(1, screens, None, msg, height // 3, getmid(msg))
+            print_text(1, msg, height // 3, getmid(msg))
             time.sleep(0.001)
             server.send(part)
             i += 1
@@ -324,18 +326,18 @@ def send_file(screens, path):
 def send(screens, data, encoded):
     is_flagged = "n"
     msg = "checking flag.."
-    print_text(1, screens, None, msg, height // 3, getmid(msg))
+    print_text(1, msg, height // 3, getmid(msg))
     time.sleep(0.5)
     for key, val in flags.items():
         if val in data:
             is_flagged = "y"
             msg = f"is flagged: {val}"
-            print_text(1, screens, None, msg, height // 3, getmid(msg))
+            print_text(1, msg, height // 3, getmid(msg))
             time.sleep(0.5)
     head = str(len(data + is_flagged)).zfill(header_size)
     data = head + is_flagged + data
     msg = "data send."
-    print_text(1, screens, None, msg, height // 3, getmid(msg))
+    print_text(1, msg, height // 3, getmid(msg))
     time.sleep(0.5)
     server.send(data.encode("utf-8"))
     ack(0)
@@ -343,31 +345,31 @@ def send(screens, data, encoded):
 def receive(screens, encoded):
     data_received = b''
     msg = "receiving header.."
-    print_text(1, screens, None, msg, height // 3, getmid(msg))
+    print_text(1, msg, height // 3, getmid(msg))
     time.sleep(0.5)
     packet_size = server.recv(header_size).decode("utf-8")
     packet_size = int(packet_size)
     msg = f"header size is: {packet_size}"
-    print_text(1, screens, None, msg, height // 3, getmid(msg))
+    print_text(1, msg, height // 3, getmid(msg))
     time.sleep(0.5)
     is_flagged = server.recv(1).decode("utf-8")
     if is_flagged == "y":
         msg = "is flagged."
-        print_text(1, screens, None, msg, height // 3, getmid(msg))
+        print_text(1, msg, height // 3, getmid(msg))
         flag = server.recv(6).decode("utf-8").strip("||")
     else:
         msg = "is not flagged."
-        print_text(1, screens, None, msg, height // 3, getmid(msg))
+        print_text(1, msg, height // 3, getmid(msg))
         flag = None
     time.sleep(0.5)
     while len(data_received) < packet_size:
         data_received += server.recv(packet_size - len(data_received))
         msg = f"data being received: {packet_size} | {len(data_received)} = {data_received}"
-        print_text(1, screens, None, msg, height // 3, getmid(msg))
+        print_text(1, msg, height // 3, getmid(msg))
         time.sleep(0.3)
     ack(1)
     msg = f"data received: {data_received}"
-    print_text(1, screens, None, msg, height // 3, getmid(msg))
+    print_text(1, msg, height // 3, getmid(msg))
     time.sleep(0.5)
     data_received = data_received.decode("utf-8")
     return flag, data_received
@@ -382,23 +384,23 @@ def ack(state):
 
 def login():
     msg = "Enter your login information. Format: 'name username password'"
-    print_text(1, screens, colors, msg, height // 3, getmid(msg))
+    print_text(1, msg, height // 3, getmid(msg))
     login_info = get_input(screens)
     send(screens, flags["-l"]+"/"+login_info, 0)
     flag, response = receive(screens, 0)
     update_functions(response)
-    print_text(1, screens, None, response, height // 3, getmid(response))
+    print_text(1, response, height // 3, getmid(response))
     userwait(screens)
     return 1
 
 def logout(screens):
     global server
     msg = "Youve logged out, connect back?"
-    print_text(1, screens, colors, msg, height // 3, getmid(msg))
+    print_text(1, msg, height // 3, getmid(msg))
     inp = get_input(screens)
     if "y" in usr_inp:
         msg = "trying to connect... (waiting for server, be patient)"
-        print_text(1, screens, colors, msg, height // 3, getmid(msg))
+        print_text(1, msg, height // 3, getmid(msg))
         time.sleep(5)
         if server.fileno() != -1:
             server.close()
@@ -410,12 +412,12 @@ def logout(screens):
 
 def create(screens):
     msg = "Enter your desired account information. 'Format: name username password'"
-    print_text(1, screens, colors, msg, height // 3, getmid(msg))
+    print_text(1, msg, height // 3, getmid(msg))
     login_info = get_input(screens)
     send(screens, flags["-c"]+"/"+login_info, 0)
     flag, response = receive(screens, 0)
     update_functions(response)
-    print_text(1, screens, None, response, height // 3, getmid(response))
+    print_text(1, response, height // 3, getmid(response))
     userwait(screens)
     return 1
 
@@ -424,7 +426,7 @@ def test(screens):
         send(screens, flags["-t"]+f"Packet: {i}", 0)
         flag, data_received = receive(screens, 0)
         msg = f"Testing packet: {i}\n{data_received}"
-        print_text(1, screens, colors, msg, height // 3, getmid(msg))
+        print_text(1, msg, height // 3, getmid(msg))
     return 1
 
 def config(screens):
@@ -433,13 +435,13 @@ def config(screens):
     for name, item in parameters.items():
         param_list.append(f"{name} = {item}")
     msg = "Select a name to edit that configuration"
-    print_text(1, screens, colors, msg, 0, getmid(msg))
-    print_list(0, screens, colors, param_list, 1, 0)
+    print_text(1, msg, 0, getmid(msg))
+    print_list(0, param_list, 1, 0)
     inp = get_input(screens)
     for name, item in parameters.items():
         if inp == name:
             msg = f"what would you like to set the value of {name}?"
-            print_text(1, screens, colors, msg, 0, getmid(msg))
+            print_text(1, msg, 0, getmid(msg))
             inp = get_input(screens)
             parameters[name] = inp
     with open(config_path, "w") as file:
@@ -449,17 +451,17 @@ def config(screens):
                     item += "/"
             file.write(f"{name}={item}")
     msg = "config saved. press any key to continue"
-    print_text(1, screens, colors, msg, height // 3, getmid(msg))
+    print_text(1, msg, height // 3, getmid(msg))
     key = screens["main"].getch()
     if key:
         return 1
 
 def make_directory(screens):
     msg = "what folder would you like to create?"
-    print_text(1, screens, None, msg, height // 3, getmid(msg))
+    print_text(1, msg, height // 3, getmid(msg))
     folder_name = get_input(screens)
     msg = "(press enter to create at root or '/') which parent folder would you like to create this in? (folder needs to exist first)"
-    print_text(1, screens, None, msg, height // 3, getmid(msg))
+    print_text(1, msg, height // 3, getmid(msg))
     folder_path = get_input(screens)
     if not folder_path:
         if folder_name[0] != "/":
@@ -474,7 +476,7 @@ def make_directory(screens):
         full_path = folder_path+folder_name
     send(screens, flags["-mk"]+full_path, 0)
     flag, response = receive(screens, 0)
-    print_text(1, screens, colors, response, height // 3, getmid(response))
+    print_text(1, response, height // 3, getmid(response))
     userwait(screens)
     return 1
 
