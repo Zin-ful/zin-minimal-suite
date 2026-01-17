@@ -84,16 +84,19 @@ def main(stdscr):
     init_server(screens, colors)
     menu(screens, colors)
     
-def inps(screens, colors, listy):
+def inps(listy):
+    pos = 0
     while True:
         key = screens["main"].getch()
         if key == ord("w") or key == ord("s"):
-            select(key, screens, colors, listy)
+            pos = select(pos, key, listy)
+            if not pos:
+                pos = 0
         elif key == ord("e"):
             return listy[pos]
 
 def select(pos, key, listy):
-=    if key == ord("s"):
+    if key == ord("s"):
         pos += 1
         if pos >= len(listy):
             pos = len(listy) - 1
@@ -107,10 +110,10 @@ def select(pos, key, listy):
     screens["main"].addstr(pos + offset, 0, listy[pos], colors["highlight"])
 
 def init_browse():
-    #send(screens, "" 0)
+    send(screens, "" 0) #need to send data first
     while True:
         current_path = receive(screens, 0)
-        if current_path = "#None":
+        if current_path == "#None":
             print_text(1, "No files in directory", width // 2, height // 3)
             user_wait(screens)
             choice = simple_input(screens["main"], ["Upload File", "Create Directory", "Exit"])
@@ -122,7 +125,7 @@ def init_browse():
                 send(screens, "br", 0)
                 return
             continue
-        choice = #make new input that includes custom keybinds supplied with dictionary
+        choice = None#make new input that includes custom keybinds supplied with dictionary
         #use keybinds here to control user_input
 def upload():
     path = get_file()
@@ -246,17 +249,17 @@ def init_server(screens, colors):
 def menu(screens, colors):
     while True:
         exec_success = 0
-        print_list(1, screens, colors, cmd_list, 0, 0)
-        inp = inps(screens, colors, cmd_list)
+        print_list(1, cmd_list, 0, 0)
+        inp = inps(cmd_list)
         for item, value in cmd_dict.items():
             if inp == item:
-                exec_success = value(screens)
+                exec_success = value()
                 break
         if exec_success:
             continue
         for item, value in client_cmd_dict.items():
             if inp == item:
-                exec_success = value(screens)
+                exec_success = value()
                 break
         if exec_success:
             continue
@@ -377,7 +380,7 @@ def ack(state):
 
 """user functions"""
 
-def login(screens):
+def login():
     msg = "Enter your login information. Format: 'name username password'"
     print_text(1, screens, colors, msg, height // 3, getmid(msg))
     login_info = get_input(screens)

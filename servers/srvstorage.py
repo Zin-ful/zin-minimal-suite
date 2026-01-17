@@ -15,8 +15,8 @@ user_path = '/opt/zinapp/zfile_srvr/users'
 storage_path = '/opt/zinapp/zfile_srvr/storage'
 root_usr = ""
 root_psw = ""
-
-admin_params = {"user": root_usr, "pass": root_psw}
+root_name = ""
+admin_params = {"name": root_name, "user": root_usr, "pass": root_psw}
 
 #pulled from bottom for reference
 #exec_flag = {"-sf": send_file, "-rf": receive_file, "-t": test, "-l": login, "-c": create, "-mk": make_directory, "-br": init_browse}
@@ -36,7 +36,8 @@ client_conn.bind((IP,  PORT)) #temp
 
 """first time server setup"""
 
-
+if "zinapp" not in os.listdir("/opt"):
+    os.mkdir("/opt/zinapp")
 if "zfile_srvr" not in os.listdir("/opt/zinapp"):
     os.makedirs("/opt/zinapp/zfile_srvr", exist_ok=True)
 if "users" not in os.listdir("/opt/zinapp/zfile_srvr"):
@@ -57,11 +58,12 @@ else:
             else:
                 continue
         else:
-            root_usr = "admin"
-            root_psw = "root"
+            admin_params["name"] = "admin"
+            admin_params["user"] = "admin"
+            admin_params["pass"] = "root"
         with open(f"{user_path}/admin.conf", "w") as file:
-            for name, item in admin_params.items():
-                file.write(f"{name}={item}")
+            for key, val in admin_params.items():
+                file.write(f"{key}:{val}\n")
         break
 
 """main client"""
@@ -82,13 +84,6 @@ def client_start(client):
                     execute = exec_flag.get(key)
                     execute(client, data)
                     break
-        else:
-            execute = exec_phrase.get(data)
-            if execute:
-                result = execute(client, data)
-                send(client, result, 0)
-            else:
-                send(client, "command not found. client or server out of date/sync?", 0)
 
 """client browsing"""
 
@@ -98,11 +93,18 @@ def init_browse(client, data):
     if total == 0:
         send(client, "#None", 0)
     while True:
-        path = receive(client, 0)
+        flag, path = receive(client, 0)
         path = root_path + path
+        if flag:
+            print("flag found")
+            for key, val in flags.items():
+                if val.strip("||") == flag:
+                    print(f"flag: {key}")
+                    execute = exec_flag.get(key)
+                    execute(client, data)
+                    break
         if path == "br":
             break
-        #handle flags here, maybe create seperate flag handler function
         files = get_directory(path)
         send(client, files, 0)
         
@@ -114,7 +116,8 @@ def get_directory(path):
         data += dir+"::"
     return data
     
-            
+def make_directory():
+    return
 
 """helper functions"""
 def test(client, data):
@@ -274,11 +277,12 @@ def remove(name):
     
 def load(data):
     name, user, passw = data.split(' ')
-    user_dict = {"name": name, "user": user, "pass": passw}
+    user_dict = {"name": name.strip("/"), "user": user, "pass": passw}
     with open(f'{user_path}{name}.conf', "r") as file:
         data = file.readlines()
         for item in data:
             key, val = item.split(":")
+            print(f"checking {key} & {val} against {user_dict[key]}")
             if user_dict[key] == val.strip('\n'):
                 pass
             else:
@@ -315,6 +319,7 @@ def create(client, data):
     send(client, f"Welcome {name}, for information on usage select 'help'.", 0)
 
 def login(client, data):
+    print("login: "+data)
     name = load(data)
     if not name:
         send(client, "login credentials invald.", 0)
@@ -343,5 +348,4 @@ def server_init():
             print(e)
 
 exec_flag = {"-sf": send_file, "-rf": receive_file, "-t": test, "-l": login, "-c": create, "-mk": make_directory}
-exec_phrase = {"get file list": list_directory}
 server_init()
