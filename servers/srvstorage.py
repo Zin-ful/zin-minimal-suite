@@ -17,8 +17,11 @@ root_usr = ""
 root_psw = ""
 
 admin_params = {"user": root_usr, "pass": root_psw}
-flags = {"-dw": "#*$^||", "-dr": "^($#||", "-t": "#%&$||", "-l": "*@%#||", "-c": "!)$@||", "-mk": "(!%)||"}
-cmd_list = ["browse", "get file list","download file","upload file", "make folder", "login","logout", "create", "promote","demote","games","msg", "server test", "client test", "config", "help","exit"]
+
+#pulled from bottom for reference
+#exec_flag = {"-sf": send_file, "-rf": receive_file, "-t": test, "-l": login, "-c": create, "-mk": make_directory, "-br": init_browse}
+flags = {"-rf": "#*$^||", "-sf": "^($#||", "-t": "#%&$||", "-l": "*@%#||", "-c": "!)$@||", "-mk": "(!%)||", "-br": "*!&_"}
+cmd_list = ["browse", "get file list","download file","upload file", "make folder", "login","logout", "create", "promote","demote", "server test", "client test", "config", "help","exit"]
 
 white_list = [flags["-c"].strip("||"), flags["-l"].strip("||")]
 unverified = []
@@ -86,7 +89,33 @@ def client_start(client):
                 send(client, result, 0)
             else:
                 send(client, "command not found. client or server out of date/sync?", 0)
+
+"""client browsing"""
+
+def init_browse(client, data):
+    name = get_user(client)
+    root_path = storage_path+name
+    if total == 0:
+        send(client, "#None", 0)
+    while True:
+        path = receive(client, 0)
+        path = root_path + path
+        if path == "br":
+            break
+        #handle flags here, maybe create seperate flag handler function
+        files = get_directory(path)
+        send(client, files, 0)
         
+def get_directory(path):
+    data = "" 
+    for dir in os.listdir(path):
+        if "." not in dir:
+            dir += "/"
+        data += dir+"::"
+    return data
+    
+            
+
 """helper functions"""
 def test(client, data):
     for i in range(9):
@@ -161,19 +190,6 @@ def get_user(client):
         if client == key:
             return value
 """file operations"""
-
-def write_tree(client):
-    name = get_user(client)
-    with open(tree_path, "w") as file:
-        file.write(storage+name, '\n')
-        recurse(storage+name, 1, file)
-
-def recurse(path, depth, file):
-        for entry in os.listdir(path):
-            entry_path = os.path.join(path, entry)
-            file.write("    " * depth + entry + '\n')
-            if os.path.isdir(entry_path):
-                recurse(entry_path, depth+1, file)
 
 def find_file(name):
     root_list = os.listdir(root)
@@ -312,47 +328,6 @@ def logout():
 
 """user functions"""
 
-def change_directory(client, data):
-    white_list = [user, "home","root","back",".."]
-    if name not in os.listdir(path) and name not in white_list:
-        return "that directory does not exist"
-    elif "." in name:
-        return "cannot move into a file"
-    if not any('/' in d for d in name):
-        name = '/' + name
-    if name in white_list:
-        path = root
-        return f'directory changed to {path}'
-    elif not '/storage' in name:
-        path = path + str(name)
-        return f'directory changed to {path}'
-    else:
-        return 'directory not found, might not exist'
-
-def list_directory(client, data):
-    name = get_user(client)
-    path = storage_path+name
-    files = ''
-    total = len(os.listdir(path))
-    if total == 0:
-        send(client, "no files in directory", 0)
-        return
-    count = 0
-    for i in os.listdir(path):
-        count += 1
-        if count < total:
-            files += i + ', '
-        elif count == total:
-            files += i
-    send(client, files, 0)
-
-def make_directory(client, data):
-    name = get_user(client)
-    path = storage_path+name
-    #when tracking current directory, append that here
-    os.makedirs(path+data, exist_ok=True)
-    send(client, f"folder created at {path + data}", 0)
-
 def server_init():
     while True:
         try:
@@ -367,6 +342,6 @@ def server_init():
         except Exception as e:
             print(e)
 
-exec_flag = {"-dr": send_file, "-dw": receive_file, "-t": test, "-l": login, "-c": create, "-mk": make_directory}
+exec_flag = {"-sf": send_file, "-rf": receive_file, "-t": test, "-l": login, "-c": create, "-mk": make_directory}
 exec_phrase = {"get file list": list_directory}
 server_init()

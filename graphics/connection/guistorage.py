@@ -37,8 +37,8 @@ ACK = 'ACK'
 parameters = {"download": download_path}
 server = netcom.socket(ipv4, tcp) #creates and defines sock obj
 
-flags = {"-dw": "#*$^||", "-dr": "^($#||", "-t": "#%&$||", "-l": "*@%#||", "-c": "!)$@||", "-mk": "(!%)||"}
-cmd_extras = ["browse", "get file list","download file","upload file", "make folder", "promote","demote", "server test", "client test", "help", "config", "logout", "exit"]
+flags = {"-rf": "#*$^||", "-sf": "^($#||", "-t": "#%&$||", "-l": "*@%#||", "-c": "!)$@||", "-mk": "(!%)||", "-br": "*!&_"}
+cmd_extras = ["browse", "promote","demote", "server test", "client test", "help", "config", "logout", "exit"]
 cmd_list = ["login", "create", "config", "exit"]
 
 """first start process"""
@@ -92,9 +92,8 @@ def inps(screens, colors, listy):
         elif key == ord("e"):
             return listy[pos]
 
-def select(key, screens, colors, listy):
-    global pos
-    if key == ord("s"):
+def select(pos, key, listy):
+=    if key == ord("s"):
         pos += 1
         if pos >= len(listy):
             pos = len(listy) - 1
@@ -107,7 +106,57 @@ def select(key, screens, colors, listy):
     screens["main"].addstr(pos + offset - back, 0, listy[pos - back])
     screens["main"].addstr(pos + offset, 0, listy[pos], colors["highlight"])
 
+def init_browse():
+    #send(screens, "" 0)
+    while True:
+        current_path = receive(screens, 0)
+        if current_path = "#None":
+            print_text(1, "No files in directory", width // 2, height // 3)
+            user_wait(screens)
+            choice = simple_input(screens["main"], ["Upload File", "Create Directory", "Exit"])
+            if "Upload" in choice:
+                upload() #confirm this works
+            elif "Create" in choice:
+                make_directory(screens) #confirm this works
+            else:
+                send(screens, "br", 0)
+                return
+            continue
+        choice = #make new input that includes custom keybinds supplied with dictionary
+        #use keybinds here to control user_input
+def upload():
+    path = get_file()
+    path, name = path.split(":")
+    screens["source"].clear()
+    msg = f"Confirm path?: {path+'/'+name}"
+    screens["source"].clear()
+    screens["source"].addstr(0 ,getmid(msg),msg)
+    screens["source"].refresh()
+    userwait(screens)
+    send(screens, flags["-dw"]+name, 0)
+    send_file(screens, path+"/"+name)
+    flag, response = receive(screens, 0)
+    print_text(1, screens, None, response, height // 2, getmid(response))
+    userwait(screens)
+    screens["source"].clear()
+    return 1
+
 #+++helper funcs
+def simple_input(screen, menu):
+    pos = 0
+    print_list(1, menu, 0, 0)
+    screen.refresh()
+    while True:
+        if not pos:
+            pos = 0
+        key = screen.getch()
+        if key == ord("s") or key == ord("w"):
+            pos = select(pos, key, screen, menu)
+        elif key == ord("e"):
+            return menu[pos]
+        elif key == ord("q"):
+            return
+
 def print_text(clr, screens, colors, string, y, x):
     if clr:
         screens["main"].clear()    
@@ -124,7 +173,7 @@ def print_text(clr, screens, colors, string, y, x):
         y += 1
     screens["main"].refresh()
 
-def print_list(clr, screens, colors, text_list, y, x):
+def print_list(clr, text_list, y, x):
     if clr:
         screens["main"].clear()
     to_print = []
@@ -327,21 +376,6 @@ def ack(state):
         server.send(ACK.encode('utf-8'))
 
 """user functions"""
-def to_upload(screens):
-    path = get_file()
-    path, name = path.split(":")
-    screens["source"].clear()
-    msg = f"Confirm path?: {path+'/'+name}"
-    screens["source"].addstr(0,getmid(msg),msg)
-    screens["source"].refresh()
-    userwait(screens)
-    send(screens, flags["-dw"]+name, 0)
-    send_file(screens, path+"/"+name)
-    flag, response = receive(screens, 0)
-    print_text(1, screens, None, response, height // 2, getmid(response))
-    userwait(screens)
-    screens["source"].clear()
-    return 1
 
 def login(screens):
     msg = "Enter your login information. Format: 'name username password'"
@@ -441,49 +475,6 @@ def make_directory(screens):
     userwait(screens)
     return 1
 
-def browse_tree(screens):
-    get_file_tree(screens)
-    file_tree = {}
-    path_list = []
-    location = "/"
-    with open("file_tree.conf", "r") as file:
-        tree_data = file.readlines()
-        for item in tree_data:
-            file_temp = []
-            path, files = item.split(":")
-            files = itemize_list(files)
-            file_tree.update({path:file_temp})
-    for path, item in file_tree.items():
-        path_list.append(path)
-    while True:
-        path_name = inps(screens, colors, path_list)
-            
-def get_tree(screens):
-    send(screens, "get file list", 0)
-    flag, response = receive(screens, 0)
-    repsonse = itemize_list(response)
-    for item in response:
-        if "." not in item:
-            folders.append(item)
-        else:
-            files.append(item)
-
-def read_tree(path):
-    tree = {}
-    stack [(0, tree)]
-    with open(path, "r") as file:
-        for line in file:
-            stripped = line.rstrip()
-            depth = (len(line) - len(stripped)) // 4
-            name = stripped.strip()
-
-            node = {}
-            while stack and stack[-1][0] >= depth:
-                stack.pop()
-            stack[-1][0][name] = node
-            stack.append((depth, node))
-    return tree
-
 def itemize_list(listy):
     file_temp = []
     listy_cpy = listy
@@ -494,8 +485,8 @@ def itemize_list(listy):
     return file_temp   
 
 
-client_cmd_dict = {"config": config, "browse": browse_tree}
-cmd_dict = {"upload file": to_upload,"login": login, "logout": logout, "create": create, "testing": test, "make folder": make_directory}
+client_cmd_dict = {"config": config, "browse": init_browse}
+cmd_dict = {"login": login, "logout": logout, "testing": test}
 
 """CODE FROM FILE BROWSER"""
 
