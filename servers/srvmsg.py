@@ -142,7 +142,7 @@ def receive_file(client):
         print(f"file size is: {packet_size}")
         with open(file_path + name, "wb") as file:
             while len(data_received) < packet_size:
-                file.write(client.recv(packet_size - len(data_received))
+                file.write(client.recv(packet_size - len(data_received)))
                 print(f"writing data from socket: {packet_size} | {len(data_received)} = {data_received}")
     except (OSError):
         client_end(client)
