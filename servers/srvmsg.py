@@ -122,7 +122,7 @@ def receive(client):
 def send_file(client, name):
     try:
         with open(file_path + name, "rb") as file:
-        head = str(len(file_size)).zfill(header_size)
+            head = str(len(file_size)).zfill(header_size)
             
         return 1
     except (BrokenPipeError, ConnectionResetError):
