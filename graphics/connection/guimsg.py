@@ -12,8 +12,8 @@ import sys
 
 """
 FIX
-
 Change shitty UI to make it more readable
+Add file sending
 Add user information to UI such as name, ip address, etc
 """
 

@@ -12,7 +12,25 @@ Server doesnt know when clients ctrl-C - should be fixed as of 1/25/26
 In direct message, make sure the direct messanger doesnt recieve group chat texts
 In direct message, make sure users dont see the system connected message
 Test missed message sending
+Add file sending
 """
+
+def gen_update():
+    update_tuple = (
+    "Make sure direct messages reach the intended client",
+    "Make sure direct messag doesnt see the user connected message",
+    "Implement missed messages",
+    "Implement file sending"
+    )
+    msg = ""
+    for item in update_tuple:
+        msg += item + "\n"
+    return msg
+
+server_version = 3.3
+
+updatemsg = f"server.message.from.server: Welcome to server version {server_version}\n" + "To-Do List:" + gen_update()
+
 
 conf_path = "/opt/zinapp/ztext_srvr"
 port = 34983
@@ -23,7 +41,7 @@ contact = "none"
 header_size = 10
 
 missed_path = "/opt/zinapp/ztext/missed/" 
-
+file_path = "/opt/zinapp/ztext/cache/"
 attr_dict = {"contact": contact, "link": linky, "passwd": passwd}
 
 if not "zinapp" in os.listdir("/opt"):
@@ -34,6 +52,8 @@ if not "ztext" in os.listdir("/opt/zinapp"):
 
 if not "missed" in os.listdir("/opt/zinapp/ztext"):
     os.mkdir("/opt/zinapp/ztext/missed")
+if not "cache" in os.listdir("/opt/zinapp/ztext"):
+    os.mkdir("/opt/zinapp/ztext/cache")
 
 def load():
     try:
@@ -97,6 +117,37 @@ def receive(client):
     except (OSError):
         client_end(client)
         return 0
+
+
+def send_file(client, name):
+    try:
+        with open(file_path + name, "rb") as file:
+        head = str(len(file_size)).zfill(header_size)
+            
+        return 1
+    except (BrokenPipeError, ConnectionResetError):
+        client_end(client)
+        return 0
+
+def receive_file(client):
+    try:
+        name = receive(client)
+        data_received = b''
+        print("receiving file header..")
+        packet_size = client.recv(header_size).decode("utf-8")
+        if not packet_size:
+            client_end(client)
+            return 0
+        packet_size = int(packet_size)
+        print(f"file size is: {packet_size}")
+        with open(file_path + name, "wb") as file:
+            while len(data_received) < packet_size:
+                file.write(client.recv(packet_size - len(data_received))
+                print(f"writing data from socket: {packet_size} | {len(data_received)} = {data_received}")
+    except (OSError):
+        client_end(client)
+        return 0
+
 
 def contact(client_socket, msg):
     return f"server.message.from.server.{attr_dict['contact']}"
@@ -266,6 +317,10 @@ def messenger(client_socket, addr):
         if other_client != client_socket or other_client not in user_direct:
             if not send(other_client, startmsg):
                 break
+    print("Sending update message")
+    if not send(client_socket, updatemsg):
+        return
+    print("Sent")
     missed = check_missed(username)
     if missed:
         client.send("SYSTEM MISSED MESSAGES\n{missed}")
