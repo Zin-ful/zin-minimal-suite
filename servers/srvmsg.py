@@ -8,6 +8,7 @@ import os
 """
 FIX
 
+Server doesnt know when clients ctrl-C
 In direct message, make sure the direct messanger doesnt recieve group chat texts
 In direct message, make sure users dont see the system connected message
 Test missed message sending
@@ -81,6 +82,7 @@ def receive(client):
         print("receiving header..")
         packet_size = client.recv(header_size).decode("utf-8")
         if not packet_size:
+            client_end(client)
             return 0
         packet_size = int(packet_size)
         print(f"header size is: {packet_size}")
@@ -88,10 +90,11 @@ def receive(client):
             data_received += client.recv(packet_size - len(data_received))
             print(f"data being received: {packet_size} | {len(data_received)} = {data_received}")
         if not data_received:
+            client_end(client)
             return 0
         data_received = data_received.decode("utf-8")
         return data_received
-    except (BrokenPipeError, ConnectionResetError):
+    except (OSError):
         client_end(client)
         return 0
 
@@ -260,7 +263,7 @@ def messenger(client_socket, addr):
         users.append(client_socket)
     startmsg = f"server.message.from.server.users: {len(users)} !###########\nSYSTEM MESSAGE: user connected: {addr}\n###########"
     for other_client in users:
-        if other_client != client_socket or if other_client not in user_direct:
+        if other_client != client_socket or other_client not in user_direct:
             if not send(other_client, startmsg):
                 break
     missed = check_missed(username)
@@ -298,14 +301,14 @@ def messenger(client_socket, addr):
                 if other_client != client_socket:
                     if not send(other_client, message):
                         break
-        
+
 def client_end(client):
     print("ending client")
-    try:
-        for user in users:
-            user.sendall(f"server.message.from.server.users: -1 !###########\nSYSTEM MESSAGE: user DISconnected: {addr}\n###########".encode("utf-8"))
-    except BrokenPipeError:
-        pass
+    #try:
+    #    for user in users:
+    #        user.sendall(f"server.message.from.server.users: -1 !###########\nSYSTEM MESSAGE: user DISconnected: {addr}\n###########".encode("utf-8"))
+    #except BrokenPipeError:
+    #    pass
     with clients_lock:
         users.remove(client)
     client.close()

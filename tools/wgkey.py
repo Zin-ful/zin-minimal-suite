@@ -11,39 +11,39 @@ flags = {"-w": "*%_@"}
 if ".zinapp" not in os.listdir(curusr):
     os.mkdir(curusr+"/.zinapp")
 if "keyget" not in os.listdir(curusr+"/.zinapp"):
-	os.mkdir(conf_path)
+    os.mkdir(conf_path)
 
 if "wireguard" not in os.listdir("/etc"):
-	print("wireguard is not installed.")
-	exit()
+    print("wireguard is not installed.")
+    exit()
 else:
-	print("wireguard is installed")
+    print("wireguard is installed")
 
 server = netcom.socket(ipv4, tcp)
 ip = input("IP Addr: ")
 if not ip:
-	ip = "localhost"
+    ip = "localhost"
 port = 10592
 def main():
-	while True:
-		executed = 0
-		inp = input(">>> ")
-		if "ex" in inp:
-		    exit()
-	    elif "auto" in inp:
-	        auto_start()
-	        continue
-		server.send(inp.encode("utf-8"))
-		response = server.recv(4196).decode("utf-8")
-		for key, val in flags.items():
-			if val in response:
-				response = response.strip(val)
-				xcute = cmd.get(key)
-				if xcute:
-					xcute(response)
-					executed = 1
-		if not executed:
-			print(response)
+    while True:
+        executed = 0
+        inp = input(">>> ")
+        if "ex" in inp:
+            exit()
+        elif "auto" in inp:
+            auto_start()
+            continue
+        server.send(inp.encode("utf-8"))
+        response = server.recv(4196).decode("utf-8")
+        for key, val in flags.items():
+            if val in response:
+                response = response.strip(val)
+                xcute = cmd.get(key)
+                if xcute:
+                    xcute(response)
+                    executed = 1
+        if not executed:
+            print(response)
 
 def auto_start():
     inp = input("**Press enter to return**\n\nSelect daemon type for autostart\n1. Systemd\n2. Runit\n\n>>>")
@@ -74,26 +74,26 @@ def auto_start():
         return
 
 def download(data):
-	keys, data = data.split(":", 1)
-	inp = input("1. Dont save configuration file\n2. Save configuration file to current directory\n3. Save configuration file to /etc/wireguard\n\n>>>")
+    keys, data = data.split(":", 1)
+    inp = input("1. Dont save configuration file\n2. Save configuration file to current directory\n3. Save configuration file to /etc/wireguard\n\n>>>")
     if "1" in inp:
         print(data)
-	elif "2" in inp:
-		path = ""
-	else:
-		path = "/etc/wireguard/"
-	with open(path+"wg0.conf", "w") as file:
-		file.write(data)
+    elif "2" in inp:
+        path = ""
+    else:
+        path = "/etc/wireguard/"
+    with open(path+"wg0.conf", "w") as file:
+        file.write(data)
 
-	cache, keys = keys.split("=", 1)
-	pubkey, privkey = keys.split("&")
+    cache, keys = keys.split("=", 1)
+    pubkey, privkey = keys.split("&")
 
-	with open(path+"public.key", "w") as file:
-		file.write(pubkey)
-	cache, pubkey = pubkey.split("=", 1)
-	with open(path+"private.key", "w") as file:
-		file.write(privkey)
-	print(f"file created at: {path}wg0.conf\npubkey created at {path}public.key\nprivkey created at {path}private.key")
+    with open(path+"public.key", "w") as file:
+        file.write(pubkey)
+    cache, pubkey = pubkey.split("=", 1)
+    with open(path+"private.key", "w") as file:
+        file.write(privkey)
+    print(f"file created at: {path}wg0.conf\npubkey created at {path}public.key\nprivkey created at {path}private.key")
 
 def search():
     return
@@ -102,5 +102,5 @@ cmd = {"-w": download, "-s": search}
 server.connect((ip, int(port)))
 ack = server.recv(3).decode("utf-8")
 if ack == "ack":
-	server.send("ack".encode("utf-8"))
+    server.send("ack".encode("utf-8"))
 main()
