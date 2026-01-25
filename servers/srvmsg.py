@@ -8,7 +8,7 @@ import os
 """
 FIX
 
-Server doesnt know when clients ctrl-C
+Server doesnt know when clients ctrl-C - should be fixed as of 1/25/26
 In direct message, make sure the direct messanger doesnt recieve group chat texts
 In direct message, make sure users dont see the system connected message
 Test missed message sending
