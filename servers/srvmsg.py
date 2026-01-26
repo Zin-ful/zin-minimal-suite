@@ -251,7 +251,12 @@ def updpasswd(client_socket, msg):
 
     return "server.message.from.server.password updated"
 
-commands = {"bug-report":bug_report,"get-users": list_users,"get-link": link, "get-contact": contact, "help":helpy, "set-link": updlink, "set-contact": updcontact, "set-password": updpasswd}
+def handle_file(client_socket, msg):
+    msg, name = msg.split(" ", 1)
+    print(f"client attempting to upload {name}")
+    
+
+commands = {"send-file":handle_file, "bug-report":bug_report,"get-users": list_users,"get-link": link, "get-contact": contact, "help":helpy, "set-link": updlink, "set-contact": updcontact, "set-password": updpasswd}
 
 def log(client_socket, msg):
     if msg:

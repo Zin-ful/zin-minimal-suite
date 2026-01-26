@@ -48,6 +48,7 @@ main_menu = ["Messenger", "Group Chat", "Contacts", "Settings", "Exit"]
 attr_dict = {"ipaddr": ip, "name": username, "autoconnect": autoconn, "idaddr": ipid, "alias":alias, "mode":mode}
 
 colors = {}
+win = {}
 screens = {}
 
 if ".zinapp" not in os.listdir(curusr):
@@ -105,6 +106,10 @@ def main(stdscr):
     screens.update({"input":user_input})
     screens.update({"text":tbox})
     screens.update({"source":stdscr})
+    
+    files_win = curses.newwin(height - 4, width - 1, 2, 0)
+    win.update({"main": stdscr, "files": files_win})
+    
     success = 0
     pause = 1
     while True:
@@ -197,6 +202,7 @@ def print_list(y, x, menu):
         i += 1
     screens["source"].refresh()
     return i
+
 def errlog(error):
     if attr_dict['mode'] == "performance":
         return
@@ -268,6 +274,7 @@ def receive(client):
 def autocaps(phrase):
     i = 0
     phrase = list(phrase)
+    phrase[0] = phrase[0].upper()
     for item in phrase:
         if item == ".":
             i += 1
@@ -495,10 +502,8 @@ def importip():
     notrase("Connection ID added. To skip the connection process entirely, configure #autostart", 1, 1)
     return "", 0
 
-def prep_file():
-    return    
-
-commands = {"#help": listcmd, "#exit": shutoff, "#query-user": query, "#add-user": savenick, "#change-user": changeuser, "#autoconnect":auto_conf, "#import-ip":importip, "#clear": clr, "#file": prep_file}
+def command_menu():
+    return
 
 """main functions"""
 
@@ -510,14 +515,18 @@ def message_recv():
     while True:
         num = 0
         msg = receive(server)
-        recent_msg = msg
         if msg:
             if missed_messages:
                 clearchk(100)
+                missed_messages.insert(0, recent_message)
                 y += print_list(y, x, missed_messages)
                 missed_messages = []
+                recent_message = ""
             if "@" in msg:
                 if pause:
+                    if not recent_message:
+                        recent_message = msg
+                        continue
                     missed_messages.append(msg)
                     continue
                 recvusr, msg = msg.split(":", 1)
@@ -702,8 +711,8 @@ def set_mode():
 def group_message():
     global y, pause, threads_started, network
     network = "Messaging Group"
-    while not gc_config_init("g"):
-        continue
+    if not gc_config_init("g"):
+        return
     if not threads_started:
         screens["bar"].refresh()
         message_thread = task.Thread(target=message_recv, daemon=True)
@@ -711,16 +720,19 @@ def group_message():
         threads_started = 1
     pause = 0
     x = 0
+    update()
     while running:
         try:
-            inp = screens["text"].edit().strip()
-            if attr_dict['mode'] != "performance":
+            inp = screens["text"].edit().strip()   
+            ref(screens["input"])
+            if attr_dict['mode'] == "pretty":
                 if "." in inp:
                     inp = autocaps(inp)
             if inp:
                 y += 1
                 clearchk(0)
                 if inp[0] == "#":
+                    adjust_y = None
                     xcute = commands.get(inp)
                     if xcute:
                         result, adjust_y = xcute()
@@ -733,6 +745,7 @@ def group_message():
                         y += adjust_y
                     ref(screens["input"])
                     screens["chat"].refresh()
+                    update()
                     result = None
                     continue
                 
@@ -741,7 +754,6 @@ def group_message():
                 else:
                     inp = None
                     continue
-                ref(screens["input"])
                 screens["chat"].refresh()
                 send(server, inp)
                 inp = None
@@ -752,7 +764,7 @@ def group_message():
                 exit()
         except Exception as e:
             screens["source"].clear()
-            screens["source"].addstr(height // 2, width // 2, str(e))
+            screens["source"].addstr(height // 2, width // 2 - (len(str(e)) // 2), str(e))
             screens["source"].refresh()
 
 def direct_message(name):
@@ -770,7 +782,7 @@ def direct_message(name):
     while True:
         try:
             inp = screens["text"].edit().strip()
-            if attr_dict['mode'] != "performance":
+            if attr_dict['mode'] == "pretty":
                 if "." in inp:
                     inp = autocaps(inp)
             
@@ -831,7 +843,8 @@ def gc_config_init(type):
                 errlog(str(e))
                 return 0
         else:
-            manual_conf("false", type)
+            if not manual_conf("false", type):
+                return 0
         return 1
 
 def manual_conf(state, type):
@@ -845,8 +858,9 @@ def manual_conf(state, type):
         pass
     print_text(y + 3, 0, ("please enter your desired username",), colors["hl3"])
     inp = screens["text"].edit().strip()
-    if inp:
-        attr_dict["name"] = inp.strip()
+    if not inp:
+        return
+    attr_dict["name"] = inp.strip()
     ref(screens["input"])
     ref(screens["chat"])
     if state == "true":
@@ -854,15 +868,17 @@ def manual_conf(state, type):
         print_text(y + 1, 0, msg, colors["hl1"])   
     print_text(y + 3, 0, ("please enter the IP to connect to",), colors["hl3"])
     inp = screens["text"].edit().strip()
-    if inp:
-        attr_dict["ipaddr"] = inp.strip()
+    if not inp:
+        return
+    attr_dict["ipaddr"] = inp.strip()
     ref(screens["input"])
     if state == "true":
         print_text(y + 1, 0, ("Writing to file, please wait...",), colors["hl1"])
     ref(screens["chat"])
-    print_text(y + 2, 0, ("Attempting connect. To skip the connection process entirely, configure #autostart",), colors["hl1"])
+    msg = ("Attempting connect. To skip the connection process entirely, configure #autostart",)
+    print_text(height // 3, (width // 2) - (len(msg) // 2), msg, colors["hl1"])
     time.sleep(1)
-    notrase("Attempting connect. To skip the connection process entirely, configure #autostart", 1, 2)
+    ref(screens["chat"])
     save_conf()
     server = netcom.socket(ipv4, tcp)
     server.connect((attr_dict["ipaddr"], port))
@@ -870,9 +886,10 @@ def manual_conf(state, type):
     send(server, type)
     ref(screens["chat"])
     msg = ("Connection accepted! Moving to shell..",)
-    print_text(2, 0, msg, colors["hl3"])
+    print_text(height // 3, (width // 2) - (len(msg) // 2), msg, colors["hl3"])
     time.sleep(0.2)
     ref(screens["chat"])
+    return 1
 
 def save_conf():
     with open(f"{conf_path}/msg_server.conf", "w") as file:
@@ -900,4 +917,213 @@ def autoconnect(type):
     time.sleep(0.2)
     ref(screens["chat"])
   
+"""
+Here I am pasting the functions needed to pull up a mock file browser
+"""
+
+data_name = ""
+data_path = ""
+
+pos = 0
+sx = 0
+lvl = 0
+origin = 0
+num = 0
+
+ylimit = 4
+cur_dir = os.path.expanduser("~")
+files_in_path = os.listdir(cur_dir)
+SELECT = None
+data = None
+hidden = 1
+
+def find_name(path):
+    path = path.rstrip("/")
+
+    if path.startswith("/"):
+        path = path[1:]
+
+    parts = path.split("/")
+    name = parts[-1]
+    parent_path = "/" + "/".join(parts[:-1]) if len(parts) > 1 else "/"
+    return parent_path, name
+
+
+def upload():
+    global pause, y
+    pause = 1
+    y = 0
+    while True:
+        screens["source"].clear()
+        screens["source"].refresh()
+        if attr_dict["mode"] != "performance":
+            path, name = get_file()
+            if not path:
+                screens["source"].clear()
+                screens["source"].refresh()
+                return "Exited", 0
+        else:
+            print_text(0, 0, ("Enter the full path to file",), colors["server"])
+            path = get_input()
+            if not path:
+                return "Exited", 0
+            path, name = find_name(path)
+        if attr_dict["mode"] != "performance":
+            screens["source"].clear()
+            screens["source"].refresh()
+        print_text(0, 0, (f"Confirm path?: {path+'/'+name}",), colors["server"])
+        choice = dynamic_inps(["Yes", "No"], 4)
+        if "Y" in choice:
+            break
+    return "File uploaded!", 0
+        
+def list_file(delay, rst):
+    global origin, files_in_path, pos, sx, lvl, num
+    time.sleep(0.1)
+    win["files"].clear()
+    files_in_path = os.listdir(cur_dir)
+    if rst:
+        pos = 0
+        lvl = 0
+        num = 0
+    sx = 0
+    i = 0
+    y = 0
+    x = 0
+    for item in files_in_path.copy():
+        if item[0] == "." and hidden:
+            files_in_path.remove(item)
+    for item in files_in_path:
+        if num * (height - ylimit) + i >= len(files_in_path):
+            break
+        if x >= width - 5:
+            return
+        else:
+            win["files"].addstr(y, x, files_in_path[num * (height - ylimit) + i], curses.COLOR_WHITE)
+        i += 1
+        y += 1
+        if y >= height - ylimit:
+            x += width // 3
+            y = 0
+        time.sleep(delay)
+        win["files"].refresh()
+
+def get_file():
+    global cur_dir, pos, origin
+    win["main"].clear()
+    win["main"].refresh()
+    list_file(0.001, 1)
+    while True:
+        key = win["files"].getch()
+        if key == -1:
+            continue
+        if key == ord("a") or key == ord("d"):
+            cur_dir = move(key)
+            list_file(0.002, 1)
+            win["files"].refresh()
+        elif key == ord("w") or key == ord("s"):
+            select_file(key, "files", files_in_path, None)
+        elif key == ord("e"):
+            return cur_dir, files_in_path[pos]
+        elif key == ord('q'):
+            return 0, 0
+
+def select_file(inp, subwin, word_list, xoffset):
+    global pos, sx, lvl, num
+    if not xoffset:
+        xoffset = 0
+    if not word_list or len(word_list) < 0:
+        win[subwin].addstr(1, 0, "NO FILES IN PATH", curses.COLOR_RED)
+        win[subwin].refresh()
+        return
+    if inp == ord("s"):
+        pos += 1
+        offset = 1
+    elif inp == ord("w"):
+        offset = -1
+        pos -= 1
+    prevlen = ""
+    if pos >= height - ylimit and len(word_list) > height - ylimit and subwin == "files":
+        pos = 0
+        lvl += 1
+        sx += width // 3
+        if sx >= width - 3:
+            if sx // width == 0:
+                num += 3
+            else:
+                num += 3
+            list_file(win, 0.002, 0)
+    elif pos == -1 and lvl >= 1 and subwin == "files":
+        sx -= width // 3
+        pos = height - ylimit - 1
+        lvl -= 1
+        if sx < 0 and num:
+            num -= 3
+            list_file(0.002, 0)
+            sx = (width - width // 3)
+
+    if pos <= 0:
+        offset = 0
+        pos = 0
+    elif pos >= len(word_list):
+        pos = len(word_list) - 1
+        offset = 0
+    for i in word_list[pos]:
+        prevlen += " "
+    if lvl:
+        lvl_offset = (height - ylimit) * lvl
+    else:
+        lvl_offset = 0
+    if pos + lvl_offset >= len(files_in_path) and subwin == "files":
+        pos -= 1
+    final_pos = origin + pos - offset
+    if subwin == "files":
+        if pos > -1:
+            if  final_pos >= height - ylimit or final_pos >= len(files_in_path):
+                pass
+            else:
+                win[subwin].addstr(final_pos, sx + xoffset, prevlen, curses.COLOR_BLACK)
+                win[subwin].addstr(final_pos, sx + xoffset, word_list[pos - offset + lvl_offset], curses.COLOR_BLACK)
+        win[subwin].addstr(origin + pos, sx + xoffset, word_list[pos + lvl_offset])
+    else:
+        if pos > -1:
+            win[subwin].addstr(final_pos, sx + xoffset, prevlen, curses.COLOR_BLACK)
+            win[subwin].addstr(final_pos, sx + xoffset, word_list[pos - offset], curses.COLOR_BLACK)
+        win[subwin].addstr(origin + pos, sx + xoffset, word_list[pos])
+    win[subwin].refresh()
+
+def move(inp):
+    rev_dir = os.path.dirname(f"{cur_dir}..")
+    if files_in_path or len(files_in_path) > 0:
+        if cur_dir == "/":
+            forw_dir = cur_dir + files_in_path[num * sx + pos]
+        else:
+            if not num and sx:
+                calc = (lvl * (height - ylimit)) + pos
+                forw_dir = cur_dir + "/" + files_in_path[calc]
+            else:
+                calc = (lvl * (height - ylimit)) + pos
+                forw_dir = cur_dir + "/" + files_in_path[calc]
+    if inp == ord("a"):
+        if cur_dir == "/":
+            return "/"
+        else:
+            try:
+                var = os.listdir(rev_dir)
+            except:
+                return cur_dir
+            return rev_dir
+    elif inp == ord("d"):
+        try:
+            var = os.listdir(forw_dir)
+        except:
+            return cur_dir
+        return forw_dir
+
+commands = {"#menu":command_menu, "#help": listcmd, "#exit": shutoff, "#query-user": query, 
+"#add-user": savenick, "#change-user": changeuser, "#autoconnect":auto_conf, 
+"#import-ip":importip, "#clear": clr, "#file": upload}
+
+
+
 wrapper(main)
