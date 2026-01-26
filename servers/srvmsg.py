@@ -29,7 +29,7 @@ def gen_update():
 
 server_version = 3.3
 
-updatemsg = f"server.message.from.server" + "To-Do List: " + gen_update()
+updatemsg = f"server.message.from.server." + "To-Do List: " + gen_update()
 
 
 conf_path = "/opt/zinapp/ztext_srvr"
@@ -344,6 +344,7 @@ def messenger(client_socket, addr):
             cmd = message.replace("server.main.", "")
             log(client_socket, cmd)
             xcute = commands.get(cmd.strip())
+            print("Getting command..")
             if xcute:
                 message = xcute(client_socket, message)
             else:

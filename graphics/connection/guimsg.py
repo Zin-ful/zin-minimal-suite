@@ -194,7 +194,6 @@ def dynamic_select(menu, key, pos, offset):
     screens["source"].addstr(pos + offset, 0, menu[pos], colors["server"])
     return pos
 
-
 def print_list(y, x, menu):
     i = 0
     for item in menu:
@@ -272,6 +271,8 @@ def receive(client):
     return data_received
         
 def autocaps(phrase):
+    if "." and " " not in phrase.strip():
+        return phrase
     i = 0
     phrase = list(phrase)
     phrase[0] = phrase[0].upper()
@@ -573,10 +574,10 @@ def message_recv():
             if "server.message.from.server" in msg:
                 if attr_dict['mode'] == "performance":
                     continue
-                msg = msg.replace("server.message.from.server", "")
+                msg = msg.replace("server.message.from.server.", "")
                 if "users:" in msg:
                     response, msg = msg.split("!")
-                    response = response.replace(".users:", "")
+                    response = response.replace("users:", "")
                     users = int(response.strip())
                 screens["chat"].addstr(y, x, msg, colors["server"])
             else:
@@ -781,9 +782,6 @@ def group_message():
                 
                 if "server.main." not in inp or '"' in inp:
                     screens["chat"].addstr(y, x, inp, colors["hl4"])
-                else:
-                    inp = None
-                    continue
                 screens["chat"].refresh()
                 send(server, inp)
                 inp = None
@@ -985,7 +983,6 @@ def find_name(path):
     name = parts[-1]
     parent_path = "/" + "/".join(parts[:-1]) if len(parts) > 1 else "/"
     return parent_path, name
-
 
 def upload():
     global pause, y
