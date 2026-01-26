@@ -14,7 +14,9 @@ import sys
 FIX
 Change shitty UI to make it more readable
 Add file sending
+Add "typing..."
 Add user information to UI such as name, ip address, etc
+Add auto caps & autocorrect
 """
 
 curusr = os.path.expanduser("~")
@@ -24,6 +26,9 @@ conf_path = curusr+ "/.zinapp/ztext"
 username = "none"
 alias = "none"
 autoconn = "false"
+mode = "normal"
+modes = ["pretty", "normal", "performance"]
+running = 1
 users = 0
 ready = 0
 ipid = "none"
@@ -40,7 +45,7 @@ threads_started = 0
 header_size = 10
 main_menu = ["Messenger", "Group Chat", "Contacts", "Settings", "Exit"]
 
-attr_dict = {"ipaddr": ip, "name": username, "autoconnect": autoconn, "idaddr": ipid, "alias":alias}
+attr_dict = {"ipaddr": ip, "name": username, "autoconnect": autoconn, "idaddr": ipid, "alias":alias, "mode":mode}
 
 colors = {}
 screens = {}
@@ -92,7 +97,7 @@ def main(stdscr):
     stdscr.refresh()
 
     top_win = curses.newwin(0, width, 0, 0)
-    show_chat = curses.newwin(height - 5, width, 2, 0)
+    show_chat = curses.newwin(height - 3, width, 2, 0)
     user_input = curses.newwin(1, width - 1, height - 1, 1)
     tbox = Textbox(user_input)
     screens.update({"bar":top_win})
@@ -191,8 +196,10 @@ def print_list(y, x, menu):
         screens["source"].addstr(y + i, x, item)
         i += 1
     screens["source"].refresh()
-
+    return i
 def errlog(error):
+    if attr_dict['mode'] == "performance":
+        return
     with open(conf_path+"/err.txt", "a") as file:
         file.write("\nERROR\nERROR\n")
         for name, value in attr_dict.items():
@@ -216,21 +223,20 @@ def select(menu, key, pos):
     return pos
 
 def update():
-    while True:
-        if pause:
-            time.sleep(1)
-            continue
-        line_erase(len( attr_dict["name"]), 0)
-        screens["bar"].addstr(0, 0, attr_dict["name"], colors["hl2"])
-        screens["bar"].addstr(0, (width // 2) - (len(network) // 2), network, colors["hl2"])
+    line_erase(len( attr_dict["name"]), 0)
+    screens["bar"].addstr(0, 0, attr_dict["name"], colors["hl2"])
+    screens["bar"].addstr(0, len(attr_dict["name"]) + 6, f"        " , colors["hl2"])
+    if attr_dict['mode'] != "performance":
         screens["bar"].addstr(0, width - 3, str(len(session_usr)), colors["hl1"])
-        screens["bar"].refresh()
-        time.sleep(10)
+        screens["bar"].addstr(0, len(attr_dict["name"]) + 6, f"Y: {y}" , colors["hl2"])
+    screens["bar"].addstr(0, (width // 2) - (len(network) // 2), network, colors["hl2"])
+    screens["bar"].refresh()
 
 def line_erase(length, i):
     for _ in range(length):
         screens["bar"].addstr(0, i, " ", colors["erase"])
         i += 1
+
 def print_text(pos_y, pos_x, msg, color):
     i = 0
     for item in msg:
@@ -238,9 +244,9 @@ def print_text(pos_y, pos_x, msg, color):
         i += 1
     screens["chat"].refresh()
 
-def clearchk():
+def clearchk(num):
     global y
-    if y >= height - 7:
+    if y + num >= height - 3:
         screens["chat"].erase()
         y = 0
         screens["chat"].refresh()
@@ -258,44 +264,22 @@ def receive(client):
         data_received += server.recv(packet_size - len(data_received))
     data_received = data_received.decode("utf-8")
     return data_received
-
-
-def message_recv():
-    global y, msg, users
-    x = 0
-    while True:
-        num = 0
-        msg = receive(server)
-        if pause:
-            time.sleep(1)
+        
+def autocaps(phrase):
+    i = 0
+    phrase = list(phrase)
+    for item in phrase:
+        if item == ".":
+            i += 1
+            while phrase[i] == " ":
+                i += 1
+            phrase[i] = phrase[i].upper()
             continue
-        if msg:
-            y += 1
-            if "@" in msg:
-                recvusr, msg = msg.split(":", 1)
-                recvusr = recvusr.strip("@").strip()
-                if recvusr not in session_usr:
-                    session_usr.append(recvusr)
-                msg = f"{getnick(recvusr)}{msg}"
-
-            for i in msg:
-                if i == '\n':
-                    num += 1
-            clearchk()
-            if "server.message.from.server" in msg:
-                msg = msg.replace("server.message.from.server", "")
-                response, msg = msg.split(".", 1)
-                if "users:" in msg:
-                    response, msg = msg.split("!")
-                    response = response.strip("users:")
-                    users += int(response.strip())
-                screens["chat"].addstr(y, x, msg, colors["server"])
-            else:
-                screens["chat"].addstr(y, x, msg, colors["hl3"])
-        if num != 1:
-            y += num
-        clearchk()
-        screens["chat"].refresh()
+        i += 1
+    new_phrase = ""
+    for item in phrase:
+        new_phrase += item
+    return new_phrase
 
 def getnick(name):
     if "@" in name:
@@ -412,7 +396,8 @@ def batch_erase(text, y_offset):
 """user functions"""
 
 def shutoff():
-    update_thread.join()
+    global running
+    running = 0
     screens["source"].clear()
     print_text(height // 2, width // 2, ("    exiting...",), colors["hl3"])
     message_thread.join(timeout=1)
@@ -510,9 +495,58 @@ def importip():
     notrase("Connection ID added. To skip the connection process entirely, configure #autostart", 1, 1)
     return "", 0
 
-commands = {"#help": listcmd, "#exit": shutoff, "#query-user": query, "#add-user": savenick, "#change-user": changeuser, "#autoconnect":auto_conf, "#import-ip":importip, "#clear": clr}
+def prep_file():
+    return    
+
+commands = {"#help": listcmd, "#exit": shutoff, "#query-user": query, "#add-user": savenick, "#change-user": changeuser, "#autoconnect":auto_conf, "#import-ip":importip, "#clear": clr, "#file": prep_file}
 
 """main functions"""
+
+def message_recv():
+    global y, msg, users
+    x = 0
+    recent_message = ""
+    missed_messages = []
+    while True:
+        num = 0
+        msg = receive(server)
+        recent_msg = msg
+        if msg:
+            if missed_messages:
+                clearchk(100)
+                y += print_list(y, x, missed_messages)
+                missed_messages = []
+            if "@" in msg:
+                if pause:
+                    missed_messages.append(msg)
+                    continue
+                recvusr, msg = msg.split(":", 1)
+                recvusr = recvusr.strip("@").strip()
+                if recvusr not in session_usr:
+                    session_usr.append(recvusr)
+                msg = f"{getnick(recvusr)}{msg}"
+
+            for i in msg:
+                if i == '\n':
+                    num += 1
+            clearchk(num)
+            
+            if "server.message.from.server" in msg:
+                if attr_dict['mode'] == "performance":
+                    continue
+                msg = msg.replace("server.message.from.server", "")
+                response, msg = msg.split(".", 1)
+                if "users:" in msg:
+                    response, msg = msg.split("!")
+                    response = response.strip("users:")
+                    users += int(response.strip())
+                screens["chat"].addstr(y, x, msg, colors["server"])
+            else:
+                screens["chat"].addstr(y, x, msg, colors["hl3"])
+            y += num
+            update()            
+            screens["chat"].refresh()
+
 
 def contact_edit():
     y = 1
@@ -648,13 +682,22 @@ def settings():
         if not choice:
             break
         clr()
-        print_text(0, 0, (f"{choice}\nCurrent value: {attr_dict[choice]}\nNew value:",),colors["hl1"])
-        new_val = get_input()
+        if choice == "mode":
+            new_val = set_mode()        
+        else:
+            print_text(0, 0, (f"{choice}\nCurrent value: {attr_dict[choice]}\nNew value:",),colors["hl1"])
+            new_val = get_input()
         if new_val:
             attr_dict[choice] = new_val
             save_conf()
             break
     clr()
+
+def set_mode():
+    while True:
+        print_text(0, 0, (f"Current_mode:{attr_dict['mode']}\nSet mode to:",),colors["hl1"])
+        choice = dynamic_inps(modes, 4)
+        return choice
     
 def group_message():
     global y, pause, threads_started, network
@@ -663,26 +706,27 @@ def group_message():
         continue
     if not threads_started:
         screens["bar"].refresh()
-        update_thread = task.Thread(target=update)
         message_thread = task.Thread(target=message_recv, daemon=True)
-        update_thread.start()
         message_thread.start()
         threads_started = 1
     pause = 0
     x = 0
-    while True:
+    while running:
         try:
             inp = screens["text"].edit().strip()
+            if attr_dict['mode'] != "performance":
+                if "." in inp:
+                    inp = autocaps(inp)
             if inp:
-                y += 2
-                clearchk()
-                if "#" in inp and '"' not in inp:
+                y += 1
+                clearchk(0)
+                if inp[0] == "#":
                     xcute = commands.get(inp)
                     if xcute:
                         result, adjust_y = xcute()
                     else:
                         result = "invalid"
-                    clearchk()
+                    clearchk(0)
                     if result:
                         screens["chat"].addstr(y, x, result, colors["hl4"])
                     if adjust_y:
@@ -694,10 +738,15 @@ def group_message():
                 
                 if "server.main." not in inp or '"' in inp:
                     screens["chat"].addstr(y, x, inp, colors["hl4"])
+                else:
+                    inp = None
+                    continue
                 ref(screens["input"])
                 screens["chat"].refresh()
                 send(server, inp)
                 inp = None
+                if attr_dict['mode'] != "performance":
+                    update()
         except KeyboardInterrupt:
                 server.close()
                 exit()
@@ -714,23 +763,26 @@ def direct_message(name):
         continue
     if not threads_started:
         screens["bar"].refresh()
-        update_thread = task.Thread(target=update)
         message_thread = task.Thread(target=message_recv, daemon=True)
-        update_thread.start()
         message_thread.start()
         threads_started = 1
     pause = 0
     while True:
         try:
             inp = screens["text"].edit().strip()
+            if attr_dict['mode'] != "performance":
+                if "." in inp:
+                    inp = autocaps(inp)
+            
             if inp:
                 y += 2
-                clearchk()
+                clearchk(0)
                 screens["chat"].addstr(y, x, inp, colors["hl4"])
                 ref(screens["input"])
                 screens["chat"].refresh()
                 send(server, f"@{name}:{inp}")
                 inp = None
+                update()
         except KeyboardInterrupt:
                 server.close()
                 exit()
