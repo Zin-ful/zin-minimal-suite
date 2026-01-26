@@ -568,8 +568,8 @@ def message_recv():
             for i in msg:
                 if i == '\n':
                     num += 1
+            y += 1
             clearchk(num)
-            
             if "server.message.from.server" in msg:
                 if attr_dict['mode'] == "performance":
                     continue
