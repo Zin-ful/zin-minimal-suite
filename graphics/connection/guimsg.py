@@ -573,7 +573,7 @@ def message_recv():
             if "server.message.from.server" in msg:
                 if attr_dict['mode'] == "performance":
                     continue
-                msg = msg.replace("server.message.from.server.", "")
+                msg = msg.replace("server.message.from.server", "")
                 if "users:" in msg:
                     response, msg = msg.split("!")
                     response = response.strip("users: ")
