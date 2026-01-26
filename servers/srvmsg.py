@@ -313,7 +313,7 @@ def messenger(client_socket, addr):
     
     if receive(client_socket) == "d":
         user_direct.append(client_socket)
-    send(client_socket, str(len(users))
+    send(client_socket, str(len(users)))
     print(f"user connected: {addr}")
     with clients_lock:
         users.append(client_socket)
