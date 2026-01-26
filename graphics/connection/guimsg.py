@@ -575,10 +575,10 @@ def message_recv():
                     continue
                 msg = msg.replace("server.message.from.server", "")
                 response, msg = msg.split(".", 1)
-                if "users:" in msg:
+                if ".users:" in msg:
                     response, msg = msg.split("!")
                     response = response.strip("users:")
-                    users += int(response.strip())
+                    users = int(response.strip())
                 screens["chat"].addstr(y, x, msg, colors["server"])
             else:
                 screens["chat"].addstr(y, x, msg, colors["hl3"])
