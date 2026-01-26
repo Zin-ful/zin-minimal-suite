@@ -233,7 +233,7 @@ def update():
     screens["bar"].addstr(0, 0, attr_dict["name"], colors["hl2"])
     screens["bar"].addstr(0, len(attr_dict["name"]) + 6, f"        " , colors["hl2"])
     if attr_dict['mode'] != "performance":
-        screens["bar"].addstr(0, width - len(f"Users: {str(len(users))}"), f"Users: {str(len(users))}", colors["hl1"])
+        screens["bar"].addstr(0, width - len(f"Users: {str(users)}"), f"Users: {str(users)}", colors["hl1"])
         screens["bar"].addstr(0, len(attr_dict["name"]) + 6, f"Y: {y}" , colors["hl2"])
     screens["bar"].addstr(0, (width // 2) - (len(network) // 2), network, colors["hl2"])
     screens["bar"].refresh()
@@ -573,11 +573,10 @@ def message_recv():
             if "server.message.from.server" in msg:
                 if attr_dict['mode'] == "performance":
                     continue
-                msg = msg.replace("server.message.from.server", "")
-                response, msg = msg.split(".", 1)
+                msg = msg.replace("server.message.from.server.", "")
                 if "users:" in msg:
                     response, msg = msg.split("!")
-                    response = response.strip("users:")
+                    response = response.strip("users: ")
                     users = int(response.strip())
                 screens["chat"].addstr(y, x, msg, colors["server"])
             else:

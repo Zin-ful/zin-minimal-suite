@@ -29,7 +29,7 @@ def gen_update():
 
 server_version = 3.3
 
-updatemsg = f"server.message.from.server: " + "To-Do List:" + gen_update()
+updatemsg = f"server.message.from.server" + "To-Do List: " + gen_update()
 
 
 conf_path = "/opt/zinapp/ztext_srvr"
@@ -317,6 +317,7 @@ def messenger(client_socket, addr):
     print(f"user connected: {addr}")
     with clients_lock:
         users.append(client_socket)
+        
     startmsg = f"server.message.from.server.users: {len(users)} !SYSTEM MESSAGE: user connected: {users_name[client_socket]}"
     for other_client in users:
         if other_client != client_socket or (other_client not in user_direct and other_client != client_socket):
