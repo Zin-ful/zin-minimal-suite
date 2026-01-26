@@ -317,7 +317,7 @@ def messenger(client_socket, addr):
     print(f"user connected: {addr}")
     with clients_lock:
         users.append(client_socket)
-    startmsg = f"server.message.from.server.users: {len(users)} !\nSYSTEM MESSAGE: user connected: {users_name[client_socket]}"
+    startmsg = f"server.message.from.server.users: {len(users)} !SYSTEM MESSAGE: user connected: {users_name[client_socket]}"
     for other_client in users:
         if other_client != client_socket or other_client not in user_direct:
             if not send(other_client, startmsg):
@@ -366,7 +366,7 @@ def client_end(client):
     print("ending client")
     try:
         for user in users:
-            user.sendall(f"server.message.from.server.users: -1 !SYSTEM MESSAGE: user DISconnected: {users_name[client]}".encode("utf-8"))
+            user.sendall(f"server.message.from.server.users: {len(users)} !SYSTEM MESSAGE: user DISconnected: {users_name[client]}".encode("utf-8"))
     except BrokenPipeError:
         pass
     with clients_lock:
