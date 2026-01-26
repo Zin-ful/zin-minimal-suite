@@ -29,7 +29,7 @@ def gen_update():
 
 server_version = 3.3
 
-updatemsg = f"server.message.from.server: Welcome to server version {server_version}\n" + "To-Do List:" + gen_update()
+updatemsg = f"server.message.from.server: " + "To-Do List:" + gen_update()
 
 
 conf_path = "/opt/zinapp/ztext_srvr"
@@ -313,7 +313,7 @@ def messenger(client_socket, addr):
     
     if receive(client_socket) == "d":
         user_direct.append(client_socket)
-
+    send(client_socket, str(len(users))
     print(f"user connected: {addr}")
     with clients_lock:
         users.append(client_socket)
@@ -366,7 +366,7 @@ def client_end(client):
     print("ending client")
     try:
         for user in users:
-            end_msg = f"server.message.from.server.users: {len(users)} !SYSTEM MESSAGE: user DISconnected: {users_name[client]}"
+            end_msg = f"server.message.from.server.users: {len(users) - 1} !SYSTEM MESSAGE: user DISconnected: {users_name[client]}"
             send(user, end_msg)
     except BrokenPipeError:
         pass

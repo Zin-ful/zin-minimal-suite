@@ -233,7 +233,7 @@ def update():
     screens["bar"].addstr(0, 0, attr_dict["name"], colors["hl2"])
     screens["bar"].addstr(0, len(attr_dict["name"]) + 6, f"        " , colors["hl2"])
     if attr_dict['mode'] != "performance":
-        screens["bar"].addstr(0, width - 3, str(len(session_usr)), colors["hl1"])
+        screens["bar"].addstr(0, width - len(f"Users: {str(len(users))}"), f"Users: {str(len(users))}", colors["hl1"])
         screens["bar"].addstr(0, len(attr_dict["name"]) + 6, f"Y: {y}" , colors["hl2"])
     screens["bar"].addstr(0, (width // 2) - (len(network) // 2), network, colors["hl2"])
     screens["bar"].refresh()
@@ -575,7 +575,7 @@ def message_recv():
                     continue
                 msg = msg.replace("server.message.from.server", "")
                 response, msg = msg.split(".", 1)
-                if ".users:" in msg:
+                if "users:" in msg:
                     response, msg = msg.split("!")
                     response = response.strip("users:")
                     users = int(response.strip())
@@ -880,7 +880,7 @@ def gc_config_init(type):
         return 1
 
 def manual_conf(state, type):
-    global server
+    global server, users
     os.makedirs(conf_path, exist_ok=True)
     ref(screens["input"])
     if state == "true":
@@ -923,6 +923,7 @@ def manual_conf(state, type):
         print_text(height // 3, (width // 2) - (len(msg) // 2), msg, colors["hl3"])
         time.sleep(0.1)
     ref(screens["chat"])
+    users = int(receive(server))
     return 1
 
 def save_conf():
@@ -931,7 +932,7 @@ def save_conf():
             file.write(f"{title}={data}\n")
 
 def autoconnect(type):
-    global server
+    global server, users
     with open(f"{conf_path}/msg_server.conf", "r") as file:
         attrs = file.readlines()
         for item in attrs:
@@ -951,6 +952,8 @@ def autoconnect(type):
         msg = "Connection accepted! Moving to shell.."
         print_text(2, 0, (msg,), colors["hl3"])
         time.sleep(0.1)
+    users = int(receive(server))
+
     ref(screens["chat"])
   
 """
