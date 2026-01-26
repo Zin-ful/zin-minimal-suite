@@ -367,7 +367,7 @@ def client_end(client):
     try:
         for user in users:
             end_msg = f"server.message.from.server.users: {len(users)} !SYSTEM MESSAGE: user DISconnected: {users_name[client]}"
-            send(user, end_msg):
+            send(user, end_msg)
     except BrokenPipeError:
         pass
     with clients_lock:
