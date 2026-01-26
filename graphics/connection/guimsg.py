@@ -382,7 +382,6 @@ def savenick():
     print_text(y + 1, 0, (msg,), colors["hl1"])
     time.sleep(1)
     clr()
-    pause = 0
     return "User added", 0
 
 def notrase(inp, upd, yplus):
@@ -503,9 +502,46 @@ def importip():
     return "", 0
 
 def command_menu():
-    return
+    global pause, y
+    y = 0
+    pause = 1
+    phrase_to_cmd = {"Help":"#help", "Clear Screen": "#clear", "Query User":"#query-user", 
+    "Add User" :"#add-user", "Change Username" :"#change-user", "Toggle Autoconnect":"#autoconnect", 
+    "Import IP Address":"#import-ip", "Upload Files":"#file", "Exit":"#exit"}
+    phrases = []
+    for name, val in phrase_to_cmd.items():
+        phrases.append(name)
+    ref(screens["source"])
+    choice = dynamic_inps(phrases, 2)
+    xcute = commands.get(phrase_to_cmd[choice])
+    if xcute:
+        ref(screens["chat"])
+        result, adjust_y = xcute()
+    else:
+        ref(screens["chat"])
+        result = 0
+        adjust_y = 0
+    return result, adjust_y
+    
+    
 
 """main functions"""
+
+missed_messages = []
+
+def tracked_missing(msg):
+    global y
+    if not msg and missed_messages:
+        clearchk(100)
+        y += print_list(y, x, missed_messages)
+        cache = missed_messages
+        for item in cache:
+            missed_messages.remove(item)
+        return
+    elif not msg and not missed_messages:
+        return
+    if msg:
+        missed_messages.append(msg)
 
 def message_recv():
     global y, msg, users
@@ -516,18 +552,9 @@ def message_recv():
         num = 0
         msg = receive(server)
         if msg:
-            if missed_messages:
-                clearchk(100)
-                missed_messages.insert(0, recent_message)
-                y += print_list(y, x, missed_messages)
-                missed_messages = []
-                recent_message = ""
             if "@" in msg:
                 if pause:
-                    if not recent_message:
-                        recent_message = msg
-                        continue
-                    missed_messages.append(msg)
+                    tracked_missing(msg)
                     continue
                 recvusr, msg = msg.split(":", 1)
                 recvusr = recvusr.strip("@").strip()
@@ -746,6 +773,7 @@ def group_message():
                     ref(screens["input"])
                     screens["chat"].refresh()
                     update()
+                    pause = 0
                     result = None
                     continue
                 
@@ -779,6 +807,7 @@ def direct_message(name):
         message_thread.start()
         threads_started = 1
     pause = 0
+    update()
     while True:
         try:
             inp = screens["text"].edit().strip()
@@ -875,19 +904,21 @@ def manual_conf(state, type):
     if state == "true":
         print_text(y + 1, 0, ("Writing to file, please wait...",), colors["hl1"])
     ref(screens["chat"])
-    msg = ("Attempting connect. To skip the connection process entirely, configure #autostart",)
-    print_text(height // 3, (width // 2) - (len(msg) // 2), msg, colors["hl1"])
-    time.sleep(1)
-    ref(screens["chat"])
+    if attr_dict["mode"] != "performance":
+        msg = ("Attempting connect. To skip the connection process entirely, configure #autostart",)
+        print_text(height // 3, (width // 2) - (len(msg) // 2), msg, colors["hl1"])
+        time.sleep(0.1)
+        ref(screens["chat"])
     save_conf()
     server = netcom.socket(ipv4, tcp)
     server.connect((attr_dict["ipaddr"], port))
     send(server, attr_dict["name"])
     send(server, type)
-    ref(screens["chat"])
-    msg = ("Connection accepted! Moving to shell..",)
-    print_text(height // 3, (width // 2) - (len(msg) // 2), msg, colors["hl3"])
-    time.sleep(0.2)
+    if attr_dict["mode"] != "performance":
+        ref(screens["chat"])
+        msg = ("Connection accepted! Moving to shell..",)
+        print_text(height // 3, (width // 2) - (len(msg) // 2), msg, colors["hl3"])
+        time.sleep(0.1)
     ref(screens["chat"])
     return 1
 
@@ -903,18 +934,20 @@ def autoconnect(type):
         for item in attrs:
             title, val = item.split("=")
             attr_dict[title.strip()] = val.strip()
-    ref(screens["chat"])
-    msg = (f"Connecting to: {attr_dict['idaddr']}", f"Username: {attr_dict['name']}", "Waiting for accept...")
-    print_text(y + 1, 0, msg, colors["hl1"])
-    time.sleep(1)
+    if attr_dict["mode"] != "performance":
+        ref(screens["chat"])
+        msg = (f"Connecting to: {attr_dict['idaddr']}", f"Username: {attr_dict['name']}", "Waiting for accept...")
+        print_text(y + 1, 0, msg, colors["hl1"])
+        time.sleep(0.1)
     server = netcom.socket(ipv4, tcp)
     server.connect((attr_dict["ipaddr"].strip(), port))
     send(server, attr_dict["name"])
     send(server, type)
-    ref(screens["chat"])
-    msg = "Connection accepted! Moving to shell.."
-    print_text(2, 0, (msg,), colors["hl3"])
-    time.sleep(0.2)
+    if attr_dict["mode"] != "performance":
+        ref(screens["chat"])
+        msg = "Connection accepted! Moving to shell.."
+        print_text(2, 0, (msg,), colors["hl3"])
+        time.sleep(0.1)
     ref(screens["chat"])
   
 """
