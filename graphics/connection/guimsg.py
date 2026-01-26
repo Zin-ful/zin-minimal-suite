@@ -9,7 +9,7 @@ import curses
 from curses import wrapper
 from curses.textpad import Textbox
 import sys
-
+from datetime import datetime
 """
 FIX
 Change shitty UI to make it more readable
@@ -503,6 +503,8 @@ def importip():
 
 def command_menu():
     global pause, y
+    if attr_dict["mode"] == "performance":
+        return "Invalid mode setting, prioritizing battery performace.\nYou are not allowed to access the menu under these conditions", 2
     y = 0
     pause = 1
     phrase_to_cmd = {"Help":"#help", "Clear Screen": "#clear", "Query User":"#query-user", 
@@ -519,7 +521,7 @@ def command_menu():
         result, adjust_y = xcute()
     else:
         ref(screens["chat"])
-        result = 0
+        result = "Command not found for some reason"
         adjust_y = 0
     return result, adjust_y
     
@@ -551,6 +553,7 @@ def message_recv():
     while True:
         num = 0
         msg = receive(server)
+        msg = msg.strip()
         if msg:
             if "@" in msg:
                 if pause:
