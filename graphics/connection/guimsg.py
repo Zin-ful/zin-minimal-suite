@@ -41,6 +41,8 @@ y = 0
 server = ''
 qkeys = {}
 pause = 0
+pause_receiving = 0
+receiving = 1
 threads_started = 0
 header_size = 10
 main_menu = ["Messenger", "Group Chat", "Contacts", "Settings", "Exit"]
@@ -564,19 +566,18 @@ def tracked_missing(msg):
         missed_messages.append(msg)
 
 def message_recv():
-    global y, msg, users
+    global y, msg, users, pause
     x = 0
     recent_message = ""
-    missed_messages = []
-    while True:
+    while receiving:
         num = 0
         msg = receive(server)
         msg = msg.strip()
         if msg:
+            if pause:
+                tracked_missing(msg)
+                continue
             if "@" in msg:
-                if pause:
-                    tracked_missing(msg)
-                    continue
                 recvusr, msg = msg.split(":", 1)
                 recvusr = recvusr.strip("@").strip()
                 if recvusr not in session_usr:
@@ -755,7 +756,7 @@ def set_mode():
         return choice
     
 def group_message():
-    global y, pause, threads_started, network
+    global y, pause, threads_started, network, receiving
     network = "Messaging Group"
     if not gc_config_init("g"):
         return
@@ -769,47 +770,47 @@ def group_message():
     update()
     while running:
         try:
-            inp = screens["text"].edit().strip()   
-            ref(screens["input"])
-            if attr_dict['mode'] == "pretty":
-                if "." in inp:
-                    inp = autocaps(inp)
-            if inp:
-                y += 1
-                clearchk(0)
-                if inp[0] == "#":
-                    adjust_y = None
-                    xcute = commands.get(inp)
-                    if xcute:
-                        result, adjust_y = xcute()
-                    else:
-                        result = "invalid"
-                    clearchk(0)
-                    if result:
-                        screens["chat"].addstr(y, x, result, colors["hl4"])
-                    if adjust_y:
-                        y += adjust_y
-                    ref(screens["input"])
-                    screens["chat"].refresh()
-                    update()
-                    pause = 0
-                    result = None
-                    continue
-                
-                if "server.main." not in inp or '"' in inp:
-                    screens["chat"].addstr(y, x, inp, colors["hl4"])
-                screens["chat"].refresh()
-                send(server, inp)
-                inp = None
-                if attr_dict['mode'] != "performance":
-                    update()
+            inp = screens["text"].edit().strip()
         except KeyboardInterrupt:
-                server.close()
-                exit()
-        except Exception as e:
-            screens["source"].clear()
-            screens["source"].addstr(height // 2, width // 2 - (len(str(e)) // 2), str(e))
-            screens["source"].refresh()
+            receiving = 0
+            server.shutdown(netcom.SHUT_RDWR)
+            server.close()
+            exit()
+        ref(screens["input"])
+        if attr_dict['mode'] == "pretty":
+            if "." in inp:
+                inp = autocaps(inp)
+        if inp:
+            y += 1
+            clearchk(0)
+            if inp[0] == "#":
+                adjust_y = None
+                xcute = commands.get(inp)
+                if xcute:
+                    result, adjust_y = xcute()
+                else:
+                    result = "invalid"
+                clearchk(0)
+                if result:
+                    screens["chat"].addstr(y, x, result, colors["hl4"])
+                if adjust_y:
+                    y += adjust_y
+                ref(screens["input"])
+                screens["chat"].refresh()
+                update()
+                pause = 0
+                tracked_missing(None)
+                result = None
+                continue
+            if "server.main." not in inp or '"' in inp:
+                screens["chat"].addstr(y, x, inp, colors["hl4"])
+            screens["chat"].refresh()
+            send(server, inp)
+            inp = None
+            if attr_dict['mode'] != "performance":
+                update()
+    
+
 
 def direct_message(name):
     global y, pause, threads_started, network
@@ -988,6 +989,12 @@ def upload():
     global pause, y
     pause = 1
     y = 0
+    screens["source"].clear()
+    screens["source"].refresh()
+    file = netcom.socket(ipv4, tcp)
+    file.connect((attr_dict["ipaddr"], port))
+    send(file, attr_dict["name"]+"-file")
+    send(file, "f")
     choice = dynamic_inps(["Upload", "Download", "Exit"], 0)
     if choice == "Upload":
         while True:
@@ -998,11 +1005,17 @@ def upload():
                 if not path:
                     screens["source"].clear()
                     screens["source"].refresh()
+                    file.shutdown(netcom.SHUT_RDWR)
+                    file.close()
+                    del file
                     return "Exited", 0
             else:
                 print_text(0, 0, ("Enter the full path to file",), colors["server"])
                 path = get_input()
                 if not path:
+                    file.shutdown(netcom.SHUT_RDWR)
+                    file.close()
+                    del file
                     return "Exited", 0
                 path, name = find_name(path)
             if attr_dict["mode"] != "performance":
@@ -1012,24 +1025,37 @@ def upload():
             choice = dynamic_inps(["Yes", "No"], 4)
             if "Y" in choice:
                 break
-        send(server, f"server.main.send-file {name}")
-        send_file(server, f"{path}/{name}")
+        send(file, f"server.main.send-file {name}")
+        confirmation = receive(file)
+        send_file(file, f"{path}/{name}")
         return "File uploaded!", 0
     elif choice == "Download":
-        send(server, "server.main.list-file")
-        files = receive(server)
-        if files == "No Files":
+        send(file, "server.main.list-file")
+        files = receive(file)
+        files = files.strip()
+        if files == "server.message.from.server.No Files":
+            file.shutdown(netcom.SHUT_RDWR)
+            file.close()
+            del file
             return "No files for download", 0
-        for item in files[:]:
-            if item == " ":
-                name, files = files.split(" ", 1)
-                file_list.append(name)
+        if " " in files:
+            for item in files[:]:
+                if item == " ":
+                    name, files = files.split(" ", 1)
+                    file_list.append(name)
         file_list.append(files)
-        choice = dynamic_inps(files)
-        send(server, f"server.main.get-file {choice}")
-        receive_file(server, choice)
-else:
+        choice = dynamic_inps(file_list)
+        send(file, f"server.main.get-file {choice}")
+        confirmation = receive(file)
+        receive_file(file, choice)
+    else:
+        file.shutdown(netcom.SHUT_RDWR)
+        file.close()
+        del file
         return "Exited", 0
+    file.shutdown(netcom.SHUT_RDWR)
+    file.close()
+    del file
         
 def list_file(delay, rst):
     global origin, files_in_path, pos, sx, lvl, num
@@ -1208,7 +1234,7 @@ def receive_file(client, name):
                     break
                 file.write(chunk)
                 data_received += chunk
-=        return 1
+        return 1
     except (OSError):
         return 0
 

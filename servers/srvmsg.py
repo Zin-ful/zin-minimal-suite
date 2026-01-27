@@ -89,7 +89,7 @@ def send(client, data):
     try:
         head = str(len(data)).zfill(header_size)
         data = head + data
-        print("sending data")
+        print(f"sending data to {users_name.get(client)}: {data}")
         client.send(data.encode("utf-8"))
         return 1
     except (BrokenPipeError, ConnectionResetError):
@@ -98,6 +98,9 @@ def send(client, data):
 
 def receive(client):
     try:
+        name = users_name.get(client)
+        if not name:
+            name = "Unknown"
         data_received = b''
         print("receiving header..")
         packet_size = client.recv(header_size).decode("utf-8")
@@ -108,7 +111,7 @@ def receive(client):
         print(f"header size is: {packet_size}")
         while len(data_received) < packet_size:
             data_received += client.recv(packet_size - len(data_received))
-            print(f"data being received: {packet_size} | {len(data_received)} = {data_received}")
+            print(f"data being received from {users_name.get(client)}: {packet_size} | {len(data_received)} = {data_received}")
         if not data_received:
             client_end(client)
             return 0
@@ -117,7 +120,6 @@ def receive(client):
     except (OSError):
         client_end(client)
         return 0
-
 
 def send_file(client, name):
     try:
@@ -173,7 +175,10 @@ def link(client_socket, msg):
     return f"server.message.from.server.{attr_dict['link']}"
 
 def helpy(client_socket, msg):
-    return "server.message.from.server.bug-report\nlist-users\nget-link\nget-contact\nset-link\nset-contact\nset-password\nhelp"
+    items = ""
+    for name, val in commands.items():
+        items += "\n"
+    return "server.message.from.server." + items
 
 def bug_report(client_socket, msg):
     send(client_socket, "server.message.from.server.Please submit the issue you encountered and the steps to reproduce (if any)")
@@ -271,15 +276,38 @@ def updpasswd(client_socket, msg):
 def handle_upload(client_socket, msg):
     msg, name = msg.split(" ", 1)
     print(f"client attempting to upload {name}")
+    if name in os.listdir(file_path):
+        return "server.message.from.server.That file already exists, rename it and try something else."
     receive_file(client_socket, name)
     with clients_lock:
         users_copy = users[:]
     for other_client in users_copy:
             if other_client != client_socket:
-                send(other_client, f"server.message.from.server.the user '{users_name[client_socket]}' has uploded the file {name}\nenter your file browser to download.")
+                send(other_client, f"server.message.from.server.The user '{users_name[client_socket]}' has uploded the file {name}\nenter your file browser to download.")
+    return f"server.message.from.server.{name} uploaded and users have been notified."
+
+def handle_download(client_socket, msg):
+    msg, name = msg.split(" ", 1)
+    if name.strip() not in os.listdir(file_path):
+        return "server.message.from.server.That file does not exist, check files with 'server.main.file-list'"
+    send_file(client_socket, name.strip())
+    with clients_lock:
+        users_copy = users[:]
+    for other_client in users_copy:
+            if other_client != client_socket:
+                send(other_client, f"server.message.from.server.{name} has been downloaded by {users_name[client_socket]}")
+    return "server.message.from.server.File has been downloaded"
     
 
-commands = {"send-file":handle_file, "bug-report":bug_report,"get-users": list_users,"get-link": link, "get-contact": contact, "help":helpy, "set-link": updlink, "set-contact": updcontact, "set-password": updpasswd}
+def list_files(client_socket, msg):
+    if not os.listdir(file_path):
+        return "server.message.from.server.No Files"
+    files = ""
+    for item in os.listdir(file_path):
+        files += item + " "
+    return files
+
+commands = {"get-file":handle_download, "list-file":list_files,"send-file":handle_upload, "bug-report":bug_report,"get-users": list_users,"get-link": link, "get-contact": contact, "help":helpy, "set-link": updlink, "set-contact": updcontact, "set-password": updpasswd}
 
 def log(client_socket, msg):
     if msg:
@@ -333,7 +361,8 @@ def messenger(client_socket, addr):
     if username:
         users_name.update({client_socket: username})
     
-    if receive(client_socket) == "d":
+    type = receive(client_socket) 
+    if type == "d":
         user_direct.append(client_socket)
     send(client_socket, str(len(users)))
     print(f"user connected: {addr}")
