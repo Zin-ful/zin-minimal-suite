@@ -121,17 +121,27 @@ def receive(client):
 
 def send_file(client, name):
     try:
+        file_size = os.path.getsize(file_path + name)
+        head = str(file_size).zfill(header_size)
+        client.send(head.encode("utf-8"))
+        sent_bytes = 0
         with open(file_path + name, "rb") as file:
-            head = str(len(file_size)).zfill(header_size)
-            
+            while sent_bytes < file_size:
+                chunk = file.read(4096)
+                if not chunk:
+                    break
+                client.send(chunk)
+                sent_bytes += len(chunk)
+                print(f"sent {sent_bytes}/{file_size} bytes of {name}")
+        
+        print(f"file {name} sent successfully, total: {sent_bytes} bytes")
         return 1
-    except (BrokenPipeError, ConnectionResetError):
+    except (BrokenPipeError, ConnectionResetError, OSError):
         client_end(client)
         return 0
 
-def receive_file(client):
+def receive_file(client, name):
     try:
-        name = receive(client)
         data_received = b''
         print("receiving file header..")
         packet_size = client.recv(header_size).decode("utf-8")
@@ -140,14 +150,21 @@ def receive_file(client):
             return 0
         packet_size = int(packet_size)
         print(f"file size is: {packet_size}")
+        
         with open(file_path + name, "wb") as file:
             while len(data_received) < packet_size:
-                file.write(client.recv(packet_size - len(data_received)))
-                print(f"writing data from socket: {packet_size} | {len(data_received)} = {data_received}")
+                chunk = client.recv(min(4096, packet_size - len(data_received)))
+                if not chunk:
+                    break
+                file.write(chunk)
+                data_received += chunk  # This was missing!
+                print(f"writing data from socket: {packet_size} | {len(data_received)}")
+        
+        print(f"Received file {name}, size: {len(data_received)} bytes")
+        return 1
     except (OSError):
         client_end(client)
         return 0
-
 
 def contact(client_socket, msg):
     return f"server.message.from.server.{attr_dict['contact']}"
@@ -251,9 +268,15 @@ def updpasswd(client_socket, msg):
 
     return "server.message.from.server.password updated"
 
-def handle_file(client_socket, msg):
+def handle_upload(client_socket, msg):
     msg, name = msg.split(" ", 1)
     print(f"client attempting to upload {name}")
+    receive_file(client_socket, name)
+    with clients_lock:
+        users_copy = users[:]
+    for other_client in users_copy:
+            if other_client != client_socket:
+                send(other_client, f"server.message.from.server.the user '{users_name[client_socket]}' has uploded the file {name}\nenter your file browser to download.")
     
 
 commands = {"send-file":handle_file, "bug-report":bug_report,"get-users": list_users,"get-link": link, "get-contact": contact, "help":helpy, "set-link": updlink, "set-contact": updcontact, "set-password": updpasswd}
@@ -262,7 +285,6 @@ def log(client_socket, msg):
     if msg:
         with open(f"{conf_path}/log.txt", "a") as file:
             file.write(f"from {client_socket}: {msg}\n")
-
 
 def save_missed(name, message):
     with open(missed_path+f"{name}.txt", "a") as file:
@@ -317,9 +339,11 @@ def messenger(client_socket, addr):
     print(f"user connected: {addr}")
     with clients_lock:
         users.append(client_socket)
-        
+    #prevent sending inside lock, it will significantly slow the network down
+    with clients_lock:
+        users_copy = users[:]
     startmsg = f"server.message.from.server.users: {len(users)} !SYSTEM MESSAGE: user connected: {users_name[client_socket]}"
-    for other_client in users:
+    for other_client in users_copy:
         if other_client != client_socket or (other_client not in user_direct and other_client != client_socket):
             if not send(other_client, startmsg):
                 break
@@ -334,6 +358,9 @@ def messenger(client_socket, addr):
         message = receive(client_socket)
         if not message:
             break
+        #calling inside the while true loop to update before msg sends
+        with clients_lock:
+            users_copy = users[:]
         message += '\n'
         if message[0] == "@":
             direct_send(message, users_name.get(client_socket))
@@ -358,25 +385,35 @@ def messenger(client_socket, addr):
         if len(users) <= 1:
             with open(f"{conf_path}/missed.txt", "a") as file:
                 file.write(f"{message}\n")
-        with clients_lock:
-            for other_client in users:
-                if other_client != client_socket:
-                    if not send(other_client, message):
-                        break
+        
+        for other_client in users_copy:
+            if other_client != client_socket:
+                send(other_client, message)
 
 def client_end(client):
     print("ending client")
-    try:
-        for user in users:
-            end_msg = f"server.message.from.server.users: {len(users) - 1} !SYSTEM MESSAGE: user DISconnected: {users_name[client]}"
-            send(user, end_msg)
-    except BrokenPipeError:
-        pass
+    
     with clients_lock:
-        del users_name[client]
+        if client not in users[:]:
+            print("client already removed")
+            return        
+        username = users_name.get(client, "Unknown")
         users.remove(client)
-    client.close()
-    print("client disconnected")
+        if client in users_name:
+            del users_name[client]
+        if client in user_direct:
+            user_direct.remove(client)
+    try:
+        client.close()
+    except:
+        pass
+    print(f"client disconnected: {username}")
+    end_msg = f"server.message.from.server.users: {len(users)} !SYSTEM MESSAGE: user DISconnected: {username}"
+    for user in users[:]:
+        try:
+            send(user, end_msg)
+        except:
+            pass
 
 
 load()

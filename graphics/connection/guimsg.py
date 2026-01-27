@@ -45,7 +45,24 @@ threads_started = 0
 header_size = 10
 main_menu = ["Messenger", "Group Chat", "Contacts", "Settings", "Exit"]
 
-attr_dict = {"ipaddr": ip, "name": username, "autoconnect": autoconn, "idaddr": ipid, "alias":alias, "mode":mode}
+data_name = ""
+data_path = ""
+
+pos = 0
+sx = 0
+lvl = 0
+origin = 0
+num = 0
+
+ylimit = 4
+cur_dir = os.path.expanduser("~")
+files_in_path = os.listdir(cur_dir)
+SELECT = None
+data = None
+hidden = 1
+
+
+attr_dict = {"ipaddr": ip, "name": username, "autoconnect": autoconn, "idaddr": ipid, "alias":alias, "mode":mode, "file path":  os.path.expanduser("~")}
 
 colors = {}
 win = {}
@@ -586,7 +603,6 @@ def message_recv():
             update()            
             screens["chat"].refresh()
 
-
 def contact_edit():
     y = 1
     clean_names = []
@@ -957,22 +973,6 @@ def autoconnect(type):
 Here I am pasting the functions needed to pull up a mock file browser
 """
 
-data_name = ""
-data_path = ""
-
-pos = 0
-sx = 0
-lvl = 0
-origin = 0
-num = 0
-
-ylimit = 4
-cur_dir = os.path.expanduser("~")
-files_in_path = os.listdir(cur_dir)
-SELECT = None
-data = None
-hidden = 1
-
 def find_name(path):
     path = path.rstrip("/")
 
@@ -988,29 +988,48 @@ def upload():
     global pause, y
     pause = 1
     y = 0
-    while True:
-        screens["source"].clear()
-        screens["source"].refresh()
-        if attr_dict["mode"] != "performance":
-            path, name = get_file()
-            if not path:
-                screens["source"].clear()
-                screens["source"].refresh()
-                return "Exited", 0
-        else:
-            print_text(0, 0, ("Enter the full path to file",), colors["server"])
-            path = get_input()
-            if not path:
-                return "Exited", 0
-            path, name = find_name(path)
-        if attr_dict["mode"] != "performance":
+    choice = dynamic_inps(["Upload", "Download", "Exit"], 0)
+    if choice == "Upload":
+        while True:
             screens["source"].clear()
             screens["source"].refresh()
-        print_text(0, 0, (f"Confirm path?: {path+'/'+name}",), colors["server"])
-        choice = dynamic_inps(["Yes", "No"], 4)
-        if "Y" in choice:
-            break
-    return "File uploaded!", 0
+            if attr_dict["mode"] != "performance":
+                path, name = get_file()
+                if not path:
+                    screens["source"].clear()
+                    screens["source"].refresh()
+                    return "Exited", 0
+            else:
+                print_text(0, 0, ("Enter the full path to file",), colors["server"])
+                path = get_input()
+                if not path:
+                    return "Exited", 0
+                path, name = find_name(path)
+            if attr_dict["mode"] != "performance":
+                screens["source"].clear()
+                screens["source"].refresh()
+            print_text(0, 0, (f"Confirm path?: {path+'/'+name}",), colors["server"])
+            choice = dynamic_inps(["Yes", "No"], 4)
+            if "Y" in choice:
+                break
+        send(server, f"server.main.send-file {name}")
+        send_file(server, f"{path}/{name}")
+        return "File uploaded!", 0
+    elif choice == "Download":
+        send(server, "server.main.list-file")
+        files = receive(server)
+        if files == "No Files":
+            return "No files for download", 0
+        for item in files[:]:
+            if item == " ":
+                name, files = files.split(" ", 1)
+                file_list.append(name)
+        file_list.append(files)
+        choice = dynamic_inps(files)
+        send(server, f"server.main.get-file {choice}")
+        receive_file(server, choice)
+else:
+        return "Exited", 0
         
 def list_file(delay, rst):
     global origin, files_in_path, pos, sx, lvl, num
@@ -1154,6 +1173,44 @@ def move(inp):
         except:
             return cur_dir
         return forw_dir
+
+def send_file(client, name):
+    try:
+        file_size = os.path.getsize(file_path + name)
+        head = str(file_size).zfill(header_size)
+        client.send(head.encode("utf-8"))
+        sent_bytes = 0
+        with open(file_path + name, "rb") as file:
+            while sent_bytes < file_size:
+                chunk = file.read(4096)
+                if not chunk:
+                    break
+                client.send(chunk)
+                sent_bytes += len(chunk)        
+        return 1
+    except (BrokenPipeError, ConnectionResetError, OSError):
+        return 0
+
+def receive_file(client, name):
+    try:
+        data_received = b''
+        packet_size = client.recv(header_size).decode("utf-8")
+        if not packet_size:
+            client_end(client)
+            return 0
+        packet_size = int(packet_size)
+        file_path = attr_dict["file path"]
+        
+        with open( + "/" + name, "wb") as file:
+            while len(data_received) < packet_size:
+                chunk = client.recv(min(4096, packet_size - len(data_received)))
+                if not chunk:
+                    break
+                file.write(chunk)
+                data_received += chunk
+=        return 1
+    except (OSError):
+        return 0
 
 commands = {"#menu":command_menu, "#help": listcmd, "#exit": shutoff, "#query-user": query, 
 "#add-user": savenick, "#change-user": changeuser, "#autoconnect":auto_conf, 
