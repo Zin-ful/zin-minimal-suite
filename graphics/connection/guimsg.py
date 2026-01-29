@@ -221,9 +221,10 @@ def main(stdscr):
         ref(stdscr)
         screens["source"].addstr(0, width // 2 - (len(f"Messenger Version {client_version}") // 2), f"Messenger Version {client_version}")
         screens["chat"].refresh()
-        ypos = height // 4
-        ypos += center_print_list(ypos, bugs) + 1
-        center_print_list(ypos, patches)
+        if attr_dict["mode"] != "performance":
+            ypos = height // 4
+            ypos += center_print_list(ypos, bugs) + 1
+            center_print_list(ypos, patches)
         choice = dynamic_inps(main_menu, 2)
         ref(stdscr)
         if choice == main_menu[0]:
