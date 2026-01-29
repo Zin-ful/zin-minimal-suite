@@ -17,17 +17,20 @@ Add file sending
 
 def gen_update():
     update_tuple = (
-    "Make sure direct messages reach the intended client",
-    "Make sure direct messag doesnt see the user connected message",
+    "Themes added! File sending is confirmed working but needs testing",
+    "File sending does not work outside of pretty mode due to UI issues",
     "Implement missed messages",
-    "Implement file sending"
+    "Direct texting has receivied the same updates as group chat",
+    "Server can now reconnect clients without crashing",
+    "#exit logic works partially but the message receiving thread fails to display on restart",
+    "client version is now 4.0!"
     )
     msg = ""
     for item in update_tuple:
         msg += item + "\n"
     return msg
 
-server_version = 3.3
+server_version = 3.5
 
 updatemsg = f"server.message.from.server." + "To-Do List: " + gen_update()
 
@@ -283,6 +286,8 @@ def handle_upload(client_socket, msg):
         while name in os.listdir():
             i += 1
             name = f"{i}-{name}"
+    else:
+        send(client_socket, "server.message.from.server.CONTINUE")
     receive_file(client_socket, name)
     with clients_lock:
         users_copy = users[:]
@@ -292,9 +297,9 @@ def handle_upload(client_socket, msg):
     return f"server.message.from.server.{name} uploaded and users have been notified."
 
 def handle_download(client_socket, msg):
-    msg, name = msg.split(" ", 1)
+    name = receive(client_socket)
     if name.strip() not in os.listdir(file_path):
-        return "server.message.from.server.That file does not exist, check files with 'server.main.file-list'"
+        return "server.message.from.server.NOT_FOUND"
     send_file(client_socket, name.strip())
     with clients_lock:
         users_copy = users[:]

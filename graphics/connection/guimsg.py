@@ -12,22 +12,27 @@ import sys
 from datetime import datetime
 """
 FIX
-Change shitty UI to make it more readable
-Add file sending
+Change shitty UI to make it more readable - done
+Add file sending - in testing
 Add "typing..."
 Add user information to UI such as name, ip address, etc
-Add auto caps & autocorrect
+Add auto caps & autocorrect - in testing
 """
+
+client_version = 4.0
 
 curusr = os.path.expanduser("~")
 
 session_usr = []
+
 conf_path = curusr+ "/.zinapp/ztext"
 username = "none"
 alias = "none"
 autoconn = "false"
 mode = "normal"
 modes = ["pretty", "normal", "performance"]
+themes = ["standard", "cool", "sunny", "cloudy", "lava", "water"]
+color_choice = "standard"
 running = 1
 users = 0
 ready = 0
@@ -64,7 +69,7 @@ data = None
 hidden = 1
 
 
-attr_dict = {"ipaddr": ip, "name": username, "autoconnect": autoconn, "idaddr": ipid, "alias":alias, "mode":mode, "file path":  os.path.expanduser("~")}
+attr_dict = {"ipaddr": ip, "name": username, "autoconnect": autoconn, "idaddr": ipid, "alias":alias, "mode":mode, "file path":  os.path.expanduser("~"), "theme": color_choice}
 
 colors = {}
 win = {}
@@ -78,40 +83,72 @@ if "msg_server.conf" not in os.listdir(curusr+"/.zinapp/ztext"):
     with open(curusr+"/.zinapp/ztext/msg_server.conf", "w") as file:
         for item, val in attr_dict.items():
             file.write(f"{item}={val}\n")
-
 if "phonebook" not in os.listdir(curusr+"/.zinapp"):
     os.mkdir(curusr+"/.zinapp/phonebook")
 
 """utility functions"""
 
-def main(stdscr):
-    global height, width, message_thread, update_thread, pause
-    height, width = stdscr.getmaxyx()
-    curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_BLACK)
-    HIGHLIGHT = curses.color_pair(1)
-    curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_BLACK)
-    HIGHLIGHT_1 = curses.color_pair(2)
-    curses.init_pair(3, curses.COLOR_BLUE, curses.COLOR_BLACK)
-    HIGHLIGHT_2 = curses.color_pair(3)
-    curses.init_pair(4, curses.COLOR_RED, curses.COLOR_WHITE)
-    HIGHLIGHT_3 = curses.color_pair(4)
-    curses.init_pair(5, curses.COLOR_RED, curses.COLOR_BLACK)
-    HIGHLIGHT_4 = curses.color_pair(5)
-    curses.init_pair(6, curses.COLOR_BLACK, curses.COLOR_WHITE)
-    FROM_SERVER = curses.color_pair(6)
-    curses.init_pair(7, curses.COLOR_BLACK, curses.COLOR_BLACK)
-    ERASE = curses.color_pair(7)
-    curses.init_pair(8, curses.COLOR_BLACK, curses.COLOR_WHITE)
-    TUT = curses.color_pair(8)
+def generate_theme(selection):
+    if selection == "standard":
+        curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_BLACK)
+        curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_BLACK)
+        curses.init_pair(3, curses.COLOR_BLUE, curses.COLOR_BLACK)
+        curses.init_pair(4, curses.COLOR_RED, curses.COLOR_WHITE)
+        curses.init_pair(5, curses.COLOR_RED, curses.COLOR_BLACK)
+        curses.init_pair(6, curses.COLOR_BLACK, curses.COLOR_WHITE)
+    elif selection == "cool":
+        curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_BLACK)
+        curses.init_pair(2, curses.COLOR_BLUE, curses.COLOR_BLACK)
+        curses.init_pair(3, curses.COLOR_WHITE, curses.COLOR_BLACK)
+        curses.init_pair(4, curses.COLOR_WHITE, curses.COLOR_CYAN)
+        curses.init_pair(5, curses.COLOR_CYAN, curses.COLOR_BLACK)
+        curses.init_pair(6, curses.COLOR_BLUE, curses.COLOR_WHITE)
+    elif selection == "sunny":
+        curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_BLACK)
+        curses.init_pair(2, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+        curses.init_pair(3, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+        curses.init_pair(4, curses.COLOR_RED, curses.COLOR_BLACK)
+        curses.init_pair(5, curses.COLOR_CYAN, curses.COLOR_BLACK)
+        curses.init_pair(6, curses.COLOR_WHITE, curses.COLOR_BLACK)
+    elif selection == "cloudy":
+        curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_BLACK)
+        curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_BLACK)
+        curses.init_pair(3, curses.COLOR_WHITE, curses.COLOR_BLACK)
+        curses.init_pair(4, curses.COLOR_WHITE, curses.COLOR_BLACK)
+        curses.init_pair(5, curses.COLOR_WHITE, curses.COLOR_BLACK)
+        curses.init_pair(6, curses.COLOR_WHITE, curses.COLOR_BLACK)
+    elif selection == "lava":
+        curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_BLACK)
+        curses.init_pair(2, curses.COLOR_RED, curses.COLOR_BLACK)
+        curses.init_pair(3, curses.COLOR_RED, curses.COLOR_BLACK)
+        curses.init_pair(4, curses.COLOR_RED, curses.COLOR_WHITE)
+        curses.init_pair(5, curses.COLOR_RED, curses.COLOR_BLACK)
+        curses.init_pair(6, curses.COLOR_BLACK, curses.COLOR_WHITE)
+    elif selection == "water":
+        curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_BLACK)
+        curses.init_pair(2, curses.COLOR_BLUE, curses.COLOR_BLACK)
+        curses.init_pair(3, curses.COLOR_BLUE, curses.COLOR_BLACK)
+        curses.init_pair(4, curses.COLOR_BLUE, curses.COLOR_WHITE)
+        curses.init_pair(5, curses.COLOR_BLUE, curses.COLOR_BLACK)
+        curses.init_pair(6, curses.COLOR_BLACK, curses.COLOR_WHITE)
 
-    colors.update({"hl":HIGHLIGHT})
-    colors.update({"hl1":HIGHLIGHT_1})
-    colors.update({"hl2":HIGHLIGHT_2})
-    colors.update({"hl3":HIGHLIGHT_3})
-    colors.update({"hl4":HIGHLIGHT_4})
+    HIGHLIGHT_1 = curses.color_pair(1)
+    HIGHLIGHT_2 = curses.color_pair(2)
+    HIGHLIGHT_3 = curses.color_pair(3)
+    HIGHLIGHT_4 = curses.color_pair(4)
+    HIGHLIGHT_5 = curses.color_pair(5)
+    FROM_SERVER = curses.color_pair(6)
+
+    colors.update({"hl":HIGHLIGHT_1})
+    colors.update({"hl1":HIGHLIGHT_2})
+    colors.update({"hl2":HIGHLIGHT_3})
+    colors.update({"hl3":HIGHLIGHT_4})
+    colors.update({"hl4":HIGHLIGHT_5})
     colors.update({"server":FROM_SERVER})
-    colors.update({"erase":ERASE})
-    colors.update({"tut":TUT})
+
+def main(stdscr):
+    global height, width, message_thread, pause
+    height, width = stdscr.getmaxyx()
 
     stdscr.clear()
     stdscr.refresh()
@@ -128,12 +165,16 @@ def main(stdscr):
     
     files_win = curses.newwin(height - 4, width - 1, 2, 0)
     win.update({"main": stdscr, "files": files_win})
-    
+    load_conf()
     success = 0
     pause = 1
+    generate_theme(attr_dict["theme"])
+
     while True:
         ref(stdscr)
-        choice = inps(main_menu)
+        screens["source"].addstr(0, width // 2 - (len(f"Messenger Version {client_version}") // 2), f"Messenger Version {client_version}")
+        screens["chat"].refresh()
+        choice = dynamic_inps(main_menu, 2)
         ref(stdscr)
         if choice == main_menu[0]:
             screens["bar"].refresh()
@@ -286,7 +327,7 @@ def update():
     if attr_dict['mode'] != "performance":
         battery = str(get_batt())
         screens["bar"].addstr(0, ((width // 2) - (len(battery) // 2) + (len(network) // 2) * 8), battery, colors["hl2"])
-        screens["bar"].addstr(0, width - len(f"Users: {str(users)}") - 2, f"Users: {str(users)}", colors["hl1"])
+        screens["bar"].addstr(0, width - len(f"Users: {str(users)}") - 2, f"Users: {str(users)}", colors["hl2"])
         screens["bar"].addstr(0, len(attr_dict["name"]) + 6, f"Y: {y}" , colors["hl2"])
     screens["bar"].addstr(0, (width // 2) - (len(network) // 2), network, colors["hl2"])
     
@@ -294,7 +335,7 @@ def update():
 
 def line_erase(length, i):
     for _ in range(length):
-        screens["bar"].addstr(0, i, " ", colors["erase"])
+        screens["bar"].addstr(0, i, " ", colors["hl"])
         i += 1
 
 def print_text(pos_y, pos_x, msg, color):
@@ -319,6 +360,8 @@ def send(client, data):
 def receive(client):
     data_received = b''
     packet_size = client.recv(header_size).decode("utf-8")
+    if not packet_size:
+        return 0
     packet_size = int(packet_size)
     while len(data_received) < packet_size:
         data_received += client.recv(packet_size - len(data_received))
@@ -443,7 +486,7 @@ def savenick():
 def notrase(inp, upd, yplus):
     i = 0
     for char in inp:
-        screens["chat"].addstr(y + yplus, i, " ", colors["erase"])
+        screens["chat"].addstr(y + yplus, i, " ", colors["hl"])
         i += 1
     if upd:
         screens["chat"].refresh()
@@ -456,19 +499,6 @@ def batch_erase(text, y_offset):
     screens["chat"].refresh()
 
 """user functions"""
-
-def shutoff():
-    global running
-    running = 0
-    screens["source"].clear()
-    print_text(height // 2, width // 2, ("    exiting...",), colors["hl3"])
-    message_thread.join(timeout=1)
-    curses.nocbreak()
-    screens["source"].keypad(False)
-    curses.echo()
-    curses.endwin()
-    server.close()
-    sys.exit()
 
 def listcmd():
     result = ""
@@ -565,7 +595,7 @@ def command_menu():
     pause = 1
     phrase_to_cmd = {"Help":"#help", "Clear Screen": "#clear", "Query User":"#query-user", 
     "Add User" :"#add-user", "Change Username" :"#change-user", "Toggle Autoconnect":"#autoconnect", 
-    "Import IP Address":"#import-ip", "Upload Files":"#file", "Exit":"#exit"}
+    "Import IP Address":"#import-ip", "Upload Files":"#file", "Settings":"#config", "Exit":"#exit"}
     phrases = []
     for name, val in phrase_to_cmd.items():
         phrases.append(name)
@@ -619,15 +649,15 @@ def tracked_missing(msg):
         missed_messages.append(msg)
 
 def message_recv():
-    global y, msg, users, pause
+    global y, msg, users, pause, threads_started
     x = 0
     recent_message = ""
     time.sleep(0.001) #to make sure to display after the initial refresh
     while receiving:
         num = 0
         msg = receive(server)
-        msg = msg.strip()
         if msg:
+            msg = msg.strip()
             if pause:
                 tracked_missing(add_time(msg))
                 continue
@@ -658,6 +688,7 @@ def message_recv():
             y += num
             update()            
             screens["chat"].refresh()
+    threads_started = 0
 
 def contact_edit():
     y = 1
@@ -785,6 +816,7 @@ def settings():
             title, val = item.split("=")
             attr_dict[title.strip()] = val.strip()
     while True:
+        new_val = None
         ref(screens["source"])
         item_list = []
         for item, value in attr_dict.items():
@@ -794,7 +826,9 @@ def settings():
             break
         clr()
         if choice == "mode":
-            new_val = set_mode()        
+            new_val = set_mode()  
+        elif choice == "theme":
+            new_val = set_theme()  
         else:
             print_text(0, 0, (f"{choice}\nCurrent value: {attr_dict[choice]}\nNew value:",),colors["hl1"])
             new_val = get_input()
@@ -802,14 +836,22 @@ def settings():
             attr_dict[choice] = new_val
             save_conf()
             break
+    generate_theme(attr_dict["theme"])
     clr()
+    return "New settings applied", 0
 
 def set_mode():
     while True:
-        print_text(0, 0, (f"Current_mode:{attr_dict['mode']}\nSet mode to:",),colors["hl1"])
+        print_text(0, 0, (f"Current mode:{attr_dict['mode']}\nSet mode to:",), colors["hl1"])
         choice = dynamic_inps(modes, 4)
         return choice
-    
+
+def set_theme():
+    while True:
+        print_text(0, 0, (f"Current theme: {attr_dict['theme']}\nSet mode to:",), colors["hl1"])
+        choice = dynamic_inps(themes, 4)
+        return choice
+
 def group_message():
     global y, pause, threads_started, network, receiving
     network = "Messaging Group"
@@ -823,6 +865,7 @@ def group_message():
     pause = 0
     x = 0
     update()
+    running = 1
     while running:
         try:
             inp = screens["text"].edit().strip()
@@ -839,6 +882,15 @@ def group_message():
             y += 1
             clearchk(0)
             if inp[0] == "#":
+                if inp == "#exit":
+                    receiving = 0
+                    running = 0
+                    y = 0
+                    ref(screens["source"])
+                    message_thread.join(timeout=1)
+                    server.shutdown(netcom.SHUT_RDWR)
+                    server.close()
+                    return
                 adjust_y = None
                 xcute = commands.get(inp)
                 if xcute:
@@ -869,41 +921,52 @@ def group_message():
                 update()
 
 def direct_message(name):
-    global y, pause, threads_started, network
+    global y, pause, threads_started, network, receiving
     network = f"Messaging {name}"
-    x = 0
-    while not gc_config_init("d"):
-        continue
+    if not gc_config_init("d"):
+        return
     if not threads_started:
         screens["bar"].refresh()
         message_thread = task.Thread(target=message_recv, daemon=True)
         message_thread.start()
         threads_started = 1
     pause = 0
+    x = 0
     update()
-    while True:
+    while running:
         try:
             inp = screens["text"].edit().strip()
-            if attr_dict['mode'] == "pretty":
-                if "." in inp:
-                    inp = autocaps(inp)
-            
-            if inp:
-                y += 2
-                clearchk(0)
-                screens["chat"].addstr(y, x, inp, colors["hl4"])
-                ref(screens["input"])
-                screens["chat"].refresh()
-                send(server, f"@{name}:{inp}")
-                inp = None
-                update()
         except KeyboardInterrupt:
-                server.close()
-                exit()
-        except Exception as e:
-            screens["source"].clear()
-            screens["source"].addstr(height // 2, width // 2, str(e))
-            screens["source"].refresh()
+            receiving = 0
+            server.shutdown(netcom.SHUT_RDWR)
+            server.close()
+            exit()
+        ref(screens["input"])
+        if attr_dict['mode'] == "pretty":
+            if "." in inp:
+                inp = autocaps(inp)
+        if inp:
+            y += 1
+            clearchk(0)
+            if inp[0] == "#":
+                if inp == "#exit":
+                    receiving = 0
+                    running = 0
+                    y = 0
+                    ref(screens["source"])
+                    message_thread.join(timeout=1)
+                    server.shutdown(netcom.SHUT_RDWR)
+                    server.close()
+                    return
+            send(server, f"@{name}:{inp}")
+            inp = add_time(inp)
+            if "server.main." not in inp or '"' in inp:
+                screens["chat"].addstr(y, x, inp, colors["hl4"])
+            screens["chat"].refresh()
+
+            inp = None
+            if attr_dict['mode'] != "performance":
+                update()
 
 def contact_selection():
     y = 1
@@ -922,32 +985,24 @@ def contact_selection():
 """server init"""
 
 def gc_config_init(type):
-    with open(f"{conf_path}/msg_server.conf", "r") as file:
-        attr = file.readlines()
-        for item in attr:
-            if item == "\n":
-                pass
+    if attr_dict["autoconnect"] == "true":
+        try:
+            autoconnect(type)
+        except netcom.error as e:
+            print_text(height // 2, width // 3, ("Connection refused, try again?",), colors["hl3"])
+            choice = screens["chat"].getch()
+            if choice == ord("y"):
+                return 2
             else:
-                item, attr = item.split("=")
-                attr_dict[item.strip()] = attr.strip()
-        if attr_dict["autoconnect"] == "true":
-            try:
-                autoconnect(type)
-            except netcom.error as e:
-                print_text(height // 2, width // 3, ("Connection refused, try again?",), colors["hl3"])
-                choice = screens["chat"].getch()
-                if choice == ord("y"):
-                    return 2
-                else:
-                    return 0
-            except Exception as e:
-                print_text(height // 2, width // 2, (f"UNKNOWN EXCEPTION, CHECK LOGS @{conf_path}",), colors["hl3"])
-                errlog(str(e))
                 return 0
-        else:
-            if not manual_conf("false", type):
-                return 0
-        return 1
+        except Exception as e:
+            print_text(height // 2, width // 2, (f"UNKNOWN EXCEPTION, CHECK LOGS @{conf_path}",), colors["hl3"])
+            errlog(str(e))
+            return 0
+    else:
+        if not manual_conf("false", type):
+            return 0
+    return 1
 
 def manual_conf(state, type):
     global server, users
@@ -1000,6 +1055,16 @@ def save_conf():
     with open(f"{conf_path}/msg_server.conf", "w") as file:
         for title, data in attr_dict.items():
             file.write(f"{title}={data}\n")
+
+def load_conf():
+    with open(f"{conf_path}/msg_server.conf", "r") as file:
+        attr = file.readlines()
+        for item in attr:
+            if item == "\n":
+                pass
+            else:
+                item, attr = item.split("=")
+                attr_dict[item.strip()] = attr.strip()
 
 def autoconnect(type):
     global server, users
@@ -1079,22 +1144,21 @@ def upload():
                 screens["source"].refresh()
             print_text(0, 0, (f"Confirm path?: {path+'/'+name}",), colors["server"])
             choice = dynamic_inps(["Yes", "No"], 4)
-            if "Y" in choice:
-                break
-        send(file, f"server.main.send-file")
-        send(file, name)
-        confirmation = receive(file)
-        if confirmation == "server.message.from.server.ALREADY_EXISTS":
-            print_text(0, 0, (f"A file with that name already exists, the server will add a number to the end. Continue?",), colors["server"])
-            choice = dynamic_inps(["Yes", "No"], 4)
             if "N" in choice:
                 break
-        send_file(file, f"{path}/{name}")
-        return "File uploaded!", 0
+            send(file, f"server.main.send-file")
+            send(file, name)
+            confirmation = receive(file)
+            if confirmation == "server.message.from.server.ALREADY_EXISTS":
+                print_text(0, 0, (f"A file with that name already exists, the server will add a number to the end. Continue?",), colors["server"])
+                choice = dynamic_inps(["Yes", "No"], 4)
+            if "N" in choice:
+                break
+            send_file(file, f"{path}/{name}")
+            return "File uploaded!", 0
     elif choice == "Download":
         send(file, "server.main.list-file")
         files = receive(file)
-        log(files)
         files = files.strip()
         if files == "server.message.from.server.NO_FILES":
             file.shutdown(netcom.SHUT_RDWR)
@@ -1111,8 +1175,15 @@ def upload():
         screens["source"].clear()
         choice = dynamic_inps(file_list, 0)
         send(file, f"server.main.get-file")
+        send(file, choice)
         confirmation = receive(file)
+        if confirmation == "server.message.from.server.NOT_FOUND":
+            file.shutdown(netcom.SHUT_RDWR)
+            file.close()
+            del file
+            return "That file does not exist, check files with 'server.main.file-list'", 0
         receive_file(file, choice)
+        return f"{choice} has finished downloading.", 0
     else:
         file.shutdown(netcom.SHUT_RDWR)
         file.close()
@@ -1121,6 +1192,7 @@ def upload():
     file.shutdown(netcom.SHUT_RDWR)
     file.close()
     del file
+    return "Exited", 0
         
 def list_file(delay, rst):
     global origin, files_in_path, pos, sx, lvl, num
@@ -1303,10 +1375,8 @@ def receive_file(client, name):
     except (OSError):
         return 0
 
-commands = {"#menu":command_menu, "#help": listcmd, "#exit": shutoff, "#query-user": query, 
+commands = {"#menu":command_menu, "#help": listcmd, "#query-user": query, 
 "#add-user": savenick, "#change-user": changeuser, "#autoconnect":auto_conf, 
-"#import-ip":importip, "#clear": clr, "#file": upload}
-
-
+"#import-ip":importip, "#clear": clr, "#file": upload, "#config":settings}
 
 wrapper(main)
