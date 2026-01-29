@@ -17,12 +17,9 @@ Add file sending
 
 def gen_update():
     update_tuple = (
-    "Themes added! File sending is confirmed working but needs testing",
-    "File sending does not work outside of pretty mode due to UI issues",
     "Implement missed messages",
     "Direct texting has receivied the same updates as group chat",
     "Server can now reconnect clients without crashing",
-    "#exit logic works partially but the message receiving thread fails to display on restart",
     "client version is now 4.0!"
     )
     msg = ""
@@ -32,7 +29,7 @@ def gen_update():
 
 server_version = 3.5
 
-updatemsg = f"server.message.from.server." + "To-Do List: " + gen_update()
+updatemsg = f"server.message.from.server." + "Server Compatability: 4.0 - 4.1\nTo-Do List: " + gen_update()
 
 
 conf_path = "/opt/zinapp/ztext_srvr"
@@ -163,7 +160,7 @@ def receive_file(client, name):
                 if not chunk:
                     break
                 file.write(chunk)
-                data_received += chunk  # This was missing!
+                data_received += chunk
                 print(f"writing data from socket: {packet_size} | {len(data_received)}")
         
         print(f"Received file {name}, size: {len(data_received)} bytes")
@@ -278,12 +275,14 @@ def updpasswd(client_socket, msg):
     return "server.message.from.server.password updated"
 
 def handle_upload(client_socket, msg):
+    saved_name = users_name[client_socket]
     name = receive(client_socket)
+    name = name.replace(" ", "_")
     print(f"client attempting to upload {name}")
     if name in os.listdir(file_path):
         send(client_socket, "server.message.from.server.ALREADY_EXISTS")
         i = 0
-        while name in os.listdir():
+        while name in os.listdir(file_path):
             i += 1
             name = f"{i}-{name}"
     else:
@@ -293,10 +292,11 @@ def handle_upload(client_socket, msg):
         users_copy = users[:]
     for other_client in users_copy:
             if other_client != client_socket:
-                send(other_client, f"server.message.from.server.The user '{users_name[client_socket]}' has uploded the file {name}\nenter your file browser to download.")
+                send(other_client, f"server.message.from.server.The user '{saved_name}' has uploded the file {name}\nenter your file browser to download.")
     return f"server.message.from.server.{name} uploaded and users have been notified."
 
 def handle_download(client_socket, msg):
+    saved_name = users_name[client_socket]
     name = receive(client_socket)
     if name.strip() not in os.listdir(file_path):
         return "server.message.from.server.NOT_FOUND"
@@ -305,7 +305,7 @@ def handle_download(client_socket, msg):
         users_copy = users[:]
     for other_client in users_copy:
             if other_client != client_socket:
-                send(other_client, f"server.message.from.server.{name} has been downloaded by {users_name[client_socket]}")
+                send(other_client, f"server.message.from.server.{name} has been downloaded by {saved_name}")
     return "server.message.from.server.File has been downloaded"
 
 def list_files(client_socket, msg):

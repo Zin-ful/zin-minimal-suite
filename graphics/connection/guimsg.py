@@ -19,7 +19,7 @@ Add user information to UI such as name, ip address, etc
 Add auto caps & autocorrect - in testing
 """
 
-client_version = 4.0
+client_version = 4.1
 
 curusr = os.path.expanduser("~")
 
@@ -49,6 +49,7 @@ pause = 0
 pause_receiving = 0
 receiving = 1
 threads_started = 0
+file_io = 0
 header_size = 10
 main_menu = ["Messenger", "Group Chat", "Contacts", "Settings", "Exit"]
 
@@ -68,7 +69,32 @@ SELECT = None
 data = None
 hidden = 1
 
+bugs = [
+"-------Known Bugs:-------"
+" ",
+" ",
+"If a file is too small the status bar will skip to 'Uploaded', not an issue but doesnt convey the process clearly",
+"When exiting the messenger and restarting the recv thread it wont display",
+"The battery percent only supports devices with one battery due to improper math",
+" ",
+"----Features coming soon:----",
+" ",
+"New performance modes",
+"Emojis",
+"In-build simple games",
+"Calling",
+"More themes",
+"Custom text box for arrow key usage and saving recent messages",
+"Keybings for quick responses"
+]
 
+patches = [
+f"------{client_version} patches:------",
+" ",
+"Added themes (found in settings)",
+"Patched file UI issues outside of mode 'pretty'",
+"Patched file sending and downloading issues with duplicates",
+]
 attr_dict = {"ipaddr": ip, "name": username, "autoconnect": autoconn, "idaddr": ipid, "alias":alias, "mode":mode, "file path":  os.path.expanduser("~"), "theme": color_choice}
 
 colors = {}
@@ -87,6 +113,24 @@ if "phonebook" not in os.listdir(curusr+"/.zinapp"):
     os.mkdir(curusr+"/.zinapp/phonebook")
 
 """utility functions"""
+
+def center_print_list(ypos, listy):
+    i = 0
+    for item in listy:
+        if "----" in item:
+            screens["source"].addstr(ypos + i, width // 2 - (len(item) // 2), item, colors["server"])
+        else:
+            screens["source"].addstr(ypos + i, width // 2 - (len(item) // 2), item)
+        i += 1
+    screens["source"].refresh()
+    return i
+
+def find_longest_item(listy):
+    total = 0
+    for item in listy:
+        if len(item) > total:
+            total = len(item)
+    return item
 
 def generate_theme(selection):
     if selection == "standard":
@@ -123,14 +167,14 @@ def generate_theme(selection):
         curses.init_pair(3, curses.COLOR_RED, curses.COLOR_BLACK)
         curses.init_pair(4, curses.COLOR_RED, curses.COLOR_WHITE)
         curses.init_pair(5, curses.COLOR_RED, curses.COLOR_BLACK)
-        curses.init_pair(6, curses.COLOR_BLACK, curses.COLOR_WHITE)
+        curses.init_pair(6, curses.COLOR_RED, curses.COLOR_WHITE)
     elif selection == "water":
         curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_BLACK)
-        curses.init_pair(2, curses.COLOR_BLUE, curses.COLOR_BLACK)
+        curses.init_pair(2, curses.COLOR_CYAN, curses.COLOR_BLACK)
         curses.init_pair(3, curses.COLOR_BLUE, curses.COLOR_BLACK)
         curses.init_pair(4, curses.COLOR_BLUE, curses.COLOR_WHITE)
         curses.init_pair(5, curses.COLOR_BLUE, curses.COLOR_BLACK)
-        curses.init_pair(6, curses.COLOR_BLACK, curses.COLOR_WHITE)
+        curses.init_pair(6, curses.COLOR_WHITE, curses.COLOR_BLUE)
 
     HIGHLIGHT_1 = curses.color_pair(1)
     HIGHLIGHT_2 = curses.color_pair(2)
@@ -155,9 +199,12 @@ def main(stdscr):
 
     top_win = curses.newwin(0, width, 0, 0)
     show_chat = curses.newwin(height - 3, width, 2, 0)
-    user_input = curses.newwin(1, width - 1, height - 1, 1)
+    user_input = curses.newwin(1, width - 1, height - 2, 1)
+    status_win = curses.newwin(1, width - 1, height - 1, 1)
+
     tbox = Textbox(user_input)
     screens.update({"bar":top_win})
+    screens.update({"status":status_win})
     screens.update({"chat":show_chat})
     screens.update({"input":user_input})
     screens.update({"text":tbox})
@@ -174,6 +221,9 @@ def main(stdscr):
         ref(stdscr)
         screens["source"].addstr(0, width // 2 - (len(f"Messenger Version {client_version}") // 2), f"Messenger Version {client_version}")
         screens["chat"].refresh()
+        ypos = height // 4
+        ypos += center_print_list(ypos, bugs) + 1
+        center_print_list(ypos, patches)
         choice = dynamic_inps(main_menu, 2)
         ref(stdscr)
         if choice == main_menu[0]:
@@ -251,7 +301,7 @@ def dynamic_select(menu, key, pos, offset):
         back = -1
     if len(menu) > 1:
         screens["source"].addstr(pos - back + offset, 0, menu[pos - back])
-    screens["source"].addstr(pos + offset, 0, menu[pos], colors["server"])
+    screens["source"].addstr(pos + offset, 0, menu[pos], colors["hl1"])
     return pos
 
 def print_list(y, x, menu):
@@ -338,7 +388,9 @@ def line_erase(length, i):
         screens["bar"].addstr(0, i, " ", colors["hl"])
         i += 1
 
-def print_text(pos_y, pos_x, msg, color):
+def print_text(pos_y, pos_x, msg, color=None):
+    if not color:
+        color = colors["server"]
     i = 0
     for item in msg:
         screens["chat"].addstr(pos_y + i, pos_x, item, color)
@@ -646,7 +698,7 @@ def tracked_missing(msg):
             msg = msg.replace("server.message.from.server.", "")
             if "users:" in msg:
                 response, msg = msg.split("!")
-        missed_messages.append(msg)
+        missed_messages.append(add_time(msg))
 
 def message_recv():
     global y, msg, users, pause, threads_started
@@ -659,7 +711,7 @@ def message_recv():
         if msg:
             msg = msg.strip()
             if pause:
-                tracked_missing(add_time(msg))
+                tracked_missing(msg)
                 continue
             if "@" in msg:
                 recvusr, msg = msg.split(":", 1)
@@ -673,7 +725,6 @@ def message_recv():
                     num += 1
             y += 1
             clearchk(num)
-            msg = add_time(msg)
             if "server.message.from.server" in msg:
                 if attr_dict['mode'] == "performance":
                     continue
@@ -682,9 +733,9 @@ def message_recv():
                     response, msg = msg.split("!")
                     response = response.replace("users:", "")
                     users = int(response.strip())
-                screens["chat"].addstr(y, x, msg, colors["server"])
+                screens["chat"].addstr(y, x, add_time(msg), colors["server"])
             else:
-                screens["chat"].addstr(y, x, msg, colors["hl3"])
+                screens["chat"].addstr(y, x, add_time(msg), colors["hl3"])
             y += num
             update()            
             screens["chat"].refresh()
@@ -911,9 +962,8 @@ def group_message():
                 result = None
                 continue
             send(server, inp)
-            inp = add_time(inp)
             if "server.main." not in inp or '"' in inp:
-                screens["chat"].addstr(y, x, inp, colors["hl4"])
+                screens["chat"].addstr(y, x, add_time(inp), colors["hl4"])
             screens["chat"].refresh()
 
             inp = None
@@ -959,9 +1009,8 @@ def direct_message(name):
                     server.close()
                     return
             send(server, f"@{name}:{inp}")
-            inp = add_time(inp)
             if "server.main." not in inp or '"' in inp:
-                screens["chat"].addstr(y, x, inp, colors["hl4"])
+                screens["chat"].addstr(y, x, add_time(inp), colors["hl4"])
             screens["chat"].refresh()
 
             inp = None
@@ -1107,7 +1156,12 @@ def find_name(path):
     return parent_path, name
 
 def upload():
-    global pause, y
+    global pause, y, file_io
+    if file_io:
+        return "File operations in progress.", 0
+    if attr_dict["mode"] == "performance":
+        return upload_performance()
+    file_io = 0
     pause = 1
     y = 0
     screens["source"].clear()
@@ -1119,6 +1173,7 @@ def upload():
     choice = dynamic_inps(["Upload", "Download", "Exit"], 2)
     if choice == "Upload":
         while True:
+            file_io = 1
             screens["source"].clear()
             screens["source"].refresh()
             if attr_dict["mode"] != "performance":
@@ -1126,22 +1181,9 @@ def upload():
                 if not path:
                     screens["source"].clear()
                     screens["source"].refresh()
-                    file.shutdown(netcom.SHUT_RDWR)
-                    file.close()
-                    del file
-                    return "Exited", 0
-            else:
-                print_text(0, 0, ("Enter the full path to file",), colors["server"])
-                path = get_input()
-                if not path:
-                    file.shutdown(netcom.SHUT_RDWR)
-                    file.close()
-                    del file
-                    return "Exited", 0
-                path, name = find_name(path)
-            if attr_dict["mode"] != "performance":
-                screens["source"].clear()
-                screens["source"].refresh()
+                    break
+            screens["source"].clear()
+            screens["source"].refresh()
             print_text(0, 0, (f"Confirm path?: {path+'/'+name}",), colors["server"])
             choice = dynamic_inps(["Yes", "No"], 4)
             if "N" in choice:
@@ -1154,46 +1196,142 @@ def upload():
                 choice = dynamic_inps(["Yes", "No"], 4)
             if "N" in choice:
                 break
-            send_file(file, f"{path}/{name}")
-            return "File uploaded!", 0
+            file_thread = task.Thread(target=send_file, args=(file, f"{path}/{name}"), daemon=True)
+            file_thread.start()
+            return "File uploading..", 0
     elif choice == "Download":
-        send(file, "server.main.list-file")
-        files = receive(file)
-        files = files.strip()
-        if files == "server.message.from.server.NO_FILES":
-            file.shutdown(netcom.SHUT_RDWR)
-            file.close()
-            del file
-            return "No files for download", 0
-        file_list = []
-        if " " in files:
-            for item in files[:]:
-                if item == " ":
-                    name, files = files.split(" ", 1)
-                    file_list.append(name)
-        file_list.append(files)
-        screens["source"].clear()
-        choice = dynamic_inps(file_list, 0)
-        send(file, f"server.main.get-file")
-        send(file, choice)
-        confirmation = receive(file)
-        if confirmation == "server.message.from.server.NOT_FOUND":
-            file.shutdown(netcom.SHUT_RDWR)
-            file.close()
-            del file
-            return "That file does not exist, check files with 'server.main.file-list'", 0
-        receive_file(file, choice)
-        return f"{choice} has finished downloading.", 0
-    else:
-        file.shutdown(netcom.SHUT_RDWR)
-        file.close()
-        del file
-        return "Exited", 0
+        while True:
+            file_io = 1
+            send(file, "server.main.list-file")
+            files = receive(file)
+            files = files.strip()
+            if files == "server.message.from.server.NO_FILES":
+                file.shutdown(netcom.SHUT_RDWR)
+                file.close()
+                del file
+                file_io = 0
+                return "No files for download", 0
+            file_list = []
+            if " " in files:
+                for item in files[:]:
+                    if item == " ":
+                        name, files = files.split(" ", 1)
+                        file_list.append(name)
+            file_list.append(files)
+            screens["source"].clear()
+            choice = dynamic_inps(file_list, 0)
+            send(file, f"server.main.get-file")
+            send(file, choice)
+            confirmation = receive(file)
+            if confirmation == "server.message.from.server.NOT_FOUND":
+                file.shutdown(netcom.SHUT_RDWR)
+                file.close()
+                del file
+                file_io = 0
+                return "That file does not exist, check files with 'server.main.file-list'", 0
+            file_thread = task.Thread(target=receive_file, args=(file, choice), daemon=True)
+            file_thread.start()
+            return f"{choice} is downloading..", 0
     file.shutdown(netcom.SHUT_RDWR)
     file.close()
     del file
     return "Exited", 0
-        
+
+def upload_performance():
+    global pause, y, file_io
+    if file_io:
+        return "File operations in progress.", 0
+    file_io = 1
+    pause = 1
+    y = 0
+    ref(screens["source"])
+    file = netcom.socket(ipv4, tcp)
+    file.connect((attr_dict["ipaddr"], port))
+    send(file, attr_dict["name"]+"-file")
+    send(file, "f")
+    choice = dynamic_inps(["Upload", "Download", "Exit"], 2)
+    ref(screens["source"])
+    if choice == "Upload":
+        while True:
+            print_text(0, 0, ("Enter the full path to file",), colors["server"])
+            path = get_input()
+            if not path:
+                break
+            path, name = find_name(path)
+            print_text(0, 0, (f"Confirm path? (y/n): {path+'/'+name}",), colors["server"])
+            choice = get_input()
+            if "n" in choice.lower():
+                break
+            elif not choice:
+                break
+            send(file, f"server.main.send-file")
+            send(file, name)
+            confirmation = receive(file)
+            if confirmation == "server.message.from.server.ALREADY_EXISTS":
+                print_text(0, 0, (f"A file with that name already exists, the server will add a number to the end. Continue?",), colors["server"])
+                choice = get_input()
+                if not choice:
+                    file_io = 0
+                    break
+                if "n" in choice.lower():
+                    file_io = 0
+                    break
+            file_thread = task.Thread(target=send_file, args=(file, f"{path}/{name}"), daemon=True)
+            file_thread.start()
+            return "File uploading..", 0
+    elif choice == "Download":
+        while True:
+            send(file, "server.main.list-file")
+            files = receive(file)
+            files = files.strip()
+            if files == "server.message.from.server.NO_FILES":
+                file.shutdown(netcom.SHUT_RDWR)
+                file.close()
+                del file
+                file_io = 0
+                return "No files for download", 0
+            file_list = []
+            if " " in files:
+                for item in files[:]:
+                    if item == " ":
+                        name, files = files.split(" ", 1)
+                        file_list.append(name)
+            file_list.append(files)
+            while True:
+                screens["source"].clear()
+                print_text(2, 0, ("Select a file from the provided list",))
+                print_list(3, 0, file_list)
+                choice = get_input()
+                if not choice:
+                    file.shutdown(netcom.SHUT_RDWR)
+                    file.close()
+                    del file
+                    file_io = 0
+                    return "Exited", 0
+                for item in file_list:
+                    if choice in item:
+                        choice = item
+                print_text(0, 0, (f"Confirm file selection: {choice}",), colors["server"])
+                choice = get_input()
+                if "y" in choice.lower():
+                    break
+            send(file, f"server.main.get-file")
+            send(file, choice)
+            confirmation = receive(file)
+            if confirmation == "server.message.from.server.NOT_FOUND":
+                file.shutdown(netcom.SHUT_RDWR)
+                file.close()
+                del file
+                file_io = 0
+                return "That file does not exist, check files with 'server.main.file-list'", 0
+            file_thread = task.Thread(target=receive_file, args=(file, choice), daemon=True)
+            file_thread.start()
+            return f"{choice} downloading..", 0
+    file.shutdown(netcom.SHUT_RDWR)
+    file.close()
+    del file
+    return "Exited", 0
+
 def list_file(delay, rst):
     global origin, files_in_path, pos, sx, lvl, num
     time.sleep(0.1)
@@ -1338,6 +1476,8 @@ def move(inp):
         return forw_dir
 
 def send_file(client, name):
+    global file_io, y
+    last_filled_width = -1
     try:
         file_size = os.path.getsize(name)
         head = str(file_size).zfill(header_size)
@@ -1349,12 +1489,43 @@ def send_file(client, name):
                 if not chunk:
                     break
                 client.send(chunk)
-                sent_bytes += len(chunk)        
+                sent_bytes += len(chunk)
+                
+                if attr_dict["mode"] == "performance":
+                    progress_percent = (sent_bytes / file_size) * 100
+                    progress_mb = sent_bytes / (1024 * 1024)
+                    total_mb = file_size / (1024 * 1024)
+                    status_msg = f"Uploading: {progress_percent:.1f}% ({progress_mb:.2f}/{total_mb:.2f} MB)"
+                    screens["status"].clear()
+                    screens["status"].addstr(0, 0, status_msg)
+                    screens["status"].refresh()
+                else:
+                    progress_percent = (sent_bytes / file_size)
+                    bar_width = width - 2 
+                    filled_width = int(bar_width * progress_percent)
+                    if filled_width % max(1, bar_width // 10) == 0:
+                        screens["status"].clear()
+                        progress_bar = "█" * filled_width
+                        screens["status"].addstr(0, 0, progress_bar)
+                        screens["status"].refresh()
+                        last_filled_width = filled_width
+        time.sleep(0.3)
+        screens["status"].clear()
+        time.sleep(0.1)
+        screens["status"].addstr(0, 0, "Upload complete")
+        screens["status"].refresh()
+        
+        file_io = 0
         return 1
     except (BrokenPipeError, ConnectionResetError, OSError):
+        screens["status"].clear()
+        screens["status"].addstr(0, 0, "Upload failed")
+        screens["status"].refresh()
         return 0
 
 def receive_file(client, name):
+    global y, file_io
+    last_filled_width = -1
     try:
         data_received = b''
         packet_size = client.recv(header_size).decode("utf-8")
@@ -1371,8 +1542,39 @@ def receive_file(client, name):
                     break
                 file.write(chunk)
                 data_received += chunk
+                
+                if attr_dict["mode"] == "performance":
+                    progress_percent = (len(data_received) / packet_size) * 100
+                    progress_mb = len(data_received) / (1024 * 1024)
+                    total_mb = packet_size / (1024 * 1024)
+                    status_msg = f"Downloading: {progress_percent:.1f}% ({progress_mb:.2f}/{total_mb:.2f} MB)"
+                    screens["status"].clear()
+                    screens["status"].addstr(0, 0, status_msg)
+                    screens["status"].refresh()
+                else:
+                    progress_percent = (len(data_received) / packet_size)
+                    bar_width = width - 2 
+                    filled_width = int(bar_width * progress_percent)
+                    
+                    if filled_width != last_filled_width and filled_width % max(1, bar_width // 10) == 0:
+                        screens["status"].clear()
+                        progress_bar = "█" * filled_width
+                        screens["status"].addstr(0, 0, progress_bar)
+                        screens["status"].refresh()
+                        last_filled_width = filled_width
+        
+        time.sleep(0.1)
+        screens["status"].clear()
+        time.sleep(0.1)
+        screens["status"].addstr(0, 0, "Download complete")
+        screens["status"].refresh()
+        
+        file_io = 0
         return 1
     except (OSError):
+        screens["status"].clear()
+        screens["status"].addstr(0, 0, "Download failed")
+        screens["status"].refresh()
         return 0
 
 commands = {"#menu":command_menu, "#help": listcmd, "#query-user": query, 
