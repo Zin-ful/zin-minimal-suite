@@ -29,7 +29,7 @@ def gen_update():
 
 server_version = 3.5
 
-updatemsg = f"server.message.from.server." + "Server Compatability: 4.0 - 4.1\nTo-Do List: " + gen_update()
+updatemsg = f"server.message.from.server." + "Server Compatability: 4.0 - 4.2\nTo-Do List: " + gen_update()
 
 
 conf_path = "/opt/zinapp/ztext_srvr"

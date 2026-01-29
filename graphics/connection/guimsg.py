@@ -19,7 +19,7 @@ Add user information to UI such as name, ip address, etc
 Add auto caps & autocorrect - in testing
 """
 
-client_version = 4.1
+client_version = 4.2
 
 curusr = os.path.expanduser("~")
 
@@ -30,7 +30,7 @@ username = "none"
 alias = "none"
 autoconn = "false"
 mode = "normal"
-modes = ["pretty", "normal", "performance"]
+modes = ["pretty", "normal", "performance", "minimal"]
 themes = ["standard", "cool", "sunny", "cloudy", "lava", "water"]
 color_choice = "standard"
 running = 1
@@ -43,7 +43,7 @@ port = 34983
 ip = ""
 msg = ''
 y = 0
-server = ''
+server = None
 qkeys = {}
 pause = 0
 pause_receiving = 0
@@ -79,7 +79,7 @@ bugs = [
 " ",
 "----Features coming soon:----",
 " ",
-"New performance modes",
+"New performance modes - half done",
 "Emojis",
 "In-build simple games",
 "Calling",
@@ -91,9 +91,8 @@ bugs = [
 patches = [
 f"------{client_version} patches:------",
 " ",
-"Added themes (found in settings)",
-"Patched file UI issues outside of mode 'pretty'",
-"Patched file sending and downloading issues with duplicates",
+"Added CLI mode",
+"Uploading now doesnt break CLI",
 ]
 attr_dict = {"ipaddr": ip, "name": username, "autoconnect": autoconn, "idaddr": ipid, "alias":alias, "mode":mode, "file path":  os.path.expanduser("~"), "theme": color_choice}
 
@@ -212,7 +211,6 @@ def main(stdscr):
     
     files_win = curses.newwin(height - 4, width - 1, 2, 0)
     win.update({"main": stdscr, "files": files_win})
-    load_conf()
     success = 0
     pause = 1
     generate_theme(attr_dict["theme"])
@@ -253,7 +251,11 @@ def main(stdscr):
             exit()
 
 """menu functions"""
-def get_input():
+def get_input(prompt=""):
+    if attr_dict["mode"] == "minimal":
+        if prompt:
+            prompt = prompt.strip() + " " #sanitizing input to prevent formatting issues
+        return input(prompt+">>> ")
     inp = screens["text"].edit().strip()
     ref(screens["input"])
     if inp:
@@ -390,6 +392,7 @@ def line_erase(length, i):
         i += 1
 
 def print_text(pos_y, pos_x, msg, color=None):
+
     if not color:
         color = colors["server"]
     i = 0
@@ -397,7 +400,6 @@ def print_text(pos_y, pos_x, msg, color=None):
         screens["chat"].addstr(pos_y + i, pos_x, item, color)
         i += 1
     screens["chat"].refresh()
-
 def clearchk(num):
     global y
     if y + num >= height - 3:
@@ -559,6 +561,8 @@ def listcmd():
     for item in commands:
         result += item + "\n"
         i += 1
+    if attr_dict["mode"] == "minimal":
+        return result
     return result, i - 1
 
 def auto_conf():
@@ -576,6 +580,8 @@ def auto_conf():
     with open(f"{conf_path}/msg_server.conf", "w") as file:
         for title, val in attr_dict.items():
             file.write(f"{title}={val}\n")
+    if attr_dict["mode"] == "minimal":
+        return f"autoconnect set to {attr_dict['autoconnect']}"
     return f"autoconnect set to {attr_dict['autoconnect']}", 0
 
 def clr():
@@ -890,6 +896,14 @@ def settings():
             break
     generate_theme(attr_dict["theme"])
     clr()
+    if attr_dict["mode"] == "minimal":
+        if server:
+            server.shutdown(netcom.SHUT_RDWR)
+            server.close()
+        print_text(height // 3, width // 2 - (len("You have choosen minimal, the program will now restart to apply changes") // 2), ("You have choosen minimal, the program will now restart to apply changes",))
+        screens["chat"].refresh()
+        time.sleep(1)
+        exit()
     return "New settings applied", 0
 
 def set_mode():
@@ -1492,7 +1506,9 @@ def send_file(client, name):
                 client.send(chunk)
                 sent_bytes += len(chunk)
                 
-                if attr_dict["mode"] == "performance":
+                if attr_dict["mode"] == "minimal":
+                    pass
+                elif attr_dict["mode"] == "performance":
                     progress_percent = (sent_bytes / file_size) * 100
                     progress_mb = sent_bytes / (1024 * 1024)
                     total_mb = file_size / (1024 * 1024)
@@ -1510,18 +1526,23 @@ def send_file(client, name):
                         screens["status"].addstr(0, 0, progress_bar)
                         screens["status"].refresh()
                         last_filled_width = filled_width
-        time.sleep(0.3)
-        screens["status"].clear()
-        time.sleep(0.1)
-        screens["status"].addstr(0, 0, "Upload complete")
-        screens["status"].refresh()
-        
+        if attr_dict["mode"] != "minimal":
+            time.sleep(0.3)
+            screens["status"].clear()
+            time.sleep(0.1)
+            screens["status"].addstr(0, 0, "Upload complete")
+            screens["status"].refresh()
+        else:
+            print("Upload complete")
         file_io = 0
         return 1
     except (BrokenPipeError, ConnectionResetError, OSError):
-        screens["status"].clear()
-        screens["status"].addstr(0, 0, "Upload failed")
-        screens["status"].refresh()
+        if attr_dict["mode"] != "minimal":
+            screens["status"].clear()
+            screens["status"].addstr(0, 0, "Upload failed")
+            screens["status"].refresh()
+        else:
+            print("Upload failed")
         return 0
 
 def receive_file(client, name):
@@ -1544,7 +1565,9 @@ def receive_file(client, name):
                 file.write(chunk)
                 data_received += chunk
                 
-                if attr_dict["mode"] == "performance":
+                if attr_dict["mode"] == "minimal":
+                    pass
+                elif attr_dict["mode"] == "performance":
                     progress_percent = (len(data_received) / packet_size) * 100
                     progress_mb = len(data_received) / (1024 * 1024)
                     total_mb = packet_size / (1024 * 1024)
@@ -1563,23 +1586,393 @@ def receive_file(client, name):
                         screens["status"].addstr(0, 0, progress_bar)
                         screens["status"].refresh()
                         last_filled_width = filled_width
-        
-        time.sleep(0.1)
-        screens["status"].clear()
-        time.sleep(0.1)
-        screens["status"].addstr(0, 0, "Download complete")
-        screens["status"].refresh()
+        if attr_dict["mode"] != "minimal":
+            time.sleep(0.1)
+            screens["status"].clear()
+            time.sleep(0.1)
+            screens["status"].addstr(0, 0, "Download complete")
+            screens["status"].refresh()
         
         file_io = 0
         return 1
     except (OSError):
-        screens["status"].clear()
-        screens["status"].addstr(0, 0, "Download failed")
-        screens["status"].refresh()
+        if attr_dict["mode"] != "minimal":
+            screens["status"].clear()
+            screens["status"].addstr(0, 0, "Download failed")
+            screens["status"].refresh()
+        else:
+            print("Download failed")
         return 0
 
 commands = {"#menu":command_menu, "#help": listcmd, "#query-user": query, 
 "#add-user": savenick, "#change-user": changeuser, "#autoconnect":auto_conf, 
 "#import-ip":importip, "#clear": clr, "#file": upload, "#config":settings}
 
-wrapper(main)
+"""All of these functions are remakes for CLI"""
+#converted functions here
+#some functions that are small enough have conditions for CLI
+def cli_print_list(menu):
+    for item in menu:
+        print(item)
+
+def cli_upload():
+    global pause, file_io
+    if file_io:
+        return "File operations in progress."
+    file_io = 0
+    pause = 1
+    file = netcom.socket(ipv4, tcp)
+    file.connect((attr_dict["ipaddr"], port))
+    send(file, attr_dict["name"]+"-file")
+    send(file, "f")
+    choice = cli_menu(["Upload", "Download", "Exit"])
+    if choice == "Upload":
+        while True:
+            file_io = 1
+            print("Enter the full path to file")
+            path = get_input()
+            if not path:
+                break
+            path, name = find_name(path)
+            print_text(f"Confirm path?: {path+'/'+name}")
+            choice = cli_menu(["Yes", "No"])
+            if "N" in choice:
+                break
+            send(file, f"server.main.send-file")
+            send(file, name)
+            confirmation = receive(file)
+            if confirmation == "server.message.from.server.ALREADY_EXISTS":
+                print_text(f"A file with that name already exists, the server will add a number to the end. Continue?")
+                choice = cli_menu(["Yes", "No"])
+            if "N" in choice:
+                break
+            file_thread = task.Thread(target=send_file, args=(file, f"{path}/{name}"), daemon=True)
+            file_thread.start()
+            return "File uploading.."
+    elif choice == "Download":
+        while True:
+            file_io = 1
+            send(file, "server.main.list-file")
+            files = receive(file)
+            files = files.strip()
+            if files == "server.message.from.server.NO_FILES":
+                file.shutdown(netcom.SHUT_RDWR)
+                file.close()
+                del file
+                file_io = 0
+                return "No files for download"
+            file_list = []
+            if " " in files:
+                for item in files[:]:
+                    if item == " ":
+                        name, files = files.split(" ", 1)
+                        file_list.append(name)
+            file_list.append(files)
+            choice = cli_menu(file_list)
+            send(file, f"server.main.get-file")
+            send(file, choice)
+            confirmation = receive(file)
+            if confirmation == "server.message.from.server.NOT_FOUND":
+                file.shutdown(netcom.SHUT_RDWR)
+                file.close()
+                del file
+                file_io = 0
+                return "That file does not exist, check files with 'server.main.file-list'"
+            file_thread = task.Thread(target=receive_file, args=(file, choice), daemon=True)
+            file_thread.start()
+            return f"{choice} is downloading.."
+    file.shutdown(netcom.SHUT_RDWR)
+    file.close()
+    del file
+    return "Exited"
+
+def cli_tracked_missing(msg):
+    if not msg and missed_messages:
+        cli_print_list(missed_messages)
+        cache = missed_messages
+        for item in cache:
+            missed_messages.remove(item)
+        return
+    elif not msg and not missed_messages:
+        return
+    if msg:
+        if "server.message.from.server" in msg:
+            msg = msg.replace("server.message.from.server.", "")
+            if "users:" in msg:
+                response, msg = msg.split("!")
+        missed_messages.append(add_time(msg))
+
+def cli_message_recv():
+    global msg, users, pause, threads_started
+    recent_message = ""
+    while receiving:
+        msg = receive(server)
+        if msg:
+            msg = msg.strip()
+            if pause:
+                cli_tracked_missing(msg)
+                continue
+            if "@" in msg:
+                recvusr, msg = msg.split(":", 1)
+                recvusr = recvusr.strip("@").strip()
+                if recvusr not in session_usr:
+                    session_usr.append(recvusr)
+                msg = f"{getnick(recvusr)}{msg}"
+            if "server.message.from.server" in msg:
+                msg = msg.replace("server.message.from.server.", "")
+                if "users:" in msg:
+                    response, msg = msg.split("!")
+                    response = response.replace("users:", "")
+                    users = int(response.strip())
+            print(msg)
+            print(">>> \0")
+    threads_started = 0
+
+def cli_settings():
+    with open(f"{conf_path}/msg_server.conf", "r") as file:
+        attrs = file.readlines()
+        for item in attrs:
+            title, val = item.split("=")
+            attr_dict[title.strip()] = val.strip()
+    while True:
+        new_val = None
+        item_list = []
+        for item, value in attr_dict.items():
+            item_list.append(item)
+        choice = cli_menu(item_list)
+        if not choice:
+            break
+        if choice == "mode":
+            new_val = cli_set_mode()   
+        else:
+            print(f"{choice}\nCurrent value: {attr_dict[choice]}\nNew value:")
+            new_val = get_input()
+        if new_val:
+            attr_dict[choice] = new_val
+            save_conf()
+            break
+    if attr_dict["mode"] != "minimal":
+        print("Youve chosen to exit minimal, the program will now restart to apply changes")
+        if server:
+            server.shutdown(netcom.SHUT_RDWR)
+            server.close()
+        print("Exited.")
+        exit()
+    return "New settings applied", 0
+
+def cli_set_mode():
+    while True:
+        print(f"Current mode:{attr_dict['mode']}\nSet mode to:")
+        choice = cli_menu(modes)
+        return choice
+
+def cli_group_message():
+    global pause, threads_started, receiving
+    if not cli_gc_config_init("g"):
+        return
+    if not threads_started:
+        message_thread = task.Thread(target=cli_message_recv, daemon=True)
+        message_thread.start()
+        threads_started = 1
+    pause = 0
+    x = 0
+    running = 1
+    while running:
+        try:
+            inp = get_input()
+        except KeyboardInterrupt:
+            receiving = 0
+            server.shutdown(netcom.SHUT_RDWR)
+            server.close()
+            exit()
+        if inp:
+            if inp[0] == "#":
+                if inp == "#exit":
+                    receiving = 0
+                    running = 0
+                    y = 0
+                    message_thread.join(timeout=1)
+                    server.shutdown(netcom.SHUT_RDWR)
+                    server.close()
+                    return
+                xcute = cli_commands.get(inp)
+                if xcute:
+                    result = xcute()
+                else:
+                    result = "invalid"
+                tracked_missing(None)
+                if result:
+                    print(result)
+                pause = 0
+                result = None
+                continue
+            send(server, inp)
+            inp = None
+
+def cli_direct_message():
+    global y, pause, threads_started, network, receiving
+    name = cli_contact_selection()
+    if not name:
+        print("No contacts found, add users to your contacts in group chat")
+        return
+    if not cli_gc_config_init("d"):
+        return
+    if not threads_started:
+        message_thread = task.Thread(target=cli_message_recv, daemon=True)
+        message_thread.start()
+        threads_started = 1
+    pause = 0
+    x = 0
+    while running:
+        try:
+            inp = get_input()
+        except KeyboardInterrupt:
+            receiving = 0
+            server.shutdown(netcom.SHUT_RDWR)
+            server.close()
+            exit()
+        if inp:
+            if inp[0] == "#":
+                if inp == "#exit":
+                    receiving = 0
+                    running = 0
+                    y = 0
+                    message_thread.join(timeout=1)
+                    server.shutdown(netcom.SHUT_RDWR)
+                    server.close()
+                    return
+            send(server, f"@{name}:{inp}")
+            if "server.main." not in inp or '"' in inp:
+                print(add_time(inp))
+            inp = None
+
+def cli_gc_config_init(type):
+    if attr_dict["autoconnect"] == "true":
+        try:
+            cli_autoconnect(type)
+        except netcom.error as e:
+            print("Connection refused, try again?")
+            choice = cli_menu(["Yes", "No"])
+            if "Y" in choice:
+                return 2
+            else:
+                return 0
+        except Exception as e:
+            print(f"UNKNOWN EXCEPTION, CHECK LOGS @{conf_path}")
+            errlog(str(e))
+            return 0
+    else:
+        if not cli_manual_conf("false", type):
+            return 0
+    return 1
+
+def cli_contact_selection():
+    clean_names = []
+    names = os.listdir(curusr+"/.zinapp/phonebook")
+    if not names:
+        return 0
+    for name in names:
+        clean_names.append(name.strip(".txt"))
+    print("Who would you like to message?")
+    y += 3
+    name = menu(clean_names)
+    if not name:
+        return
+    direct_message(name)
+
+def cli_manual_conf(state, type):
+    global server, users
+    os.makedirs(conf_path, exist_ok=True)
+    if state == "true":
+        print("It looks like its your first time starting the messenger.\nLets start by getting the username youd like to use")
+    else:
+        pass
+    print("please enter your desired username")
+    inp = get_input()
+    if not inp:
+        return
+    attr_dict["name"] = inp.strip()
+    if state == "true":
+       print("Next enter the IP address of the message server your connecting to\nIf you are hosting the server yourself, 'localhost' will work")
+    print("please enter the IP to connect to")
+    inp = get_input()
+    if not inp:
+        return
+    attr_dict["ipaddr"] = inp.strip()
+    if state == "true":
+        print("Writing to file, please wait...")
+    print("Attempting connect. To skip the connection process entirely, configure #autostart")
+    time.sleep(0.1)
+    save_conf()
+    server = netcom.socket(ipv4, tcp)
+    server.connect((attr_dict["ipaddr"], port))
+    send(server, attr_dict["name"])
+    send(server, type)
+    print("Connection accepted! Moving to shell..")
+    time.sleep(0.1)
+    users = int(receive(server))
+    return 1
+
+def cli_autoconnect(type):
+    global server, users
+    with open(f"{conf_path}/msg_server.conf", "r") as file:
+        attrs = file.readlines()
+        for item in attrs:
+            title, val = item.split("=")
+            attr_dict[title.strip()] = val.strip()
+    print(f"Connecting to: {attr_dict['idaddr']}\nUsername: {attr_dict['name']}\nWaiting for accept...")
+    time.sleep(0.1)
+    server = netcom.socket(ipv4, tcp)
+    server.connect((attr_dict["ipaddr"].strip(), port))
+    send(server, attr_dict["name"])
+    send(server, type)
+    print("Connection accepted! Moving to shell..")
+    time.sleep(0.1)
+    users = int(receive(server))
+  
+
+cli_commands = {"#help": listcmd, "#autoconnect":auto_conf, "#file": cli_upload, "#config":cli_settings}
+
+#new CLI only functions here
+
+def cli_bugs():
+    for item in bugs:
+        print(item)
+
+def cli_patches():
+    for item in patches:
+        print(item)
+
+def cli_menu(menu=None): #lists only
+    while True:
+        cli_print_list(menu)
+        choice = get_input()
+        if not choice:
+            return
+        for item in menu:
+            if choice.lower() in item.lower():
+                choice = item
+                return choice
+        print("Invalid option")
+
+def start():
+    print(f"Client Version {client_version}")
+    while True:
+        menu = {"Direct Message":cli_direct_message,"Group Message":cli_group_message, "Patches":cli_patches, "Bugs":cli_bugs, "Settings":cli_settings, "Exit":exit}
+        choice = cli_menu(["Direct Message","Group Message","Patches","Bugs","Settings","Exit"])
+        if not choice:
+            exit() 
+        xcute = menu.get(choice)
+        if xcute:
+            print("\n###################")
+            xcute()
+            print("###################\n")
+            continue
+        print("Invalid option")
+
+    
+load_conf()
+if attr_dict["mode"] != "minimal":
+    wrapper(main)
+else:
+    start()
