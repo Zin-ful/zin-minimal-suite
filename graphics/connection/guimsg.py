@@ -224,12 +224,19 @@ def print_list(y, x, menu):
 def errlog(error):
     if attr_dict['mode'] == "performance":
         return
-    with open(conf_path+"/err.txt", "a") as file:
-        file.write("\nERROR\nERROR\n")
+    with open(conf_path+"/err.txt", "w") as file:
         for name, value in attr_dict.items():
             file.write(f"{name}:{value}\n")
         file.write(error)
-        file.write("\nERROR END\nERROR END\n")
+
+def log(string):
+    i = 0
+    name = f"log{i}.txt"
+    while name in os.listdir():
+        i += 1
+        name = f"log{i}.txt"
+    with open(name, "w") as file:
+        file.write(string)
 
 def select(menu, key, pos):
     if key == ord("s"):
@@ -246,14 +253,43 @@ def select(menu, key, pos):
     screens["source"].addstr(pos, 0, menu[pos], colors["server"])
     return pos
 
+def round_list(list1, length):
+    total = 0
+    for item in list1:
+        total += item
+    return item / length
+
+def get_batt():
+    batteries = []
+    sys_path = "/sys/class/power_supply/" 
+    for item in os.listdir(sys_path):
+        if item.startswith('BAT'):
+            battery_path = os.path.join(sys_path, item)
+            capacity_file = os.path.join(battery_path, "capacity")
+            if os.path.exists(capacity_file):
+                try:
+                    with open(capacity_file, "r") as file:
+                        batteries.append(int(file.read().strip()))
+                except (ValueError, IOError):
+                    continue
+    if batteries:
+        return batteries[0]
+        return round_list(batteries, len(batteries))
+    
+
+    return "N/A"
+
 def update():
     line_erase(len( attr_dict["name"]), 0)
     screens["bar"].addstr(0, 0, attr_dict["name"], colors["hl2"])
     screens["bar"].addstr(0, len(attr_dict["name"]) + 6, f"        " , colors["hl2"])
     if attr_dict['mode'] != "performance":
-        screens["bar"].addstr(0, width - len(f"Users: {str(users)}"), f"Users: {str(users)}", colors["hl1"])
+        battery = str(get_batt())
+        screens["bar"].addstr(0, ((width // 2) - (len(battery) // 2) + (len(network) // 2) * 8), battery, colors["hl2"])
+        screens["bar"].addstr(0, width - len(f"Users: {str(users)}") - 2, f"Users: {str(users)}", colors["hl1"])
         screens["bar"].addstr(0, len(attr_dict["name"]) + 6, f"Y: {y}" , colors["hl2"])
     screens["bar"].addstr(0, (width // 2) - (len(network) // 2), network, colors["hl2"])
+    
     screens["bar"].refresh()
 
 def line_erase(length, i):
@@ -282,10 +318,10 @@ def send(client, data):
 
 def receive(client):
     data_received = b''
-    packet_size = server.recv(header_size).decode("utf-8")
+    packet_size = client.recv(header_size).decode("utf-8")
     packet_size = int(packet_size)
     while len(data_received) < packet_size:
-        data_received += server.recv(packet_size - len(data_received))
+        data_received += client.recv(packet_size - len(data_received))
     data_received = data_received.decode("utf-8")
     return data_received
         
@@ -545,7 +581,20 @@ def command_menu():
         adjust_y = 0
     return result, adjust_y
     
-    
+def print_list_scr(y, x, menu, scr):
+    i = 0
+    for item in menu:
+        scr.addstr(y + i, x, item)
+        i += 1
+    scr.refresh()
+    return i
+
+def add_time(msg):
+    if attr_dict["mode"] == "pretty":
+        now = datetime.now()
+        formatted_time = now.strftime("%H:%M ")
+        msg = formatted_time + msg
+    return msg
 
 """main functions"""
 
@@ -555,7 +604,7 @@ def tracked_missing(msg):
     global y
     if not msg and missed_messages:
         clearchk(100)
-        y += print_list(y, x, missed_messages)
+        y += print_list_scr(y, 0, missed_messages, screens["chat"])
         cache = missed_messages
         for item in cache:
             missed_messages.remove(item)
@@ -563,19 +612,24 @@ def tracked_missing(msg):
     elif not msg and not missed_messages:
         return
     if msg:
+        if "server.message.from.server" in msg:
+            msg = msg.replace("server.message.from.server.", "")
+            if "users:" in msg:
+                response, msg = msg.split("!")
         missed_messages.append(msg)
 
 def message_recv():
     global y, msg, users, pause
     x = 0
     recent_message = ""
+    time.sleep(0.001) #to make sure to display after the initial refresh
     while receiving:
         num = 0
         msg = receive(server)
         msg = msg.strip()
         if msg:
             if pause:
-                tracked_missing(msg)
+                tracked_missing(add_time(msg))
                 continue
             if "@" in msg:
                 recvusr, msg = msg.split(":", 1)
@@ -589,6 +643,7 @@ def message_recv():
                     num += 1
             y += 1
             clearchk(num)
+            msg = add_time(msg)
             if "server.message.from.server" in msg:
                 if attr_dict['mode'] == "performance":
                     continue
@@ -791,6 +846,7 @@ def group_message():
                 else:
                     result = "invalid"
                 clearchk(0)
+                tracked_missing(None)
                 if result:
                     screens["chat"].addstr(y, x, result, colors["hl4"])
                 if adjust_y:
@@ -798,19 +854,19 @@ def group_message():
                 ref(screens["input"])
                 screens["chat"].refresh()
                 update()
+                time.sleep(0.01)
                 pause = 0
-                tracked_missing(None)
                 result = None
                 continue
+            send(server, inp)
+            inp = add_time(inp)
             if "server.main." not in inp or '"' in inp:
                 screens["chat"].addstr(y, x, inp, colors["hl4"])
             screens["chat"].refresh()
-            send(server, inp)
+
             inp = None
             if attr_dict['mode'] != "performance":
                 update()
-    
-
 
 def direct_message(name):
     global y, pause, threads_started, network
@@ -995,7 +1051,7 @@ def upload():
     file.connect((attr_dict["ipaddr"], port))
     send(file, attr_dict["name"]+"-file")
     send(file, "f")
-    choice = dynamic_inps(["Upload", "Download", "Exit"], 0)
+    choice = dynamic_inps(["Upload", "Download", "Exit"], 2)
     if choice == "Upload":
         while True:
             screens["source"].clear()
@@ -1025,27 +1081,36 @@ def upload():
             choice = dynamic_inps(["Yes", "No"], 4)
             if "Y" in choice:
                 break
-        send(file, f"server.main.send-file {name}")
+        send(file, f"server.main.send-file")
+        send(file, name)
         confirmation = receive(file)
+        if confirmation == "server.message.from.server.ALREADY_EXISTS":
+            print_text(0, 0, (f"A file with that name already exists, the server will add a number to the end. Continue?",), colors["server"])
+            choice = dynamic_inps(["Yes", "No"], 4)
+            if "N" in choice:
+                break
         send_file(file, f"{path}/{name}")
         return "File uploaded!", 0
     elif choice == "Download":
         send(file, "server.main.list-file")
         files = receive(file)
+        log(files)
         files = files.strip()
-        if files == "server.message.from.server.No Files":
+        if files == "server.message.from.server.NO_FILES":
             file.shutdown(netcom.SHUT_RDWR)
             file.close()
             del file
             return "No files for download", 0
+        file_list = []
         if " " in files:
             for item in files[:]:
                 if item == " ":
                     name, files = files.split(" ", 1)
                     file_list.append(name)
         file_list.append(files)
-        choice = dynamic_inps(file_list)
-        send(file, f"server.main.get-file {choice}")
+        screens["source"].clear()
+        choice = dynamic_inps(file_list, 0)
+        send(file, f"server.main.get-file")
         confirmation = receive(file)
         receive_file(file, choice)
     else:
@@ -1202,11 +1267,11 @@ def move(inp):
 
 def send_file(client, name):
     try:
-        file_size = os.path.getsize(file_path + name)
+        file_size = os.path.getsize(name)
         head = str(file_size).zfill(header_size)
         client.send(head.encode("utf-8"))
         sent_bytes = 0
-        with open(file_path + name, "rb") as file:
+        with open(name, "rb") as file:
             while sent_bytes < file_size:
                 chunk = file.read(4096)
                 if not chunk:
@@ -1227,7 +1292,7 @@ def receive_file(client, name):
         packet_size = int(packet_size)
         file_path = attr_dict["file path"]
         
-        with open( + "/" + name, "wb") as file:
+        with open(attr_dict["file path"] + "/" + name, "wb") as file:
             while len(data_received) < packet_size:
                 chunk = client.recv(min(4096, packet_size - len(data_received)))
                 if not chunk:

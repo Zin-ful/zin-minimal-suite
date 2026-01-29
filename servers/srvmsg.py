@@ -82,6 +82,7 @@ server.bind((ip, port))
 
 users = []
 user_direct = []
+user_file = []
 users_name = {}
 clients_lock = task.Lock()
 
@@ -274,10 +275,14 @@ def updpasswd(client_socket, msg):
     return "server.message.from.server.password updated"
 
 def handle_upload(client_socket, msg):
-    msg, name = msg.split(" ", 1)
+    name = receive(client_socket)
     print(f"client attempting to upload {name}")
     if name in os.listdir(file_path):
-        return "server.message.from.server.That file already exists, rename it and try something else."
+        send(client_socket, "server.message.from.server.ALREADY_EXISTS")
+        i = 0
+        while name in os.listdir():
+            i += 1
+            name = f"{i}-{name}"
     receive_file(client_socket, name)
     with clients_lock:
         users_copy = users[:]
@@ -297,11 +302,10 @@ def handle_download(client_socket, msg):
             if other_client != client_socket:
                 send(other_client, f"server.message.from.server.{name} has been downloaded by {users_name[client_socket]}")
     return "server.message.from.server.File has been downloaded"
-    
 
 def list_files(client_socket, msg):
     if not os.listdir(file_path):
-        return "server.message.from.server.No Files"
+        return "server.message.from.server.NO_FILES"
     files = ""
     for item in os.listdir(file_path):
         files += item + " "
@@ -364,7 +368,11 @@ def messenger(client_socket, addr):
     type = receive(client_socket) 
     if type == "d":
         user_direct.append(client_socket)
-    send(client_socket, str(len(users)))
+    elif type == "f":
+        user_file.append(client_socket)
+    
+    if client_socket not in user_file:
+        send(client_socket, str(len(users)))
     print(f"user connected: {addr}")
     with clients_lock:
         users.append(client_socket)
@@ -373,12 +381,14 @@ def messenger(client_socket, addr):
         users_copy = users[:]
     startmsg = f"server.message.from.server.users: {len(users)} !SYSTEM MESSAGE: user connected: {users_name[client_socket]}"
     for other_client in users_copy:
-        if other_client != client_socket or (other_client not in user_direct and other_client != client_socket):
+        if other_client != client_socket or (other_client not in user_direct and other_client != client_socket) or (other_client not in user_file and other_client != client_socket):
             if not send(other_client, startmsg):
-                break
-    print("Sending update message")
-    if not send(client_socket, updatemsg):
-        return
+                return
+
+    if client_socket not in user_file:
+        print("sending update message")
+        if not send(client_socket, updatemsg):
+            return
     print("Sent")
     missed = check_missed(username)
     if missed:
