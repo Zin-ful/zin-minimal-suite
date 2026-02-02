@@ -77,14 +77,11 @@ bugs = [
 " ",
 " ",
 "When exiting the messenger and restarting the recv thread it wont display",
-<<<<<<< HEAD
 " ",
-=======
 "The battery percent only supports devices with one battery due to improper math",
 "The file upload messages can overwrite the one on the screen",
 "Text hits the bottom of the screen",
 "No compenstation for screen size",
->>>>>>> 8b348dc9686fda0333e5e0d821a4fc35380a4445
 "----Features coming soon:----",
 " ",
 "New performance modes - half done",
