@@ -10,14 +10,8 @@ clients_lock = task.Lock()
 
 codes = {"call-start": "001", "call-confirmation": "002", "call-end": "003", "call-timeout": "004", "err": "000"}
 
-host_ip = "0.0.0.0"
-port = 10874
 buffer_size = 2048
 timeout_limit = 15
-
-self = netcom.socket(ipv4, tcp)
-self.setsockopt(netcom.SOL_SOCKET, netcom.SO_REUSEADDR, 1)  # Allow port reuse
-self.bind((host_ip, port))
 
 def cleanup_client(client, username):
     """Clean up client resources"""
@@ -32,11 +26,11 @@ def cleanup_client(client, username):
         pass
     print(f"Cleaned up client {username}")
 
-def init_client(client, addr):
+def init_call(client, addr):
     global buffer_size
     waittime = 0
     caller = None
-    print(f"thread started for {addr}")
+    print(f"moved {addr} to calling thread")
     
     try:
         if not ack(client, 0):
@@ -64,7 +58,6 @@ def init_client(client, addr):
             
         ack(client, 1)
         
-        # Keep handling call requests until client disconnects
         while True:
             listener = None
             print(f"waiting for call request from {caller}")
@@ -81,7 +74,6 @@ def init_client(client, addr):
                 
             print(f"call request from {caller} to {listener}")
             
-            # Reset wait time for each new call
             waittime = 0
             while listener not in usernames.keys():
                 print(f"waiting for {listener}. time waited = {waittime} & timeout limit = {timeout_limit}")
@@ -92,7 +84,6 @@ def init_client(client, addr):
                     print("call timed out")
                     break
                     
-            # Only proceed if user was found
             if listener in usernames.keys():
                 confirm = send_call_request(caller, listener, buffer_size)
                 if confirm:
@@ -101,9 +92,7 @@ def init_client(client, addr):
                 else:
                     send_text(client, codes["call-end"])
                     print("call rejected")
-            
-            # Continue listening for more call requests
-            
+                        
     except Exception as e:
         print(f"Error with client {caller}: {e}")
     finally:
@@ -169,31 +158,8 @@ def start_call(caller_name, listener_name, buffer):
         print("caller or listener not found")
         return
         
-    # Use flags to control thread execution
-    call_active = [True]  # Use list to allow modification in nested scope
-    
-    def send_audio_to_caller():
-        try:
-            while call_active[0]:
-                send_to_caller = listener.recv(buffer)
-                if not send_to_caller:
-                    call_active[0] = False
-                    break
-                caller.send(send_to_caller)
-        except:
-            call_active[0] = False
+    call_active = [True]
 
-    def send_audio_to_listener():
-        try:
-            while call_active[0]:
-                send_to_listener = caller.recv(buffer)
-                if not send_to_listener:
-                    call_active[0] = False
-                    break
-                listener.send(send_to_listener)
-        except:
-            call_active[0] = False
-    
     caller_thread = task.Thread(target=send_audio_to_listener, daemon=True)
     listener_thread = task.Thread(target=send_audio_to_caller, daemon=True)
     
@@ -202,17 +168,39 @@ def start_call(caller_name, listener_name, buffer):
         listener_thread.start()
         print(f"call started between {caller_name} and {listener_name}")
         
-        # Wait for either thread to finish
         while caller_thread.is_alive() and listener_thread.is_alive() and call_active[0]:
             time.sleep(0.5)
             
-        call_active[0] = False  # Signal both threads to stop
+        call_active[0] = False
         
     except Exception as e:
         print(f"Call error: {e}")
         call_active[0] = False
     finally:
         print(f"call ended between {caller_name} and {listener_name}")
+
+def send_audio_to_caller():
+    try:
+        while call_active[0]:
+            send_to_caller = listener.recv(buffer)
+            if not send_to_caller:
+                call_active[0] = False
+                break
+            caller.send(send_to_caller)
+    except:
+        call_active[0] = False
+
+def send_audio_to_listener():
+    try:
+        while call_active[0]:
+            send_to_listener = caller.recv(buffer)
+            if not send_to_listener:
+                call_active[0] = False
+                break
+            listener.send(send_to_listener)
+    except:
+        call_active[0] = False
+    
 
 print(f"Server starting on {host_ip}:{port}")
 try:

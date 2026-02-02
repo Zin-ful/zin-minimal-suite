@@ -232,13 +232,11 @@ def get_coords():
 def create_coords():
     screens["main"].clear()
     print_text("Please enter the name of your coordnate location. This name can be anything (Entering nothing will exit)", 1)
-    #screens["main"].refresh()
     name = get_input()
     if not name:
         return
     screens["main"].clear()
     print_text("Using any tool (website, geolocater, etc) enter your Lattitude and Longitude with a space seperating them.\nExample: 42.23840315 -23.2359014", 1)
-    #screens["main"].refresh()
     coord = get_input()
     if not coord:
         return
