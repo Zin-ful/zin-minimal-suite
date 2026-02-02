@@ -26,6 +26,8 @@ wait = 50
 remaining = "finding"
 bar = ""
 
+colors = {}
+
 user = proc.run("whoami", capture_output=True, text=True)
 user = user.stdout.strip()
 
@@ -43,6 +45,15 @@ if "apps.conf" not in os.listdir(conf_path):
 
 def main(stdscr):
     global screens, bar, height, width, highlight, timecolor, status_bar
+    curses.init_pair(7, curses.COLOR_GREEN, curses.COLOR_BLACK)
+    curses.init_pair(8, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+    curses.init_pair(9, curses.COLOR_RED, curses.COLOR_BLACK)
+    BATHIGH = curses.color_pair(7)
+    BATNORM = curses.color_pair(8)
+    BATLOW = curses.color_pair(9)
+    colors.update({"high":BATHIGH})
+    colors.update({"norm":BATNORM})
+    colors.update({"low":BATLOW})
     height, width = stdscr.getmaxyx()
     curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_WHITE)
     highlight = curses.color_pair(1)
@@ -63,13 +74,9 @@ def main(stdscr):
         i += 1
     status_bar = task.Thread(target=updatetop, args=[screens,])
     status_bar.start()
-    batt_status = task.Thread(target=get_batt_time)
-    batt_status.start()
     getapps()
     listapps(screens)
     inps(screens)
-    batt_status.join()
-    status_bar.join()
     exit()
     
 
@@ -91,6 +98,7 @@ def get_batt_time():
         remaining = round(get_batt() / per_min, 3)
         total_time = 100 / per_min
         save(per_min)
+    time.sleep(120)
 
 def get_batt():
     batteries = []
@@ -102,11 +110,11 @@ def get_batt():
             if os.path.exists(capacity_file):
                 try:
                     with open(capacity_file, "r") as file:
-                        batteries.append(int(file.read().strip()))
+                        batteries.append(float(file.read().strip()))
                 except (ValueError, IOError):
                     continue
     if batteries:
-        return round_list(batteries, len(batteries))
+        return round_list(batteries)
 
     return "No batt found"
 
@@ -114,11 +122,11 @@ def save(data):
     with open(conf_path+"/battery_rate", "w") as file:
         file.write(str(data))
 
-def round_list(list1, length):
+def round_list(list1):
     total = 0
     for item in list1:
         total += item
-    return item / length
+    return total / len(list1)
 
 def updatetop(screens):
     while not done:
@@ -130,22 +138,16 @@ def updatetop(screens):
         else:
             now += " AM"
         screens["top"].addstr(0, (width // 2) - (len(now) // 2), now, timecolor)
-        screens["top"].addstr(0, width // 2 + width // 4, f"{str(get_batt())}%" + f" - {remaining} minutes left", timecolor)         
-        screens["top"].refresh()
-        time.sleep(5)
-        
-def restore_top():
-    while not done:
-        screens["top"].addstr(0, 0, bar, timecolor)
-        screens["top"].addstr(0, 4, f"{user}: {recent_app.strip()}", timecolor)
-        now = time.strftime("%Y-%m-%d %H:%M", time.localtime())
-        if int(time.strftime("%H", time.localtime())) > 12:
-            now += " PM"
+        battery = get_batt()
+        if battery < 60:
+            color = colors["norm"]
+        elif battery < 30:
+            color = colors["low"]
         else:
-            now += " AM"
-        screens["top"].addstr(0, (width // 2) - (len(now) // 2), now, timecolor)
-        screens["top"].addstr(0, width // 2 + width // 4, f"{str(get_batt())}%" + f" - {remaining} minutes left", timecolor)         
+            color = colors["high"]
+        screens["top"].addstr(0, width // 2 + width // 4, f"{str(battery)}%" + f" - {remaining} minutes left", color)         
         screens["top"].refresh()
+        time.sleep(15)
 
 def inps(screens):
     global done, status_bar, recent_app, height, width, pos

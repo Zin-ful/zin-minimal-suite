@@ -19,7 +19,7 @@ Add user information to UI such as name, ip address, etc
 Add auto caps & autocorrect - in testing
 """
 
-client_version = 4.2
+client_version = 4.4
 
 curusr = os.path.expanduser("~")
 
@@ -31,7 +31,7 @@ alias = "none"
 autoconn = "false"
 mode = "normal"
 modes = ["pretty", "normal", "performance", "minimal"]
-themes = ["standard", "cool", "sunny", "cloudy", "lava", "water"]
+themes = ["standard", "cool", "sunny", "cloudy", "lava", "water", "hearts", "leaves", "berries_one", "berries_two", "berries_three"]
 color_choice = "standard"
 running = 1
 users = 0
@@ -53,6 +53,8 @@ file_io = 0
 header_size = 10
 main_menu = ["Messenger", "Group Chat", "Contacts", "Settings", "Exit"]
 
+batter_colors = {}
+
 data_name = ""
 data_path = ""
 
@@ -62,6 +64,7 @@ lvl = 0
 origin = 0
 num = 0
 
+xlimit = 70 #minimum size of screen before forcing CLI
 ylimit = 4
 cur_dir = os.path.expanduser("~")
 files_in_path = os.listdir(cur_dir)
@@ -75,7 +78,6 @@ bugs = [
 " ",
 "If a file is too small the status bar will skip to 'Uploaded', not an issue but doesnt convey the process clearly",
 "When exiting the messenger and restarting the recv thread it wont display",
-"The battery percent only supports devices with one battery due to improper math",
 " ",
 "----Features coming soon:----",
 " ",
@@ -83,7 +85,7 @@ bugs = [
 "Emojis",
 "In-build simple games",
 "Calling",
-"More themes",
+"More themes - done",
 "Custom text box for arrow key usage and saving recent messages",
 "Keybings for quick responses"
 ]
@@ -91,8 +93,10 @@ bugs = [
 patches = [
 f"------{client_version} patches:------",
 " ",
+"Added seperate colors for battery percents",
 "Added CLI mode",
 "Uploading now doesnt break CLI",
+"Battery percents now work with multiple batteries."
 ]
 attr_dict = {"ipaddr": ip, "name": username, "autoconnect": autoconn, "idaddr": ipid, "alias":alias, "mode":mode, "file path":  os.path.expanduser("~"), "theme": color_choice}
 
@@ -132,7 +136,46 @@ def find_longest_item(listy):
     return item
 
 def generate_theme(selection):
-    if selection == "standard":
+    #black, red green, yellow, blue, magenta, cyan, white
+    curses.init_pair(7, curses.COLOR_GREEN, curses.COLOR_BLACK)
+    curses.init_pair(8, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+    curses.init_pair(9, curses.COLOR_RED, curses.COLOR_BLACK)
+    if selection == "berries_one":
+        curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_BLACK)
+        curses.init_pair(2, curses.COLOR_BLUE, curses.COLOR_BLACK)
+        curses.init_pair(3, curses.COLOR_MAGENTA, curses.COLOR_BLACK)
+        curses.init_pair(4, curses.COLOR_CYAN, curses.COLOR_BLACK)
+        curses.init_pair(5, curses.COLOR_GREEN, curses.COLOR_BLACK)
+        curses.init_pair(6, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+    elif selection == "berries_two":
+        curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_BLACK)
+        curses.init_pair(2, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+        curses.init_pair(3, curses.COLOR_CYAN, curses.COLOR_BLACK)
+        curses.init_pair(4, curses.COLOR_MAGENTA, curses.COLOR_BLACK)
+        curses.init_pair(5, curses.COLOR_BLUE, curses.COLOR_BLACK)
+        curses.init_pair(6, curses.COLOR_RED, curses.COLOR_BLACK)
+    elif selection == "berries_three":
+        curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_BLACK)
+        curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_BLACK)
+        curses.init_pair(3, curses.COLOR_RED, curses.COLOR_BLACK)
+        curses.init_pair(4, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+        curses.init_pair(5, curses.COLOR_MAGENTA, curses.COLOR_BLACK)
+        curses.init_pair(6, curses.COLOR_BLUE, curses.COLOR_BLACK)
+    elif selection == "hearts":
+        curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_BLACK)
+        curses.init_pair(2, curses.COLOR_CYAN, curses.COLOR_BLACK)
+        curses.init_pair(3, curses.COLOR_MAGENTA, curses.COLOR_BLACK)
+        curses.init_pair(4, curses.COLOR_MAGENTA, curses.COLOR_BLACK)
+        curses.init_pair(5, curses.COLOR_MAGENTA, curses.COLOR_BLACK)
+        curses.init_pair(6, curses.COLOR_CYAN, curses.COLOR_BLACK)
+    elif selection == "leaves":
+        curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_BLACK)
+        curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_BLACK)
+        curses.init_pair(3, curses.COLOR_BLUE, curses.COLOR_BLACK)
+        curses.init_pair(4, curses.COLOR_CYAN, curses.COLOR_GREEN)
+        curses.init_pair(5, curses.COLOR_GREEN, curses.COLOR_BLACK)
+        curses.init_pair(6, curses.COLOR_GREEN, curses.COLOR_YELLOW)
+    elif selection == "standard":
         curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_BLACK)
         curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_BLACK)
         curses.init_pair(3, curses.COLOR_BLUE, curses.COLOR_BLACK)
@@ -175,13 +218,20 @@ def generate_theme(selection):
         curses.init_pair(5, curses.COLOR_BLUE, curses.COLOR_BLACK)
         curses.init_pair(6, curses.COLOR_WHITE, curses.COLOR_BLUE)
 
+
     HIGHLIGHT_1 = curses.color_pair(1)
     HIGHLIGHT_2 = curses.color_pair(2)
     HIGHLIGHT_3 = curses.color_pair(3)
     HIGHLIGHT_4 = curses.color_pair(4)
     HIGHLIGHT_5 = curses.color_pair(5)
     FROM_SERVER = curses.color_pair(6)
+    BATHIGH = curses.color_pair(7)
+    BATNORM = curses.color_pair(8)
+    BATLOW = curses.color_pair(9)
 
+    colors.update({"high":BATHIGH})
+    colors.update({"norm":BATNORM})
+    colors.update({"low":BATLOW})
     colors.update({"hl":HIGHLIGHT_1})
     colors.update({"hl1":HIGHLIGHT_2})
     colors.update({"hl2":HIGHLIGHT_3})
@@ -192,7 +242,11 @@ def generate_theme(selection):
 def main(stdscr):
     global height, width, message_thread, pause
     height, width = stdscr.getmaxyx()
-
+    if width < xlimit:
+        attr_dict["mode"] = "minimal"
+        save_conf()
+        print("screen size is too small, mode changed. restart when ready")
+        exit()
     stdscr.clear()
     stdscr.refresh()
 
@@ -347,11 +401,11 @@ def select(menu, key, pos):
     screens["source"].addstr(pos, 0, menu[pos], colors["server"])
     return pos
 
-def round_list(list1, length):
+def round_list(list1):
     total = 0
     for item in list1:
         total += item
-    return item / length
+    return total / len(list1)
 
 def get_batt():
     batteries = []
@@ -367,8 +421,7 @@ def get_batt():
                 except (ValueError, IOError):
                     continue
     if batteries:
-        return batteries[0]
-        return round_list(batteries, len(batteries))
+        return round_list(batteries)
     
 
     return "N/A"
@@ -379,11 +432,17 @@ def update():
     screens["bar"].addstr(0, len(attr_dict["name"]) + 6, f"        " , colors["hl2"])
     if attr_dict['mode'] != "performance":
         battery = str(get_batt())
-        screens["bar"].addstr(0, ((width // 2) - (len(battery) // 2) + (len(network) // 2) * 8), battery, colors["hl2"])
+        if float(battery) < 60:
+            color = colors["norm"]
+        elif float(battery) < 30:
+            color = colors["low"]
+        else:
+            color = colors["high"]
+        screens["bar"].addstr(0, ((width // 2) - (len(battery) // 2) + (len(network) // 2) * 8), battery, color)
         screens["bar"].addstr(0, width - len(f"Users: {str(users)}") - 2, f"Users: {str(users)}", colors["hl2"])
         screens["bar"].addstr(0, len(attr_dict["name"]) + 6, f"Y: {y}" , colors["hl2"])
     screens["bar"].addstr(0, (width // 2) - (len(network) // 2), network, colors["hl2"])
-    
+
     screens["bar"].refresh()
 
 def line_erase(length, i):
@@ -400,9 +459,10 @@ def print_text(pos_y, pos_x, msg, color=None):
         screens["chat"].addstr(pos_y + i, pos_x, item, color)
         i += 1
     screens["chat"].refresh()
+
 def clearchk(num):
     global y
-    if y + num >= height - 3:
+    if y + num >= height - 4:
         screens["chat"].erase()
         y = 0
         screens["chat"].refresh()
@@ -1191,17 +1251,18 @@ def upload():
             file_io = 1
             screens["source"].clear()
             screens["source"].refresh()
-            if attr_dict["mode"] != "performance":
-                path, name = get_file()
-                if not path:
-                    screens["source"].clear()
-                    screens["source"].refresh()
-                    break
+            path, name = get_file()
+            if not path:
+                file_io = 0
+                screens["source"].clear()
+                screens["source"].refresh()
+                break
             screens["source"].clear()
             screens["source"].refresh()
             print_text(0, 0, (f"Confirm path?: {path+'/'+name}",), colors["server"])
             choice = dynamic_inps(["Yes", "No"], 4)
-            if "N" in choice:
+            if "N" in choice or not choice:
+                file_io = 0
                 break
             send(file, f"server.main.send-file")
             send(file, name)
@@ -1209,7 +1270,8 @@ def upload():
             if confirmation == "server.message.from.server.ALREADY_EXISTS":
                 print_text(0, 0, (f"A file with that name already exists, the server will add a number to the end. Continue?",), colors["server"])
                 choice = dynamic_inps(["Yes", "No"], 4)
-            if "N" in choice:
+            if "N" in choice or not choice:
+                file_io = 0
                 break
             file_thread = task.Thread(target=send_file, args=(file, f"{path}/{name}"), daemon=True)
             file_thread.start()
@@ -1235,6 +1297,9 @@ def upload():
             file_list.append(files)
             screens["source"].clear()
             choice = dynamic_inps(file_list, 0)
+            if not choice:
+                file_io = 0
+                break
             send(file, f"server.main.get-file")
             send(file, choice)
             confirmation = receive(file)
@@ -1930,10 +1995,10 @@ def cli_autoconnect(type):
     time.sleep(0.1)
     users = int(receive(server))
   
-
-cli_commands = {"#help": listcmd, "#autoconnect":auto_conf, "#file": cli_upload, "#config":cli_settings}
-
 #new CLI only functions here
+
+def cli_battery():
+    print(get_batt())
 
 def cli_bugs():
     for item in bugs:
@@ -1969,6 +2034,8 @@ def start():
             print("###################\n")
             continue
         print("Invalid option")
+
+cli_commands = {"#help": listcmd, "#autoconnect":auto_conf, "#file": cli_upload, "#config":cli_settings, "#batt":cli_battery}
 
     
 load_conf()
