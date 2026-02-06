@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
+main_menu = ["Messenger", "Group Chat", "Contacts", "Settings", "Exit"]
+
 try:
     import pyaudio
     allow_calling = 1
+    main_menu.insert(2, "Caller")
 except:
     allow_calling = 0
     print("pyaudio is not installed, calling will be disabled")
@@ -51,7 +54,6 @@ receiving = 1
 threads_started = 0
 file_io = 0
 header_size = 10
-main_menu = ["Messenger", "Group Chat", "Contacts", "Settings", "Exit"]
 
 batter_colors = {}
 
