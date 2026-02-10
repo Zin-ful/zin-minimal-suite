@@ -1,14 +1,6 @@
 #!/usr/bin/env python3
 main_menu = ["Messenger", "Group Chat", "Contacts", "Settings", "Exit"]
 
-try:
-    import pyaudio
-    allow_calling = 1
-    main_menu.insert(2, "Caller")
-except:
-    allow_calling = 0
-    print("pyaudio is not installed, calling will be disabled")
-    time.sleep(2)
 import subprocess
 from socket import SOCK_STREAM as tcp
 from socket import AF_INET as ipv4
@@ -21,6 +13,32 @@ from curses import wrapper
 from curses.textpad import Textbox
 import sys
 from datetime import datetime
+
+try:
+    import pyaudio
+    allow_calling = 1
+    main_menu.insert(2, "Caller")    
+    codes = {"call-start": "001", "call-confirmation": "002", "call-end": "003", "call-timeout": "004", "err": "000"}
+    live = 1
+    live_out = 1
+    
+    FORMAT = pyaudio.paInt16
+    CHANNELS = 1
+    RATE = 44100
+    CHUNK = 2048
+    audio = pyaudio.PyAudio()
+
+    connected = 0
+    username = "none"
+    incoming = False
+    calling = False
+    caller = None
+    shutdown = False 
+except:
+    allow_calling = 0
+    print("pyaudio is not installed, calling will be disabled")
+    time.sleep(2)
+
 
 client_version = 5.0
 
@@ -2049,51 +2067,14 @@ cli_commands = {"#help": listcmd, "#autoconnect":auto_conf, "#file": cli_upload,
 #this way the server wont end the thread just on empty data and a recv timeout will also solve ctrl-c
 #just have the server expect the end flag on empty data only
 
-codes = {"call-start": "001", "call-confirmation": "002", "call-end": "003", "call-timeout": "004", "err": "000"}
-
-live = 1
-live_out = 1
-
-FORMAT = pyaudio.paInt16
-CHANNELS = 1
-RATE = 44100
-CHUNK = 2048
-audio = pyaudio.PyAudio()
-
-connected = 0
-server_ip = input("Enter your servers IP address: ")
-if not server_ip:
-    server_ip = "localhost"
-server_port = 10874
-username = "none"
-server = netcom.socket(ipv4, tcp)
-incoming = False
-calling = False
-caller = None
-conf_dict = {"user": username}
-shutdown = False 
-
 """local conf"""
 print("\n\n")
 curusr = os.path.expanduser("~")
-conf_path = curusr + "/.zinapp/call"
+call_conf_path = curusr + "/.zinapp/call"
 if ".zinapp" not in os.listdir(curusr):
     os.mkdir(curusr+"/.zinapp")
 if "call" not in os.listdir(curusr + "/.zinapp"):
-    os.mkdir(conf_path)
-if "zcall.conf" not in os.listdir(conf_path):
-    if conf_dict["user"] == "none":
-        inp = input("It looks like this is your first time using the program\nPlease enter your desired alias: ")
-        conf_dict["user"] = inp
-    with open(f"{conf_path}/zcall.conf", "w") as file:
-        for key, val in conf_dict.items():
-            file.write(f"{key}:{val}\n")
-else:
-    with open(f"{conf_path}/zcall.conf", "r") as file:
-        data = file.readlines()
-        for item in data:
-            key, val = item.split(":")
-            conf_dict[key] = val.strip("\n")
+    os.mkdir(call_conf_path)
 
 def init_to_server():
     global connected
