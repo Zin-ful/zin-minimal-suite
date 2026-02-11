@@ -83,6 +83,7 @@ server.bind((ip, port))
 users = []
 user_direct = []
 user_file = []
+user_call = []
 users_name = {}
 clients_lock = task.Lock()
 
@@ -376,6 +377,7 @@ def messenger(client_socket, addr):
     elif type == "f":
         user_file.append(client_socket)
     elif type == "c":
+        user_call.append(client_socket)
         init_call(client_socket, addr)
         return
     
@@ -485,35 +487,10 @@ def cleanup_client(client, username):
 def init_call(client, addr):
     global buffer_size
     waittime = 0
-    caller = None
-    print(f"moved {addr} to calling thread")
+    caller = users_name[user_call[client_socket]]
+    print(f"moved {caller}:{addr} to calling thread")
     
     try:
-        if not ack(client, 0):
-            print(f"sync err with client {addr}")
-            cleanup_client(client, None)
-            return
-        else:
-            ack(client, 1)
-            
-        print("waiting for caller ID")
-        user_info = recv_text(client)
-        if not user_info or "&" not in user_info:
-            print("Invalid user info received")
-            cleanup_client(client, None)
-            return
-            
-        caller, client_buffer = user_info.split("&")
-        buffer_size = int(client_buffer)
-        
-        if caller:
-            with clients_lock:
-                usernames.update({caller: client})
-                users.append(client)
-            print(f"caller {caller} added")
-            
-        ack(client, 1)
-        
         while True:
             listener = None
             print(f"waiting for call request from {caller}")
@@ -529,9 +506,9 @@ def init_call(client, addr):
                 break
                 
             print(f"call request from {caller} to {listener}")
-            
+            listener = listener += "-call"
             waittime = 0
-            while listener not in usernames.keys():
+            while not check_for_listener(listener):
                 print(f"waiting for {listener}. time waited = {waittime} & timeout limit = {timeout_limit}")
                 time.sleep(1)
                 waittime += 1
@@ -540,11 +517,12 @@ def init_call(client, addr):
                     print("call timed out")
                     break
                     
-            if listener in usernames.keys():
-                confirm = send_call_request(caller, listener, buffer_size)
+            if check_for_listener(listener):
+                listener_socket = get_socket(listener)
+                confirm = send_call_request(caller, listener_socket, buffer_size)
                 if confirm:
                     send_text(client, codes["call-confirmation"])
-                    start_call(caller, listener, buffer_size)
+                    start_call(caller, listener_socket, buffer_size)
                 else:
                     send_text(client, codes["call-end"])
                     print("call rejected")
@@ -553,6 +531,19 @@ def init_call(client, addr):
         print(f"Error with client {caller}: {e}")
     finally:
         cleanup_client(client, caller)
+
+def check_for_listener(name):
+    with clients_lock:
+        users_copy = users[:]
+    for sock, other_name in users_name.items():
+        if name == other_name:
+            return 1
+    return 0
+
+def get_socket(name):
+    for sock, other_name in users_name.items():
+        if name == other_name:
+            return sock
 
 def send_call_request(caller_name, listener_name, buffer_size):
     listener = usernames.get(listener_name)

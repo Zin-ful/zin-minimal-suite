@@ -34,7 +34,7 @@ config_path = root+'/.zinapp/zfile/zfile.conf'
 user_config_path = root+"/.zinapp/zfile/autouser.conf"
 ACK = 'ACK'
 parameters = {"download": download_path}
-server = netcom.socket(ipv4, tcp) #creates and defines sock obj
+server = netcom.socket(ipv4, tcp)
 
 flags = {"-rf": "#*$^||", "-sf": "^($#||", "-t": "#%&$||", "-l": "*@%#||", "-c": "!)$@||", "-mk": "(!%)||", "-br": "*!&_||"}
 cmd_extras = ["browse", "promote","demote", "server test", "client test", "help", "config", "logout", "exit"]

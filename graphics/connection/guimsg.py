@@ -291,7 +291,6 @@ def main(stdscr):
     success = 0
     pause = 1
     generate_theme(attr_dict["theme"])
-
     while True:
         ref(stdscr)
         screens["source"].addstr(0, width // 2 - (len(f"Messenger Version {client_version}") // 2), f"Messenger Version {client_version}")
@@ -302,7 +301,7 @@ def main(stdscr):
             center_print_list(ypos, patches)
         choice = dynamic_inps(main_menu, 2)
         ref(stdscr)
-        if choice == main_menu[0]:
+        if choice == "Messenger":
             screens["bar"].refresh()
             if not contact_selection():
                 ref(screens["chat"])
@@ -312,9 +311,9 @@ def main(stdscr):
                 screens["chat"].refresh()
                 screens["chat"].getch()
                 continue
-        elif choice == main_menu[1]:
+        elif choice == "Group Chat":
             group_message()
-        elif choice == main_menu[2]:
+        elif choice == "Contacts":
             if not contact_edit():
                 ref(screens["chat"])
                 screens["chat"].addstr(5, 0, "No contacts found, add users to your contacts in group chat")
@@ -322,10 +321,12 @@ def main(stdscr):
                 screens["chat"].refresh()
                 screens["chat"].getch()
             continue
-        elif choice == main_menu[3]:
+        elif choice == "Settings":
             settings()
-        elif choice == main_menu[4]:
+        elif choice == "Exit":
             exit()
+        elif choice == "Caller":
+            call_menu()
 
 """menu functions"""
 def get_input(prompt=""):
@@ -1126,7 +1127,7 @@ def contact_selection():
     print_text(y, 0, ("Who would you like to message?",), colors["hl1"])
     y += 3
     name = dynamic_inps(clean_names, y)
-    direct_message(name)
+    return name
 
 
 """server init"""
@@ -2076,34 +2077,55 @@ if ".zinapp" not in os.listdir(curusr):
 if "call" not in os.listdir(curusr + "/.zinapp"):
     os.mkdir(call_conf_path)
 
-def init_to_server():
-    global connected
-    try:
-        server.connect((server_ip, server_port))
-        server.send("REQ".encode("utf-8"))
-        reply = server.recv(3).decode("utf-8")
-        if reply == "ACK":
-            server.send(f"{conf_dict['user']}&{CHUNK}".encode("utf-8"))
-            ack = server.recv(3).decode("utf-8")
-            if ack == "ACK":
-                connected = 1
-                call_check_thread = task.Thread(target=listen_for_call, daemon=True)
-                call_check_thread.start()
-            else:
-                print("No ack received, possible sync error")
-                connected = 0
+def call_menu():
+    global audio_in, audio_out, in_devices, out_devices, call_server
+    ref(screens["source"])
+    call_server, in_call = init_to_server()
+    if call_server:
+        audio_in, audio_out, in_devices, out_devices = discover()
+        screens["source"].addstr(0, width - (len(f"Input device: {current_in} | Output device: {current_out}") + 1), f"Input device: {current_in} | Output device: {current_out}")
+        call_check_thread = task.Thread(target=listen_for_call, daemon=True)
+        call_check_thread.start()
+ 
+    while True:
+        if call_server:
+            screens["bar"].addstr(0, 0, "Connected to Server")
         else:
-            connected = 0
+            screens["bar"].addstr(0, 0, "Not Connected to Server")
+        screens["bar"].refresh()
+        call_menu = ["Contacts", "Audio Devices", "Exit"]
+        choice = dynamic_inps(call_menu, 2)
+        if choice == "Contacts":
+            name = contact_selection()
+            if not name:
+                ref(screens["source"])
+                screens["source"].addstr(0, 0, f"No name selected or contact list is empty. Press any key to continue")
+                screens["source"].getch()
+
+        elif choice == "Audio Devices":
+            audio_config()
+        else:
+            return 0
+        ref(screens["source"])
+
+
+def init_to_server():
+    try:
+        call_server = netcom.socket(ipv4, tcp)
+        server.connect((attr_dict["ipaddr"].strip(), port))
+        send(server, attr_dict["name"]+ "-call")
+        send(server, type)
+        
     except Exception as e:
-        print(f"Connection error: {e}")
-        connected = 0
+        return 0, 0
+    return call_server, in_call
 
 def discover():
     global current_in, current_out
-    indict = {}
-    outdict = {}
     inlist = []
+    indict = {}
     outlist = []
+    outdict = {}
     device_in = None
     device_out = None
     
@@ -2121,7 +2143,6 @@ def discover():
         device_in = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE, input=True, 
                                input_device_index=int(inlist[0]), frames_per_buffer=CHUNK)
     else:
-        print("no input devices found. Plug one in and retry")
         current_in = "None"
         
     if outdict:
@@ -2129,14 +2150,11 @@ def discover():
         device_out = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE, output=True, 
                                 output_device_index=int(outlist[0]), frames_per_buffer=CHUNK)
     else:
-        print("no output devices found. Plug one in and retry")
         current_out = "None"
         
-    init_to_server()
     return device_in, device_out, indict, outdict
 
 def listen_for_call():
-    """Fixed: Loop continuously instead of breaking after one call"""
     global incoming, caller, shutdown
     while not shutdown:
         try:
@@ -2145,9 +2163,7 @@ def listen_for_call():
                 code, caller = call_attempt.split(":", 1)
                 if code == codes["call-start"]:
                     incoming = True
-                    print(f"\nincoming call from {caller}\ntype 'attempt accept' or '88' to accept\nto decline, type 'attempt reject' or '00'\n")
-                    print(f"({stat if 'stat' in globals() else 'stopped'}) >>> ", end="", flush=True)
-                    # Don't break - keep listening for more calls
+                    screens["top"].addstr(0, (width // 2) - (len(f"incoming call from {caller.strip("-call")}") // 2), f"incoming call from {caller.strip("-call")}")                   
         except Exception as e:
             if not shutdown:
                 time.sleep(0.5)
@@ -2169,14 +2185,11 @@ def recv_from_server():
         return None
 
 def start_call():
-    """Fixed: Reset caller and always ask for user input"""
     global live, calling, caller
     
-    # Always ask for user when starting a new call
     to_call = input("who would you like to call? ")
     
     if not to_call:
-        print("No user specified")
         return codes["call-end"]
     
     server.send(to_call.encode("utf-8"))
@@ -2198,7 +2211,7 @@ def record(audio_in):
     except KeyboardInterrupt:
         pass
     except Exception as e:
-        print(f"Record error: {e}")
+        pass
     finally:
         if audio_in:
             try:
@@ -2217,7 +2230,7 @@ def playback(audio_out):
                 continue
             audio_out.write(audio_buffer)
     except Exception as e:
-        print(f"Playback error: {e}")
+        pass
     finally:
         live_out = 0
         if audio_out:
@@ -2229,7 +2242,6 @@ def playback(audio_out):
 
 def shell():
     global live, live_out, audio_in, audio_out, in_devices, out_devices, calling, incoming, caller, stat, shutdown
-    audio_in, audio_out, in_devices, out_devices = discover()
     stat = "stopped"
     
     while True:
@@ -2355,45 +2367,57 @@ def debug():
         print("Could not run lsusb - might not be on Linux")
     return None, None
 
-def config():
+def audio_config():
     global current_in, current_out, audio_in, audio_out
+    if not call_server:
+        ref(screens["source"])
+        screens["source"].addstr(0, 0, f"Not connected to server, audio devices not initilized. Press any key to continue")
+        screens["source"].getch()
+        return
+    screens["source"].clear()
+    screens["source"].refresh()
     inpset = 0
     outpset = 0
-    print(f"Input device: {current_in}\nOutput device: {current_out}")
+    screens["source"].addstr(0, 0, f"Input device: {current_in} | Output device: {current_out}")
     
     if in_devices.items():
+        names = []
         for index, name in in_devices.items():
-            print(f"INPUT {index}. {name}")
-        print("Select input device (enter to skip):")
-        inp = input("(config INPUT) >>> ")
+            names.append(name)
+        screens["source"].addstr(1, 0, "Select input device (enter to skip):")
+        inp = dynamic_inps(names, 3)
         if inp:
             for index, name in in_devices.items():
-                if int(inp) == int(index):
+                if inp == name:
                     inpset = 1
                     inp = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE, input=True, 
                                     input_device_index=int(index), frames_per_buffer=CHUNK)
                     current_in = in_devices[index]
-                    print(f"INPUT changed to {in_devices[index]}")
+                    screens["source"].addstr(0, 0, f"Input changed to {current_in} | Output device: {current_out}")
                     break
     else:
-        print("No input devices to choose, moving to output")
-
+        print("No input devices to choose, press 'Enter' to continue.")
+        screens["source"].getch()
     if out_devices.items():
+        screens["source"].clear()
+        names = []
         for index, name in out_devices.items():
-            print(f"OUTPUT {index}. {name}")
-        print("Select output device (enter to skip):")
-        outp = input("(config OUTPUT) >>> ")
-        if outp:
+            names.append(name)
+        screens["source"].addstr(1, 0, "Select output device (enter to skip):")
+        inp = dynamic_inps(names, 3)
+        if inp:
             for index, name in out_devices.items():
-                if int(outp) == int(index):
+                if inp == name:
                     outpset = 1
                     outp = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE, output=True, 
                                      output_device_index=int(index), frames_per_buffer=CHUNK)
                     current_out = out_devices[index]
-                    print(f"OUTPUT changed to {out_devices[index]}")
+                    screens["source"].addstr(0, 0, f"Input changed to {current_in} | Output changed to {current_out}")
                     break
     else:
         print("No output devices to choose, finalizing")
+        screens["source"].getch()
+
         
     if not inpset:
         inp = audio_in
@@ -2420,7 +2444,7 @@ def helpy():
         print(key)
     return None, None
 
-funcs = {"help": helpy, "devices": get_dev, "set device": config, "usb": debug}
+funcs = {"help": helpy, "devices": get_dev, "set device": audio_config, "usb": debug}
 
 """CLI calling"""
 
@@ -2703,7 +2727,7 @@ def cli_debug():
         print("Could not run lsusb - might not be on Linux")
     return None, None
 
-def cli_config():
+def cli_audio_config():
     global current_in, current_out, audio_in, audio_out
     inpset = 0
     outpset = 0
