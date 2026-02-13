@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-main_menu = ["Messenger", "Group Chat", "Contacts", "Settings", "Exit"]
+main_menu = ["Messenger", "Group Chat", "Contacts", "Settings", "Systems Test", "Exit"]
 
 import subprocess
 from socket import SOCK_STREAM as tcp
@@ -323,6 +323,8 @@ def main(stdscr):
             exit()
         elif choice == "Caller":
             call_menu()
+        elif choice == "Systems Test":
+            diag_menu()
 
 """menu functions"""
 def get_input(prompt=""):
@@ -1133,6 +1135,16 @@ def contact_selection():
     name = dynamic_inps(clean_names, y)
     return name
 
+def diag_menu():
+    while True:
+        choice = dynamic_inps(["Server test (connection required)", "Audio test", "Direct message test ", "File test (connection required)", "Exit"], 4)
+        ref(screens["source"])
+        if "Audio" in choice:
+            if test_audio():
+                print_text(0, 0, ("Test passed! ('enter' to continue)",))
+                screens["source"].getch()
+        elif "Exit" in choice or not choice:
+            return 0
 """server init"""
 
 def gc_config_init(type):
@@ -2090,6 +2102,51 @@ if ".zinapp" not in os.listdir(curusr):
 if "call" not in os.listdir(curusr + "/.zinapp"):
     os.mkdir(call_conf_path)
 
+def test_audio():
+    global live, in_devices, out_devices, audio_in, audio_out
+    ref(screens["source"])
+    audio_in, audio_out, in_devices, out_devices = discover()
+    screens["source"].addstr(0, width - (len(f"Input device: {current_in} | Output device: {current_out}") + 1), f"Input device: {current_in} | Output device: {current_out}",)
+    print_text(1, 0, ("Currently testing and diagnosing audio. Please select your audio device. 'Enter' to continue",))
+    screens["source"].getch()
+    audio_in, audio_out, status = audio_config(1)
+    ref(screens["source"])
+    screens["source"].addstr(0, width - (len(f"Input device: {current_in} | Output device: {current_out}") + 1), f"Input device: {current_in} | Output device: {current_out}",)
+    if not status:
+        print_text(1, 0, ("Audio init failed with your selected devices. Results have been logged in your current directory",))
+        return 0
+    print_text(1, 0, ("Starting playback testing.",))
+    time.sleep(0.5)
+    print_text(0, 3, ("I/O: ",))
+    time.sleep(0.3)
+    self_test = task.Thread(target=play_self, args=(audio_in, audio_out), daemon=True)
+    print_text(0, 3, ("I/O: Thread created",))
+    time.sleep(0.3)
+    print_text(0, 3, ("I/O: Waiting to start",))
+    time.sleep(0.3)
+    live = 1
+    if self_test:
+        try:
+            self_test.start()
+            failed = False
+            print_text(0, 3, ("I/O: Audio thread started!",))
+            time.sleep(0.3)
+        except Exception as e:
+            live = 0
+            failed = True
+            print_text(0, 3, ("I/O: FAILED: Audio thread has failed. Error logged in current directory",))
+            time.sleep(0.7)
+            log(str(e))
+    if failed:
+        ref(screens["source"])
+        print_text(0, 0, ("Audio test failed, results logged. returning.",))
+        return 0
+    print_text(0, 4, ("Testing for 10 seconds.",))
+    time.sleep(10)
+    live = 0
+    ref(screens["source"])
+    return 1
+    
 def call_menu():
     global audio_in, audio_out, in_devices, out_devices, call_server
     ref(screens["source"])
@@ -2171,7 +2228,7 @@ def call_menu():
             
 
         elif choice == "Audio Devices":
-            audio_config()
+            audio_in, audio_out, status = audio_config()
         else:
             return 0
         ref(screens["source"])
@@ -2187,7 +2244,6 @@ def start_call(call_server, name):
         return confirm
     except:
         return codes["call-err"]
-
 
 def init_to_call():
     try:
@@ -2251,17 +2307,8 @@ def record(call_server, audio_in):
         while live:
             audio_buffer = audio_in.read(CHUNK, exception_on_overflow=False)
             send_to_server(audio_buffer)
-    except KeyboardInterrupt:
-        pass
     except Exception as e:
         pass
-    finally:
-        if audio_in:
-            try:
-                audio_in.stop_stream()
-                audio_in.close()
-            except:
-                pass
 
 def playback(call_server, audio_out):
     global live
@@ -2274,6 +2321,14 @@ def playback(call_server, audio_out):
             audio_out.write(audio_buffer)
     except Exception as e:
         live = 0
+
+def play_self(audio_in, audio_out):
+    try:
+        while live:
+            audio_buffer = audio_in.read(CHUNK, exception_on_overflow=False)
+            audio_out.write(audio_buffer)
+    except Exception as e:
+        pass
 
 def shell():
     global live, live_out, audio_in, audio_out, in_devices, out_devices, calling, incoming, caller, stat, shutdown
@@ -2372,15 +2427,13 @@ def debug():
         print("Could not run lsusb - might not be on Linux")
     return None, None
 
-def audio_config():
+def audio_config(call_server):
     global current_in, current_out, audio_in, audio_out
+    ref(screens["source"])
     if not call_server:
-        ref(screens["source"])
         screens["source"].addstr(0, 0, f"Not connected to server, audio devices not initilized. Press any key to continue")
         screens["source"].getch()
         return
-    screens["source"].clear()
-    screens["source"].refresh()
     inpset = 0
     outpset = 0
     screens["source"].addstr(0, 0, f"Input device: {current_in} | Output device: {current_out}")
@@ -2394,17 +2447,31 @@ def audio_config():
         if inp:
             for index, name in in_devices.items():
                 if inp == name:
+                    passes = 0
                     inpset = 1
-                    inp = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE, input=True, 
-                                    input_device_index=int(index), frames_per_buffer=CHUNK)
+                    current_rate = attr_dict["sample rate"]
+                    try:
+                        inp = audio.open(format=FORMAT, channels=CHANNELS, rate=current_rate, input=True, 
+                                        input_device_index=int(index), frames_per_buffer=CHUNK)
+                        break
+                    except Exception as e:
+                        if passes == 2:
+                            log(str(e))
+                            return audio_in, audio_out, 0
+                        passes += 1
+                        if "Invalid sample rate" in str(e):
+                            if current_rate == 44100:
+                                current_rate = 48000
+                            else:
+                                current_rate = 44100
                     current_in = in_devices[index]
-                    screens["source"].addstr(0, 0, f"Input changed to {current_in} | Output device: {current_out}")
                     break
     else:
-        print("No input devices to choose, press 'Enter' to continue.")
+        #print("No input devices to choose, press 'Enter' to continue.")
         screens["source"].getch()
     if out_devices.items():
         screens["source"].clear()
+        screens["source"].addstr(0, 0, f"Input changed to {current_in} | Output device: {current_out}")
         names = []
         for index, name in out_devices.items():
             names.append(name)
@@ -2413,22 +2480,40 @@ def audio_config():
         if inp:
             for index, name in out_devices.items():
                 if inp == name:
+                    passes = 0
                     outpset = 1
-                    outp = audio.open(format=FORMAT, channels=CHANNELS, rate=RATE, output=True, 
-                                     output_device_index=int(index), frames_per_buffer=CHUNK)
+                    current_rate = attr_dict["sample rate"]
+                    while True:
+                        try:
+                            outp = audio.open(format=FORMAT, channels=CHANNELS, rate=current_rate, output=True, 
+                                            output_device_index=int(index), frames_per_buffer=CHUNK)
+                            break
+                        except Exception as e:
+                            if passes == 2:
+                                log(str(e))
+                                return audio_in, audio_out, 0
+                            passes += 1
+                            if "Invalid sample rate" in str(e):
+                                if current_rate == 44100:
+                                    current_rate = 48000
+                                else:
+                                    current_rate = 44100
+
                     current_out = out_devices[index]
-                    screens["source"].addstr(0, 0, f"Input changed to {current_in} | Output changed to {current_out}")
+                    
                     break
     else:
-        print("No output devices to choose, finalizing")
-        screens["source"].getch()
+        pass
+    ref(screens["source"])
+    print_text(0, 0, (f"Input changed to {current_in} | Output changed to {current_out} ('enter' to continue)",))
+    screens["source"].getch()
 
         
     if not inpset:
         inp = audio_in
     if not outpset:
         outp = audio_out
-    return inp, outp
+    return inp, outp, 1
 
 def get_dev():
     print(f"\ncurrent input: {current_in}\ncurrent_output: {current_out}\n")
