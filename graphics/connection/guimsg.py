@@ -19,28 +19,20 @@ try:
     allow_calling = 1
     main_menu.insert(2, "Caller")    
     codes = {"call-start": "001", "call-confirmation": "002", "call-end": "003", "call-timeout": "004", "err": "000"}
-    live = 1
-    live_out = 1
-    
+
     FORMAT = pyaudio.paInt16
     CHANNELS = 1
-    RATE = 44100
+    RATE = 48000
     CHUNK = 2048
     audio = pyaudio.PyAudio()
 
-    connected = 0
-    username = "none"
-    incoming = False
-    calling = False
-    caller = None
-    shutdown = False 
 except:
     allow_calling = 0
     print("pyaudio is not installed, calling will be disabled")
     time.sleep(2)
 
 
-client_version = 5.0
+client_version = 5.3
 
 curusr = os.path.expanduser("~")
 
@@ -121,7 +113,11 @@ f"------{client_version} patches:------",
 "Uploading now doesnt break CLI",
 "Battery percents now work with multiple batteries."
 ]
-attr_dict = {"ipaddr": ip, "name": username, "autoconnect": autoconn, "idaddr": ipid, "alias":alias, "mode":mode, "file path":  os.path.expanduser("~"), "theme": color_choice}
+attr_dict = {"ipaddr": ip, "name": username, "autoconnect": autoconn, 
+"idaddr": ipid, "alias":alias, "mode":mode, "file path":  os.path.expanduser("~"), 
+"theme": color_choice, "sample rate":RATE}
+
+
 
 colors = {}
 win = {}
@@ -456,13 +452,14 @@ def update():
     screens["bar"].addstr(0, len(attr_dict["name"]) + 6, f"        " , colors["hl2"])
     if attr_dict['mode'] != "performance":
         battery = str(get_batt())
-        if float(battery) < 60:
-            color = colors["norm"]
-        elif float(battery) < 30:
-            color = colors["low"]
-        else:
-            color = colors["high"]
-        screens["bar"].addstr(0, ((width // 2) - (len(battery) // 2) + (len(network) // 2) * 8), battery, color)
+        if battery != 'N/A':
+            if float(battery) < 60:
+                color = colors["norm"]
+            elif float(battery) < 30:
+                color = colors["low"]
+            else:
+                color = colors["high"]
+            screens["bar"].addstr(0, ((width // 2) - (len(battery) // 2) + (len(network) // 2) * 8), battery, color)
         screens["bar"].addstr(0, width - len(f"Users: {str(users)}") - 2, f"Users: {str(users)}", colors["hl2"])
         screens["bar"].addstr(0, len(attr_dict["name"]) + 6, f"Y: {y}" , colors["hl2"])
     screens["bar"].addstr(0, (width // 2) - (len(network) // 2), network, colors["hl2"])
@@ -791,8 +788,8 @@ def tracked_missing(msg):
                 response, msg = msg.split("!")
         missed_messages.append(add_time(msg))
 
-def message_recv():
-    global y, msg, users, pause, threads_started
+def message_recv(server):
+    global y, users, threads_started
     x = 0
     recent_message = ""
     time.sleep(0.001) #to make sure to display after the initial refresh
@@ -970,7 +967,9 @@ def settings():
         if choice == "mode":
             new_val = set_mode()  
         elif choice == "theme":
-            new_val = set_theme()  
+            new_val = set_theme()
+        elif choice == "sample rate":
+            new_val = int(set_rate())
         else:
             print_text(0, 0, (f"{choice}\nCurrent value: {attr_dict[choice]}\nNew value:",),colors["hl1"])
             new_val = get_input()
@@ -990,26 +989,30 @@ def settings():
         exit()
     return "New settings applied", 0
 
+def set_rate():
+    print_text(0, 0, (f"WARNING: Audio devices depend on the selected sample rate, be careful. If it fails, this program will select a different audio rate.\nCurrent rate: {attr_dict['sample rate']}\nSet rate to:",), colors["hl1"])
+    choice = dynamic_inps(["48000", "44100"], 5)
+    return choice
+
 def set_mode():
-    while True:
-        print_text(0, 0, (f"Current mode:{attr_dict['mode']}\nSet mode to:",), colors["hl1"])
-        choice = dynamic_inps(modes, 4)
-        return choice
+    print_text(0, 0, (f"Current mode:{attr_dict['mode']}\nSet mode to:",), colors["hl1"])
+    choice = dynamic_inps(modes, 4)
+    return choice
 
 def set_theme():
-    while True:
-        print_text(0, 0, (f"Current theme: {attr_dict['theme']}\nSet mode to:",), colors["hl1"])
-        choice = dynamic_inps(themes, 4)
-        return choice
+    print_text(0, 0, (f"Current theme: {attr_dict['theme']}\nSet theme to:",), colors["hl1"])
+    choice = dynamic_inps(themes, 4)
+    return choice
 
 def group_message():
     global y, pause, threads_started, network, receiving
     network = "Messaging Group"
-    if not gc_config_init("g"):
+    server = gc_config_init("g")
+    if not server:
         return
     if not threads_started:
         screens["bar"].refresh()
-        message_thread = task.Thread(target=message_recv, daemon=True)
+        message_thread = task.Thread(target=message_recv, args=(server,), daemon=True)
         message_thread.start()
         threads_started = 1
     pause = 0
@@ -1072,11 +1075,12 @@ def group_message():
 def direct_message(name):
     global y, pause, threads_started, network, receiving
     network = f"Messaging {name}"
-    if not gc_config_init("d"):
+    server = gc_config_init("d")
+    if not server:
         return
     if not threads_started:
         screens["bar"].refresh()
-        message_thread = task.Thread(target=message_recv, daemon=True)
+        message_thread = task.Thread(target=message_recv, args=(server,), daemon=True)
         message_thread.start()
         threads_started = 1
     pause = 0
@@ -1129,13 +1133,13 @@ def contact_selection():
     name = dynamic_inps(clean_names, y)
     return name
 
-
 """server init"""
 
 def gc_config_init(type):
+    server = None
     if attr_dict["autoconnect"] == "true":
         try:
-            autoconnect(type)
+            server = autoconnect(type)
         except netcom.error as e:
             print_text(height // 2, width // 3, ("Connection refused, try again?",), colors["hl3"])
             choice = screens["chat"].getch()
@@ -1148,12 +1152,13 @@ def gc_config_init(type):
             errlog(str(e))
             return 0
     else:
-        if not manual_conf("false", type):
+        server = manual_conf("false", type)
+        if not server:
             return 0
-    return 1
+    return server
 
 def manual_conf(state, type):
-    global server, users
+    global users
     os.makedirs(conf_path, exist_ok=True)
     ref(screens["input"])
     if state == "true":
@@ -1188,7 +1193,10 @@ def manual_conf(state, type):
     save_conf()
     server = netcom.socket(ipv4, tcp)
     server.connect((attr_dict["ipaddr"], port))
-    send(server, attr_dict["name"])
+    if type == "c":
+        send(server, attr_dict["name"]+"-call")
+    else:
+        send(server, attr_dict["name"])
     send(server, type)
     if attr_dict["mode"] != "performance":
         ref(screens["chat"])
@@ -1196,8 +1204,9 @@ def manual_conf(state, type):
         print_text(height // 3, (width // 2) - (len(msg) // 2), msg, colors["hl3"])
         time.sleep(0.1)
     ref(screens["chat"])
-    users = int(receive(server))
-    return 1
+    if type != "c":
+        users = int(receive(server))
+    return server
 
 def save_conf():
     with open(f"{conf_path}/msg_server.conf", "w") as file:
@@ -1215,7 +1224,7 @@ def load_conf():
                 attr_dict[item.strip()] = attr.strip()
 
 def autoconnect(type):
-    global server, users
+    global users
     with open(f"{conf_path}/msg_server.conf", "r") as file:
         attrs = file.readlines()
         for item in attrs:
@@ -1228,16 +1237,20 @@ def autoconnect(type):
         time.sleep(0.1)
     server = netcom.socket(ipv4, tcp)
     server.connect((attr_dict["ipaddr"].strip(), port))
-    send(server, attr_dict["name"])
+    if type == "c":
+        send(server, attr_dict["name"]+"-call")
+    else:
+        send(server, attr_dict["name"])
     send(server, type)
     if attr_dict["mode"] != "performance":
         ref(screens["chat"])
         msg = "Connection accepted! Moving to shell.."
         print_text(2, 0, (msg,), colors["hl3"])
         time.sleep(0.1)
-    users = int(receive(server))
-
+    if type != "c":
+        users = int(receive(server))
     ref(screens["chat"])
+    return server
   
 """
 Here I am pasting the functions needed to pull up a mock file browser
@@ -2080,11 +2093,11 @@ if "call" not in os.listdir(curusr + "/.zinapp"):
 def call_menu():
     global audio_in, audio_out, in_devices, out_devices, call_server
     ref(screens["source"])
-    call_server, in_call = init_to_server()
+    call_server, in_call = init_to_call()
     if call_server:
         audio_in, audio_out, in_devices, out_devices = discover()
         screens["source"].addstr(0, width - (len(f"Input device: {current_in} | Output device: {current_out}") + 1), f"Input device: {current_in} | Output device: {current_out}")
-        call_check_thread = task.Thread(target=listen_for_call, daemon=True)
+        call_check_thread = task.Thread(target=listen_for_call, args=(call_server,), daemon=True)
         call_check_thread.start()
  
     while True:
@@ -2101,6 +2114,61 @@ def call_menu():
                 ref(screens["source"])
                 screens["source"].addstr(0, 0, f"No name selected or contact list is empty. Press any key to continue")
                 screens["source"].getch()
+                continue
+            ref(screens["source"])
+            screens["source"].addstr(1, 0, f"Call {name}?")
+            choice = dynamic_inps(["Yes", "No"], 3)
+            if "Y" not in choice:
+                continue
+            calling = True
+            live = 1
+            live_out = 1
+            ref(screens["source"])
+            confirm = start_call() 
+            ref(screens["source"])
+            if confirm == codes["call-confirmation"]: 
+                print_text(0, 0, "Call accepted.. Starting audio threads")
+                time.sleep(0.5)
+                print_text(0, 2, "Input: ")
+                print_text(0, 3, "Output: ")
+                time.sleep(0.2)
+                audin_thread = task.Thread(target=record, args=(call_server, audio_in), daemon=True)
+                print_text(0, 2, "Input: Thread created")
+                time.sleep(0.2)
+                print_text(0, 2, "Input: Waiting to start")
+                time.sleep(0.2)
+                if audio_in:
+                    try:
+                        audin_thread.start()
+                        print_text(0, 2, "Input: Audio input thread started!")
+                    except Exception as e:
+                        failed = True
+                        print_text(0, 2, "Input: FAILED: Audio input thread has failed. Error logged in current directory")
+                        log(str(e))
+                audout_thread = task.Thread(target=playback, args=(call_server, audio_out), daemon=True)
+                print_text(0, 2, "Output: Thread created")
+                time.sleep(0.2)
+                print_text(0, 2, "Output: Waiting to start")
+                time.sleep(0.2)
+                if audio_out:
+                    try:
+                        audout_thread.start()
+                        print_text(0, 2, "Output: Audio input thread started!")
+                    except Exception as e:
+                        failed = True
+                        print_text(0, 2, "Output: FAILED: Audio input thread has failed. Error logged in current directory")
+                        log(str(e))
+            
+            elif confirm == codes["call-timeout"]:
+                print("call timed out, user isn't available or connected to the server")
+                calling = False
+                caller = None  # Reset caller on timeout
+                continue
+            else:
+                print(f"call ended or rejected")
+                calling = False
+                caller = None  # Reset caller on rejection/end
+            
 
         elif choice == "Audio Devices":
             audio_config()
@@ -2108,17 +2176,26 @@ def call_menu():
             return 0
         ref(screens["source"])
 
-
-def init_to_server():
+def start_call(call_server, name):
+    if not name:
+        return codes["call-err"]
+    print_text(0, 0, "Starting the call")
+    time.sleep(0.2)
+    send(call_server, name)
     try:
-        call_server = netcom.socket(ipv4, tcp)
-        server.connect((attr_dict["ipaddr"].strip(), port))
-        send(server, attr_dict["name"]+ "-call")
-        send(server, type)
-        
+        confirm = receive(call_server)
+        return confirm
+    except:
+        return codes["call-err"]
+
+
+def init_to_call():
+    try:
+        call_server = gc_config_init("c")
     except Exception as e:
+        log(str(e))
         return 0, 0
-    return call_server, in_call
+    return call_server, 1
 
 def discover():
     global current_in, current_out
@@ -2154,11 +2231,11 @@ def discover():
         
     return device_in, device_out, indict, outdict
 
-def listen_for_call():
+def listen_for_call(call_server):
     global incoming, caller, shutdown
     while not shutdown:
         try:
-            call_attempt = server.recv(CHUNK).decode("utf-8")
+            call_attempt = call_server.recv(CHUNK).decode("utf-8")
             if call_attempt and ":" in call_attempt:
                 code, caller = call_attempt.split(":", 1)
                 if code == codes["call-start"]:
@@ -2168,41 +2245,7 @@ def listen_for_call():
             if not shutdown:
                 time.sleep(0.5)
 
-def send_to_server(data):
-    try:
-        if isinstance(data, str):
-            server.send(data.encode("utf-8"))
-        else:
-            server.send(data)
-    except:
-        pass
-
-def recv_from_server():
-    try:
-        data = server.recv(CHUNK)
-        return data
-    except:
-        return None
-
-def start_call():
-    global live, calling, caller
-    
-    to_call = input("who would you like to call? ")
-    
-    if not to_call:
-        return codes["call-end"]
-    
-    server.send(to_call.encode("utf-8"))
-    live = 1
-    print("sent call request, waiting for response..")
-    
-    try:
-        confirm = server.recv(3).decode("utf-8")
-        return confirm
-    except:
-        return codes["call-end"]
-
-def record(audio_in):
+def record(call_server, audio_in):
     global live
     try:
         while live:
@@ -2220,8 +2263,8 @@ def record(audio_in):
             except:
                 pass
 
-def playback(audio_out):
-    global live_out
+def playback(call_server, audio_out):
+    global live
     try:
         while live:
             audio_buffer = recv_from_server()
@@ -2230,15 +2273,7 @@ def playback(audio_out):
                 continue
             audio_out.write(audio_buffer)
     except Exception as e:
-        pass
-    finally:
-        live_out = 0
-        if audio_out:
-            try:
-                audio_out.stop_stream()
-                audio_out.close()
-            except:
-                pass
+        live = 0
 
 def shell():
     global live, live_out, audio_in, audio_out, in_devices, out_devices, calling, incoming, caller, stat, shutdown
@@ -2310,37 +2345,7 @@ def shell():
             caller = None  # Reset caller when stopping
             
         elif "start" in inp:
-            calling = True
-            live = 1
-            live_out = 1
-            confirm = start_call()
-            
-            if confirm == codes["call-confirmation"]:
-                stat = "running"
-                audin_thread = task.Thread(target=record, args=(audio_in,), daemon=True)
-                audout_thread = task.Thread(target=playback, args=(audio_out,), daemon=True)
-                
-                if audio_in:
-                    try:
-                        audin_thread.start()
-                    except Exception as e:
-                        print(f"FAILED to start input: {e}")
-                        
-                if audio_out:
-                    try:
-                        audout_thread.start()
-                    except Exception as e:
-                        print(f"FAILED to start output: {e}")
-                        
-            elif confirm == codes["call-timeout"]:
-                print("call timed out, user isn't available or connected to the server")
-                calling = False
-                caller = None  # Reset caller on timeout
-                continue
-            else:
-                print(f"call ended or rejected")
-                calling = False
-                caller = None  # Reset caller on rejection/end
+            return
                 
         else:
             xcute = funcs.get(inp)
@@ -2384,7 +2389,7 @@ def audio_config():
         names = []
         for index, name in in_devices.items():
             names.append(name)
-        screens["source"].addstr(1, 0, "Select input device (enter to skip):")
+        screens["source"].addstr(1, 0, "Select input device (q to skip):")
         inp = dynamic_inps(names, 3)
         if inp:
             for index, name in in_devices.items():
@@ -2403,7 +2408,7 @@ def audio_config():
         names = []
         for index, name in out_devices.items():
             names.append(name)
-        screens["source"].addstr(1, 0, "Select output device (enter to skip):")
+        screens["source"].addstr(1, 0, "Select output device (q to skip):")
         inp = dynamic_inps(names, 3)
         if inp:
             for index, name in out_devices.items():

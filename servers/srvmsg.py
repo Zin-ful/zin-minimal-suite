@@ -370,15 +370,21 @@ def messenger(client_socket, addr):
     username = receive(client_socket)
     if username:
         users_name.update({client_socket: username})
-    
+    print(f"user: {username} connected from {client_socket}")
     type = receive(client_socket) 
+    print(f"User type is: {type}")
     if type == "d":
+        print("appended to direct")
         user_direct.append(client_socket)
     elif type == "f":
+        print("appended to file")
         user_file.append(client_socket)
     elif type == "c":
+        print("appended to call")
         user_call.append(client_socket)
-        init_call(client_socket, addr)
+        print("passing to init_call")
+        init_call(username, client_socket, addr)
+        print("returning..")
         return
     
     if client_socket not in user_file:
@@ -391,7 +397,7 @@ def messenger(client_socket, addr):
         users_copy = users[:]
     startmsg = f"server.message.from.server.users: {len(users)} !SYSTEM MESSAGE: user connected: {users_name[client_socket]}"
     for other_client in users_copy:
-        if other_client != client_socket or (other_client not in user_direct and other_client != client_socket) or (other_client not in user_file and other_client != client_socket):
+        if other_client != client_socket or (other_client not in user_direct and other_client != client_socket) or (other_client not in user_file and other_client != client_socket) or (other_client not in user_call and other_client != client_socket):
             if not send(other_client, startmsg):
                 return
 
@@ -484,32 +490,31 @@ def cleanup_client(client, username):
         pass
     print(f"Cleaned up client {username}")
 
-def init_call(client, addr):
+def init_call(username, client, addr):
     global buffer_size
     waittime = 0
-    caller = users_name[user_call[client_socket]]
-    print(f"moved {caller}:{addr} to calling thread")
-    
+    print(f"moved {username}:{addr} to calling thread")
     try:
         while True:
             listener = None
-            print(f"waiting for call request from {caller}")
+            print(f"waiting for call request from {username}")
             
             try:
-                listener = recv_text(client)
+                listener_username = receive(client)
             except:
-                print(f"{caller} disconnected")
+                print(f"{username} disconnected")
                 break
                 
             if not listener:
-                print(f"{caller} disconnected or sent empty request")
+                print(f"{username} disconnected or sent empty request")
                 break
                 
-            print(f"call request from {caller} to {listener}")
-            listener = listener += "-call"
+            listener += "-call"
+            print(f"call request from {username} to {listener_username}")
+
             waittime = 0
             while not check_for_listener(listener):
-                print(f"waiting for {listener}. time waited = {waittime} & timeout limit = {timeout_limit}")
+                print(f"waiting for {listener_username}. time waited = {waittime} & timeout limit = {timeout_limit}")
                 time.sleep(1)
                 waittime += 1
                 if waittime >= timeout_limit:
@@ -517,8 +522,8 @@ def init_call(client, addr):
                     print("call timed out")
                     break
                     
-            if check_for_listener(listener):
-                listener_socket = get_socket(listener)
+            if check_for_listener(listener_username):
+                listener_socket = get_socket(listener_username)
                 confirm = send_call_request(caller, listener_socket, buffer_size)
                 if confirm:
                     send_text(client, codes["call-confirmation"])
@@ -565,37 +570,6 @@ def send_call_request(caller_name, listener_name, buffer_size):
     elif confirm == codes["call-end"]:
         return 0
     return 0
-
-def send_text(client, string):
-    try:
-        print(f"sending {string}")
-        client.send(string.encode("utf-8"))
-    except:
-        print("send failed")
-
-def ack(client, mode):
-    try:
-        if mode:
-            print("sending ack")
-            client.send("ACK".encode("utf-8"))
-            return True
-        else:
-            print("receiving ack")
-            is_ack = client.recv(3).decode("utf-8")
-            if is_ack.strip() == "ACK" or is_ack.strip() == "REQ":
-                return True
-            return False
-    except:
-        return False
-
-def recv_text(client):
-    try:
-        data = client.recv(128).decode("utf-8")
-        if data:
-            print("Recv: ", data)
-        return data
-    except:
-        return None
 
 def start_call(caller_name, listener_name, buffer):
     caller = usernames.get(caller_name)
