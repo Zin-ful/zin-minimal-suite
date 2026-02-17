@@ -4,3 +4,6 @@ sys-tools/benchmarks/pixel.o
 sys-tools/benchmarks/zintest
 graphics/connection/log0.txt
 graphics/connection/log1.txt
+*.txt
+*.key
+*.conf
