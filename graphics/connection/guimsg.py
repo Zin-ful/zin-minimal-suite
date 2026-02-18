@@ -115,7 +115,10 @@ f"------{client_version} patches:------",
 ]
 attr_dict = {"ipaddr": ip, "name": username, "autoconnect": autoconn, 
 "idaddr": ipid, "alias":alias, "mode":mode, "file path":  os.path.expanduser("~"), 
-"theme": color_choice, "sample rate":RATE}
+"theme": color_choice}
+
+if allow_calling:
+    attr_dict.update({"sample rate":RATE})
 
 
 
