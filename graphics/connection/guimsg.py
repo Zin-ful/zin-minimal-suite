@@ -1140,7 +1140,10 @@ def contact_selection():
 
 def diag_menu():
     while True:
+        ref(screens["source"])
         choice = dynamic_inps(["Server test (connection required)", "Audio test", "Direct message test ", "File test (connection required)", "Exit"], 4)
+        if not choice:
+            return 0
         ref(screens["source"])
         if "Audio" in choice:
             if test_audio():
@@ -1148,6 +1151,7 @@ def diag_menu():
                 screens["source"].getch()
         elif "Exit" in choice or not choice:
             return 0
+
 """server init"""
 
 def gc_config_init(type):
@@ -2146,9 +2150,10 @@ def test_audio():
         ref(screens["source"])
         print_text(2, 0, ("Audio test failed, results logged. returning.",))
         return 0
-    print_text(2, 0, ("Testing for 10 seconds.            ",))
-    time.sleep(10)
+    print_text(2, 0, ("Testing for 5 seconds.            ",))
+    time.sleep(5)
     live = 0
+    self_test.join(timeout=2)
     close_audio()
     ref(screens["source"])
     return 1
@@ -2333,11 +2338,19 @@ def playback(call_server, audio_out):
         close_audio()
 
 def play_self(audio_in, audio_out):
+    global live
+    print_text(7, 0, (f"play_self started, live={live}",))
     try:
-        while live:
+        print_text(8, 0,(f"audio_in type: {type(audio_in)}, value: {audio_in}",))
+        print_text(9, 0,(f"audio_out type: {type(audio_out)}, value: {audio_out}",))
+        while live: 
             audio_buffer = audio_in.read(CHUNK, exception_on_overflow=False)
+            print_text(10, 0, (f"read {len(audio_buffer)} bytes",))
             audio_out.write(audio_buffer)
     except Exception as e:
+        log(str(e))
+        ref(screens["source"])
+        print_text(11, 0, ("Audio failed, results logged. Wait for test to complete",))
         live = 0
         close_audio()
 
@@ -2445,85 +2458,106 @@ def audio_config(call_server):
         screens["source"].addstr(0, 0, f"Not connected to server, audio devices not initilized. Press any key to continue")
         screens["source"].getch()
         return
+
+    fallback_in = audio_in
+    fallback_out = audio_out
+    
+    close_audio()
+
     inpset = 0
     outpset = 0
     screens["source"].addstr(0, 0, f"Input device: {current_in} | Output device: {current_out}")
-    
-    if in_devices:
-        name_to_index = {name: index for index, name in in_devices.items()}
-        names = list(name_to_index.keys())
-        screens["source"].addstr(1, 0, "Select input device (q to skip):")
-        selected = dynamic_inps(names, 3)
-        if selected and selected in name_to_index:
-            chosen_index = name_to_index[selected]
-            passes = 0
-            inpset = 1
-            current_rate = int(attr_dict["sample rate"])
-            while True:
-                try:
-                    inp = audio.open(format=FORMAT, channels=CHANNELS, rate=current_rate,
-                                    input=True, input_device_index=chosen_index,
-                                    frames_per_buffer=CHUNK)
-                    current_in = selected
-                    break
-                except Exception as e:
-                    if passes == 2:
-                        log(str(e))
-                        return audio_in, audio_out, 0
-                    passes += 1
-                    if "Invalid sample rate" in str(e):
-                        current_rate = 48000 if current_rate == 44100 else 44100
-    else:
-        #print("No input devices to choose, press 'Enter' to continue.")
-        screens["source"].getch()
-    ref(screens["source"])
-    screens["source"].addstr(0, 0, f"New input device: {current_in} | Output device: {current_out}")
-    if out_devices:
-        name_to_index = {name: index for index, name in out_devices.items()}
-        names = list(name_to_index.keys())
-        screens["source"].addstr(1, 0, "Select output device (q to skip):")
-        selected = dynamic_inps(names, 3)
-        if selected and selected in name_to_index:
-            chosen_index = name_to_index[selected]
-            passes = 0
-            outpset = 1
-            current_rate = int(attr_dict["sample rate"])
-            while True:
-                try:
-                    outp = audio.open(format=FORMAT, channels=CHANNELS, rate=current_rate,
-                                    output=True, output_device_index=chosen_index,
-                                    frames_per_buffer=CHUNK)
-                    current_out = selected
-                    break
-                except Exception as e:
-                    if passes == 2:
-                        log(str(e))
-                        return audio_in, audio_out, 0
-                    passes += 1
-                    if "Invalid sample rate" in str(e):
-                        current_rate = 48000 if current_rate == 44100 else 44100
-    else:
-        pass
+    while True:
+        if in_devices:
+            name_to_index = {name: index for index, name in in_devices.items()}
+            names = list(name_to_index.keys())
+            screens["source"].addstr(1, 0, "Select input device (q to skip):")
+            selected = dynamic_inps(names, 3)
+            if selected and selected in name_to_index:
+                chosen_index = name_to_index[selected]
+                passes = 0
+                inpset = 1
+                current_rate = int(attr_dict["sample rate"])
+                while True:
+                    try:
+                        inp = audio.open(format=FORMAT, channels=CHANNELS, rate=current_rate,
+                                        input=True, input_device_index=chosen_index,
+                                        frames_per_buffer=CHUNK)
+                        current_in = selected
+                        break
+                    except Exception as e:
+                        if passes == 2:
+                            log(str(e))
+                            return audio_in, audio_out, 0
+                        passes += 1
+                        if "Invalid sample rate" in str(e):
+                            current_rate = 48000 if current_rate == 44100 else 44100
+        else:
+            ref(screens["source"])
+            print_text(0, 0,("No input devices to choose, press 'Enter' to continue."))
+            screens["source"].getch()
+        ref(screens["source"])
+        screens["source"].addstr(0, 0, f"New input device: {current_in} | Output device: {current_out}")
+        if out_devices:
+            name_to_index = {name: index for index, name in out_devices.items()}
+            names = list(name_to_index.keys())
+            screens["source"].addstr(1, 0, "Select output device (q to skip):")
+            selected = dynamic_inps(names, 3)
+            if selected and selected in name_to_index:
+                chosen_index = name_to_index[selected]
+                passes = 0
+                outpset = 1
+                current_rate = int(attr_dict["sample rate"])
+                while True:
+                    try:
+                        outp = audio.open(format=FORMAT, channels=CHANNELS, rate=current_rate,
+                                        output=True, output_device_index=chosen_index,
+                                        frames_per_buffer=CHUNK)
+                        current_out = selected
+                        break
+                    except Exception as e:
+                        if passes == 2:
+                            log(str(e))
+                            return audio_in, audio_out, 0
+                        passes += 1
+                        if "Invalid sample rate" in str(e):
+                            current_rate = 48000 if current_rate == 44100 else 44100
+                break
+            elif not selected:
+                ref(screens["source"])
+                close_audio("in")
+                continue
+        else:
+            pass
     ref(screens["source"])
     screens["source"].addstr(0, 0, f"New input device: {current_in} | New output device: {current_out}")
     screens["source"].getch()
 
         
     if not inpset:
-        inp = audio_in
+        inp = fallback_in
     if not outpset:
-        outp = audio_out
+        outp = fallback_out
+
     return inp, outp, 1
 
-def close_audio():
+def close_audio(choice="both"):
     global audio_in, audio_out
-    for device in [audio_in, audio_out]:
-        if device:
+    if choice == "in" or choice == "both":
+        if audio_in:
             try:
-                device.stop_stream()
-                device.close()
+                audio_in.stop_stream()
+                audio_in.close()
             except Exception as e:
                 log(str(e))
+    if choice == "out" or choice == "both":
+        if audio_out:
+            try:
+                audio_out.stop_stream()
+                audio_out.close()
+            except Exception as e:
+                log(str(e))
+    
     audio_in = None
     audio_out = None
 
@@ -2896,6 +2930,8 @@ def cli_helpy():
 
 
 load_conf()
+print("user settings loaded. starting..")
+time.sleep(0.3)
 if attr_dict["mode"] != "minimal":
     wrapper(main)
 else:
