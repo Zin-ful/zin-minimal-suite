@@ -458,6 +458,10 @@ def client_end(client):
             del users_name[client]
         if client in user_direct:
             user_direct.remove(client)
+        if client in user_file:
+            user_file.remove(client)
+        if client in user_call:
+            user_call.remove(client)
     try:
         client.close()
     except:
@@ -477,18 +481,6 @@ codes = {"call-start": "001", "call-confirmation": "002", "call-end": "003", "ca
 buffer_size = 2048
 timeout_limit = 15
 
-def cleanup_client(client, username):
-    """Clean up client resources"""
-    with clients_lock:
-        if username and username in usernames:
-            del usernames[username]
-        if client in users:
-            users.remove(client)
-    try:
-        client.close()
-    except:
-        pass
-    print(f"Cleaned up client {username}")
 
 def init_call(username, client, addr):
     global buffer_size
@@ -535,7 +527,7 @@ def init_call(username, client, addr):
     except Exception as e:
         print(f"Error with client {caller}: {e}")
     finally:
-        cleanup_client(client, caller)
+        client_end(client)
 
 def check_for_listener(name):
     with clients_lock:

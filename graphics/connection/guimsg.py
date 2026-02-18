@@ -580,7 +580,7 @@ def query():
 def savenick():
     global pause, y
     if not session_usr:
-        return
+        return "No users in session", 0
     success = 0
     pause = 1
     data = []
@@ -592,22 +592,29 @@ def savenick():
     y += 1
     inp = dynamic_inps(session_usr, y + 2)
     data.append(inp.strip("@"))
+    username = inp
     if inp:
         clr()        
         print_text(y, 0, ("Next we will fill out extra information about the user.\nNickname:",), colors["hl1"])
         inp = get_input()
         if inp:
             data.append(inp)
+        else:
+            data.append("none")
         clr()
         print_text(y, 0, ("IP Address:",), colors["hl1"])
         inp = get_input()
         if inp:
             data.append(inp)
+        else:
+            data.append(username)
         clr()
         print_text(y, 0, ("Notes:",), colors["hl1"])
         inp = get_input()
         if inp:
             data.append(inp)
+        else:
+            data.append("none")
         clr()
         with open(curusr+f"/.zinapp/phonebook/{data[0]}.txt", "w") as file:
             file.write(f"name: {data[0]}\n")
@@ -826,6 +833,14 @@ def message_recv(server):
                     response, msg = msg.split("!")
                     response = response.replace("users:", "")
                     users = int(response.strip())
+                    cache = msg
+                    cache = cache.replace("SYSTEM MESSAGE:", "")
+                    cache, username = cache.split(":", 1)
+                    username = username.strip()
+                    if username not in session_usr:
+                        session_usr.append(username)
+
+                
                 screens["chat"].addstr(y, x, add_time(msg), colors["server"])
             else:
                 screens["chat"].addstr(y, x, add_time(msg), colors["hl3"])
@@ -2159,7 +2174,8 @@ def test_audio():
     return 1
     
 def call_menu():
-    global audio_in, audio_out, in_devices, out_devices, call_server, audio
+    global audio_in, audio_out, in_devices, out_devices, call_server, audio, shutdown, live
+    shutdown = 0
     if not audio:
         audio = pyaudio.PyAudio()
     ref(screens["source"])
@@ -2169,16 +2185,17 @@ def call_menu():
         screens["source"].addstr(0, width - (len(f"Input device: {current_in} | Output device: {current_out}") + 1), f"Input device: {current_in} | Output device: {current_out}")
         call_check_thread = task.Thread(target=listen_for_call, args=(call_server,), daemon=True)
         call_check_thread.start()
- 
+    
     while True:
         if call_server:
             screens["bar"].addstr(0, 0, "Connected to Server")
         else:
             screens["bar"].addstr(0, 0, "Not Connected to Server")
         screens["bar"].refresh()
-        call_menu = ["Contacts", "Audio Devices", "Exit"]
+        call_menu = ["Start Call", "Accept Call", "Reject Call", "Audio Devices", "Exit"]
         choice = dynamic_inps(call_menu, 2)
-        if choice == "Contacts":
+
+        if choice == "Start call":
             name = contact_selection()
             if not name:
                 ref(screens["source"])
@@ -2197,54 +2214,80 @@ def call_menu():
             confirm = start_call() 
             ref(screens["source"])
             if confirm == codes["call-confirmation"]: 
-                print_text(0, 0, "Call accepted.. Starting audio threads")
-                time.sleep(0.5)
-                print_text(0, 2, "Input: ")
-                print_text(0, 3, "Output: ")
-                time.sleep(0.2)
-                audin_thread = task.Thread(target=record, args=(call_server, audio_in), daemon=True)
-                print_text(0, 2, "Input: Thread created")
-                time.sleep(0.2)
-                print_text(0, 2, "Input: Waiting to start")
-                time.sleep(0.2)
-                if audio_in:
-                    try:
-                        audin_thread.start()
-                        print_text(0, 2, "Input: Audio input thread started!")
-                    except Exception as e:
-                        failed = True
-                        print_text(0, 2, "Input: FAILED: Audio input thread has failed. Error logged in current directory")
-                        log(str(e))
-                audout_thread = task.Thread(target=playback, args=(call_server, audio_out), daemon=True)
-                print_text(0, 2, "Output: Thread created")
-                time.sleep(0.2)
-                print_text(0, 2, "Output: Waiting to start")
-                time.sleep(0.2)
-                if audio_out:
-                    try:
-                        audout_thread.start()
-                        print_text(0, 2, "Output: Audio input thread started!")
-                    except Exception as e:
-                        failed = True
-                        print_text(0, 2, "Output: FAILED: Audio input thread has failed. Error logged in current directory")
-                        log(str(e))
-            
+                failed = init_audio_threads(call_server, audio_in, audio_out)
+                if not failed:
+                    while live:
+                        time.sleep(1)
             elif confirm == codes["call-timeout"]:
-                print("call timed out, user isn't available or connected to the server")
+                ref(screens["source"])
+                print_text(0, 0, ("call timed out, user isn't available or connected to the server",))
                 calling = False
-                caller = None  # Reset caller on timeout
+                caller = None 
+                screens["source"].getch()
                 continue
             else:
-                print(f"call ended or rejected")
+                ref(screens["source"])
+                print_text(0, 0, ("call rejected",))
                 calling = False
-                caller = None  # Reset caller on rejection/end
-            
-
+                caller = None 
+                screens["source"].getch()
+                continue
+    
         elif choice == "Audio Devices":
-            audio_in, audio_out, status = audio_config()
+            audio_in, audio_out, status = audio_config(call_server)
+        elif choice == "Accept Call":
+            if not incoming:
+                ref(screens["source"])
+                print_text(0, 0, ("There is no incoming call, therefore, nothing to accept","You will be notified if a call is being made to you",))
+                screens["source"].getch()
+            send(call_server, codes["call-confirmation"])
+            init_audio_threads(call_server, audio_in, audio_out)
+        elif choice == "Reject Call":
+            if not incoming:
+                ref(screens["source"])
+                print_text(0, 0, ("There is no incoming call, therefore, nothing to accept","You will be notified if a call is being made to you",))
+                screens["source"].getch()
+            send(call_server, codes["call-end"])
         else:
             return 0
         ref(screens["source"])
+    close_audio()
+    shutdown = 1
+
+def init_audio_threads(call_server, audio_in, audio_out):
+    failed = False
+    print_text(0, 0, "Call accepted.. Starting audio threads")
+    time.sleep(0.01)
+    print_text(0, 2, "Input: ")
+    print_text(0, 3, "Output: ")
+    time.sleep(0.01)
+    audin_thread = task.Thread(target=record, args=(call_server, audio_in), daemon=True)
+    print_text(0, 2, "Input: Thread created")
+    time.sleep(0.01)
+    print_text(0, 2, "Input: Waiting to start")
+    time.sleep(0.1)
+    if audio_in:
+        try:
+            audin_thread.start()
+            print_text(0, 2, "Input: Audio input thread started!")
+        except Exception as e:
+            failed = True
+            print_text(0, 2, "Input: FAILED: Audio input thread has failed. Error logged in current directory")
+            log(str(e))
+    audout_thread = task.Thread(target=playback, args=(call_server, audio_out), daemon=True)
+    print_text(0, 2, "Output: Thread created")
+    time.sleep(0.01)
+    print_text(0, 2, "Output: Waiting to start")
+    time.sleep(0.01)
+    if audio_out:
+        try:
+            audout_thread.start()
+            print_text(0, 2, "Output: Audio input thread started!")
+        except Exception as e:
+            failed = True
+            print_text(0, 2, "Output: FAILED: Audio input thread has failed. Error logged in current directory")
+            log(str(e))
+    return failed
 
 def start_call(call_server, name):
     if not name:
@@ -2309,33 +2352,56 @@ def listen_for_call(call_server):
                 code, caller = call_attempt.split(":", 1)
                 if code == codes["call-start"]:
                     incoming = True
-                    screens["top"].addstr(0, (width // 2) - (len(f"incoming call from {caller.strip("-call")}") // 2), f"incoming call from {caller.strip("-call")}")                   
+                    screens["top"].addstr(0, (width // 2) - (len(f"incoming call from {caller.strip("-call")}") // 2), f"incoming call from {caller.strip("-call")}")
         except Exception as e:
             if not shutdown:
                 time.sleep(0.5)
 
+def send_audio(call_server, data):
+    global live
+    try:
+        call_server.send(data)
+    except (BrokenPipeError, ConnectionResetError):
+         live = 0
+         close_audio()
+
+def get_audio(call_server):
+    global live, call_status
+    call_status = "Ongoing"
+    try:
+        data = call_server.recv(CHUNK)
+    except (BrokenPipeError, ConnectionResetError):
+        live = 0
+        close_audio()
+        call_status = "Ended"
+    except socket.timeout:
+        live = 0
+        close_audio()
+        call_status = "Timed Out"
+    
 def record(call_server, audio_in):
     global live
     try:
         while live:
             audio_buffer = audio_in.read(CHUNK, exception_on_overflow=False)
-            send_to_server(audio_buffer)
+            send_audio(call_server, audio_buffer)
     except Exception as e:
         live = 0
-        close_audio()
+    close_audio()
 
 def playback(call_server, audio_out):
     global live
+    call_server.settimeout(15)
     try:
         while live:
-            audio_buffer = recv_from_server()
+            audio_buffer = get_audio(call_server)
             if not audio_buffer:
-                time.sleep(0.01)
                 continue
             audio_out.write(audio_buffer)
     except Exception as e:
         live = 0
-        close_audio()
+    call_server.settimeout(None)
+    close_audio()
 
 def play_self(audio_in, audio_out):
     global live
