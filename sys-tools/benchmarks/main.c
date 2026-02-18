@@ -13,8 +13,6 @@
    add -lm to gcc
 */
 
-#define _POSIX_C_SOURCE 200809L
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -22,12 +20,22 @@
 #include <pthread.h>
 
 #include <time.h>
-#include <unistd.h>
 #include <math.h>
 
-/* ------tuning------ */
+#ifdef _WIN32
+    #define WIN32_LEAN_AND_MEAN
+    #include <windows.h>
+#else
+    #define _POSIX_C_SOURCE 200809L
+    #include <unistd.h>
+#endif
 
+/* ------tuning------ */
+#ifdef _WIN32
+    static int64_t INT_ITR = 5000000000LL; /*fuck you windows: int bench itr for windows only cause of 32 bit long for some reason*/
+#else
 static long  INT_ITR        = 5000000000L; /* integer bench iterations      */
+#endif
 static long  FP_ITR         = 2000000000L; /* FP bench iterations           */
 static long  BRANCH_ITR     = 500000000L;  /* branch bench iterations       */
 static long  STREAM_BYTES   = 512L * 1024 * 1024; /* 512 MB stream buffer   */
@@ -50,16 +58,34 @@ static const size_t CACHE_SIZES[] = {
 /*---------helpers---------*/
 
 static int get_thread_count(void) {
+#ifdef _WIN32
+    SYSTEM_INFO si;
+    GetSystemInfo(&si);
+    return (int)si.dwNumberOfProcessors;
+#else
     long n = sysconf(_SC_NPROCESSORS_ONLN);
     return (n > 0) ? (int)n : 1;
+#endif
 }
 
 static double elapsed(struct timespec a, struct timespec b) {
     return (b.tv_sec - a.tv_sec) + (b.tv_nsec - a.tv_nsec) / 1e9;
 }
 
-static void ts_mono(struct timespec *t)  { clock_gettime(CLOCK_MONOTONIC,         t); }
-static void ts_cpu (struct timespec *t)  { clock_gettime(CLOCK_PROCESS_CPUTIME_ID, t); }
+#ifdef _WIN32
+static void ts_mono(struct timespec *t) {
+    LARGE_INTEGER freq, cnt;
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&cnt);
+    t->tv_sec  = (time_t)(cnt.QuadPart / freq.QuadPart);
+    t->tv_nsec = (long)((cnt.QuadPart % freq.QuadPart) * 1000000000LL / freq.QuadPart);
+}
+/* Windows has no per-process CPU clock, monotonic is close enough for single-core */
+static void ts_cpu(struct timespec *t) { ts_mono(t); }
+#else
+static void ts_mono(struct timespec *t) { clock_gettime(CLOCK_MONOTONIC,          t); }
+static void ts_cpu (struct timespec *t) { clock_gettime(CLOCK_PROCESS_CPUTIME_ID, t); }
+#endif
 
 /*-------integer arithmetic---------------*/
 
@@ -280,7 +306,11 @@ int main(void) {
     printf("  CPU & Memory Benchmark\n");
     printf("========================================\n");
     printf("threads detected : %d\n",   threads);
+    #ifdef _WIN32
+    printf("int iterations FUCK YOU WINDOWS  : %lldM\n", INT_ITR    / 1000000L);
+    #else
     printf("int iterations   : %ldM\n", INT_ITR    / 1000000L);
+    #endif
     printf("fp  iterations   : %ldM\n", FP_ITR     / 1000000L);
     printf("stream buffer    : %ld MB\n", STREAM_BYTES / (1024*1024));
     printf("chase nodes      : %d M\n", CHASE_NODES / 1000000);
@@ -414,8 +444,12 @@ int main(void) {
     printf("  COMPOSITE SCORE  (lower = faster)\n");
     printf("  %.4f\n", composite);
     printf("========================================\n");
-
-    { struct timespec w = { WAIT_US / 1000000, (long)(WAIT_US % 1000000) * 1000L }; nanosleep(&w, NULL); }
-
+	
+    #ifdef _WIN32
+        Sleep(WAIT_US / 1000);
+    #else
+        { struct timespec w = { WAIT_US / 1000000, (long)(WAIT_US % 1000000) * 1000L }; nanosleep(&w, NULL); }
+    #endif
     return 0;
 }
+
