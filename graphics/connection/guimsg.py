@@ -1147,7 +1147,7 @@ def contact_selection():
     if not names:
         return 0
     for name in names:
-        clean_names.append(name.strip(".txt"))
+        clean_names.append(name.replace(".txt", ""))
     print_text(y, 0, ("Who would you like to message?",), colors["hl1"])
     y += 3
     name = dynamic_inps(clean_names, y)
@@ -2194,8 +2194,8 @@ def call_menu():
         screens["bar"].refresh()
         call_menu = ["Start Call", "Accept Call", "Reject Call", "Audio Devices", "Exit"]
         choice = dynamic_inps(call_menu, 2)
-
-        if choice == "Start call":
+        ref(screens["source"])
+        if choice == "Start Call":
             name = contact_selection()
             if not name:
                 ref(screens["source"])
@@ -2211,7 +2211,7 @@ def call_menu():
             live = 1
             live_out = 1
             ref(screens["source"])
-            confirm = start_call() 
+            confirm = start_call(call_server, name) 
             ref(screens["source"])
             if confirm == codes["call-confirmation"]: 
                 failed = init_audio_threads(call_server, audio_in, audio_out)
@@ -2292,7 +2292,7 @@ def init_audio_threads(call_server, audio_in, audio_out):
 def start_call(call_server, name):
     if not name:
         return codes["call-err"]
-    print_text(0, 0, "Starting the call")
+    print_text(0, 0, (f"dialing {name}... (15 second timeout)",))
     time.sleep(0.2)
     send(call_server, name)
     try:
@@ -2419,86 +2419,6 @@ def play_self(audio_in, audio_out):
         print_text(11, 0, ("Audio failed, results logged. Wait for test to complete",))
         live = 0
         close_audio()
-
-def shell():
-    global live, live_out, audio_in, audio_out, in_devices, out_devices, calling, incoming, caller, stat, shutdown
-    stat = "stopped"
-    
-    while True:
-        inp = input(f"\n({stat}) >>> ")
-        
-        if incoming:
-            if inp == "88" or inp == "attempt accept":
-                send_to_server(codes["call-confirmation"])
-                incoming = False
-                calling = True
-                live = 1
-                live_out = 1
-                stat = "running"
-                
-                audin_thread = task.Thread(target=record, args=(audio_in,), daemon=True)
-                audout_thread = task.Thread(target=playback, args=(audio_out,), daemon=True)
-                
-                if audio_in:
-                    try:
-                        audin_thread.start()
-                    except Exception as e:
-                        print(f"FAILED to start input: {e}")
-                        
-                if audio_out:
-                    try:
-                        audout_thread.start()
-                    except Exception as e:
-                        print(f"FAILED to start output: {e}")
-                
-                # Reset caller after call starts
-                caller = None
-                continue
-                
-            elif inp == "00" or inp == "attempt reject":
-                send_to_server(codes["call-end"])
-                incoming = False
-                caller = None  # Reset caller on rejection
-                continue
-
-        if "ex" in inp:
-            live = 0
-            shutdown = True  # Signal threads to stop
-            try:
-                server.close()  # Close socket connection
-            except:
-                pass
-            print("Shutting down...")
-            time.sleep(1)  # Give threads time to exit
-            break
-            
-        elif "restart" in inp:
-            live = 0
-            time.sleep(0.5)
-            live_out = 1
-            audio_in, audio_out, in_devices, out_devices = discover()
-            print("restarted. try 'start' again")
-            stat = "stopped"
-            caller = None  # Reset caller on restart
-            
-        elif "stop" in inp:
-            live = 0
-            stat = "stopped"
-            time.sleep(0.5)
-            live_out = 1
-            calling = False
-            caller = None  # Reset caller when stopping
-            
-        elif "start" in inp:
-            return
-                
-        else:
-            xcute = funcs.get(inp)
-            if xcute:
-                cachein, cacheout = xcute()
-                if cachein and cacheout:
-                    audio_in = cachein
-                    audio_out = cacheout
 
 def debug():
     print("These are all your usb devices, if your mic is not found it might not be compatible\n")

@@ -4,6 +4,7 @@ import socket as netcom
 import threading as task
 import datetime
 import os
+import time
 
 """
 FIX
@@ -497,20 +498,20 @@ def init_call(username, client, addr):
                 print(f"{username} disconnected")
                 break
                 
-            if not listener:
+            if not listener_username:
                 print(f"{username} disconnected or sent empty request")
                 break
                 
-            listener += "-call"
+            listener_username += "-call"
             print(f"call request from {username} to {listener_username}")
 
             waittime = 0
-            while not check_for_listener(listener):
+            while not check_for_listener(listener_username):
                 print(f"waiting for {listener_username}. time waited = {waittime} & timeout limit = {timeout_limit}")
                 time.sleep(1)
                 waittime += 1
                 if waittime >= timeout_limit:
-                    send_text(client, codes["call-timeout"])
+                    send(client, codes["call-timeout"])
                     print("call timed out")
                     break
                     
@@ -518,14 +519,16 @@ def init_call(username, client, addr):
                 listener_socket = get_socket(listener_username)
                 confirm = send_call_request(caller, listener_socket, buffer_size)
                 if confirm:
-                    send_text(client, codes["call-confirmation"])
+                    send(client, codes["call-confirmation"])
                     start_call(caller, listener_socket, buffer_size)
                 else:
-                    send_text(client, codes["call-end"])
+                    send(client, codes["call-end"])
                     print("call rejected")
+            else:
+                send(client, codes["call-timeout"])
                         
     except Exception as e:
-        print(f"Error with client {caller}: {e}")
+        print(f"Error with client {username}: {e}")
     finally:
         client_end(client)
 
@@ -542,8 +545,7 @@ def get_socket(name):
         if name == other_name:
             return sock
 
-def send_call_request(caller_name, listener_name, buffer_size):
-    listener = usernames.get(listener_name)
+def send_call_request(caller_name, listener, buffer_size):
     if not listener:
         return 0
         
@@ -573,8 +575,8 @@ def start_call(caller_name, listener_name, buffer):
         
     call_active = [True]
 
-    caller_thread = task.Thread(target=send_audio_to_listener, daemon=True)
-    listener_thread = task.Thread(target=send_audio_to_caller, daemon=True)
+    caller_thread = task.Thread(target=send_audio_to_listener, args=(listener, caller), daemon=True)
+    listener_thread = task.Thread(target=send_audio_to_caller, args=(caller, listener), daemon=True)
     
     try:
         caller_thread.start()
@@ -592,24 +594,18 @@ def start_call(caller_name, listener_name, buffer):
     finally:
         print(f"call ended between {caller_name} and {listener_name}")
 
-def send_audio_to_caller():
+def send_audio_to_caller(caller, listener):
     try:
         while call_active[0]:
             send_to_caller = listener.recv(buffer)
-            if not send_to_caller:
-                call_active[0] = False
-                break
             caller.send(send_to_caller)
     except:
         call_active[0] = False
 
-def send_audio_to_listener():
+def send_audio_to_listener(listener, caller):
     try:
         while call_active[0]:
             send_to_listener = caller.recv(buffer)
-            if not send_to_listener:
-                call_active[0] = False
-                break
             listener.send(send_to_listener)
     except:
         call_active[0] = False
