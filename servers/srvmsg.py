@@ -517,10 +517,10 @@ def init_call(username, client, addr):
                     
             if check_for_listener(listener_username):
                 listener_socket = get_socket(listener_username)
-                confirm = send_call_request(caller, listener_socket, buffer_size)
+                confirm = send_call_request(username, listener_socket, buffer_size)
                 if confirm:
                     send(client, codes["call-confirmation"])
-                    start_call(caller, listener_socket, buffer_size)
+                    start_call(ussername, listener_username, buffer_size)
                 else:
                     send(client, codes["call-end"])
                     print("call rejected")
@@ -549,12 +549,12 @@ def send_call_request(caller_name, listener, buffer_size):
     if not listener:
         return 0
         
-    send_text(listener, codes["call-start"]+":"+caller_name)
+    send(listener, codes["call-start"]+":"+caller_name)
     
     confirm = None
     wait = 0
     while not confirm and wait < timeout_limit:
-        confirm = recv_text(listener)
+        confirm = receive(listener)
         if not confirm:
             time.sleep(0.5)
             wait += 0.5
