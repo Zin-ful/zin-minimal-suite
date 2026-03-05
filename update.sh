@@ -19,7 +19,6 @@ cp ~/zin-minimal-suite/graphics/tools/guiweather.py /usr/local/bin/weather
 cp ~/zin-minimal-suite/graphics/tools/guiwgkey.py /usr/local/bin/wgmgr
 cp ~/zin-minimal-suite/graphics/tools/guiclock.py /usr/local/bin/clock
 
-cp ~/zin-minimal-suite/connection/msg.py /usr/local/bin/msg-cli
 cp ~/zin-minimal-suite/tools/wgkey.py /usr/local/bin/wgmgr-cli
 cp ~/zin-minimal-suite/tools/mailer.py /usr/local/bin/mailer-cli
 cp ~/zin-minimal-suite/tools/transfer.py /usr/local/bin/transfer-cli
@@ -33,7 +32,6 @@ sleep 1
 
 chmod +x /usr/local/bin/zintest
 
-chmod +x /usr/local/bin/msg-cli
 chmod +x /usr/local/bin/wgmgr-cli
 chmod +x /usr/local/bin/mailer-cli
 chmod +x /usr/local/bin/transfer-cli
@@ -49,12 +47,11 @@ chmod +x /usr/local/bin/clock
 
 echo "purging directory"
 sleep 1
-#rm -rf zin-minimal-suite
+rm -rf zin-minimal-suite
 
 
 echo "New commands:"
 
-echo "msg-cli"
 echo "wgmgr-cli"
 echo "mailer-cli"
 echo "transfer-cli"

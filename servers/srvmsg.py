@@ -9,19 +9,42 @@ import time
 """
 FIX
 
-Server doesnt know when clients ctrl-C - should be fixed as of 1/25/26
-In direct message, make sure the direct messanger doesnt recieve group chat texts
-In direct message, make sure users dont see the system connected message
-Test missed message sending
-Add file sending
+after call is started, server is stuck on receiving... and gets
+header size is: 3
+with no data content follow-up
+the client may be sending improperly formatted data when confirming the call acception by skipping the send() function and using socket.send() directly
+
+lets break this down into steps:
+
+----------REQUEST PHASE----------
+
+sending data to test-call: 0000000012001:zin-call <<< Call request
+
+receiving header from test-call <<< Waiting for confermation
+header size is: 3 <<< Unknown what this is  -
+header size is: 2 <<< Unknown what this is  - Headersize being received twice should be impossible, unsure of why this happens
+data being received from test-call: 2 | 2 = b't\x00' <<< Sending audio data early, likely before sending confirmation as its threaded. 
+^^^ Confirmation packet is sent before the client audio threads, 1.2 seconds to be exact, so why?
+
+----------END OF REQUEST PHASE----------
+
+----------CALL PHASE----------
+
+call request from test-call to t-call <<< WTF??
+waiting for t-call. time waited = 0 & timeout limit = 15 <<< WTF?? 
+
+data being received from test-call: 3 | 3 = b'\x92\x00\x93' <<< Sending more audio data
+Error with client zin-call: 'utf-8' codec can't decode byte 0x92 in position 0: invalid start byte <<< We are receiving this normally, why?
+
+----------END CALL PHASE----------
+
+The request phase and call phase are completely out of sync.
+
 """
 
 def gen_update():
     update_tuple = (
     "Implement missed messages",
-    "Direct texting has receivied the same updates as group chat",
-    "Server can now reconnect clients without crashing",
-    "client version is now 4.0!"
     )
     msg = ""
     for item in update_tuple:
@@ -87,6 +110,7 @@ user_file = []
 user_call = []
 users_name = {}
 clients_lock = task.Lock()
+locks = {}
 
 def send(client, data):
     try:
@@ -102,27 +126,54 @@ def send(client, data):
 def receive(client):
     try:
         name = users_name.get(client)
-        if not name:
-            name = "Unknown"
         data_received = b''
-        print("receiving header..")
-        packet_size = client.recv(header_size).decode("utf-8")
+        while True:
+            if not name:
+                name = "Unknown"
+                print(f"({name}) skipping block")
+                print(f"({name}) receiving header")
+                packet_size = client.recv(header_size).decode("utf-8")
+                break
+            elif not locks[f"{name}-blocking"]:
+                locks[f"{name}-blocking"] = 1
+                print(f"({name}) setting block")
+                print(f"({name}) receiving header")
+                packet_size = client.recv(header_size).decode("utf-8")
+                break
+            else:
+                time.sleep(0.01)
+                continue
         if not packet_size:
             client_end(client)
+            if name != "Unknown":
+                print(f"({name}) unsetting block")
+                locks[f"{name}-blocking"] = 0
             return 0
         packet_size = int(packet_size)
-        print(f"header size is: {packet_size}")
+        print(f"({name}) header size is: {packet_size}")
         while len(data_received) < packet_size:
             data_received += client.recv(packet_size - len(data_received))
-            print(f"data being received from {users_name.get(client)}: {packet_size} | {len(data_received)} = {data_received}")
+            print(f"({name}) data being received. Expected: {packet_size} | Received:{len(data_received)} Value: {data_received}")
         if not data_received:
             client_end(client)
+            if name != "Unknown":
+                print(f"({name}) unsetting block")
+                locks[f"{name}-blocking"] = 0
             return 0
         data_received = data_received.decode("utf-8")
+        if name != "Unknown":
+            print(f"({name}) unsetting block")
+            locks[f"{name}-blocking"] = 0
         return data_received
     except (OSError):
         client_end(client)
+        if name != "Unknown":
+            print(f"({name}) unsetting block")
+            locks[f"{name}-blocking"] = 0
         return 0
+    if name != "Unknown":
+        print(f"({name}) unsetting block")
+        locks[f"{name}-blocking"] = 0
 
 def send_file(client, name):
     try:
@@ -477,42 +528,51 @@ def client_end(client):
 
 """Pasting in the logic from the old calling server"""
 
-codes = {"call-start": "001", "call-confirmation": "002", "call-end": "003", "call-timeout": "004", "err": "000"}
+codes = {"call-start": "001", "call-confirmation": "002", "call-end": "003", "call-timeout": "004", "wait-buffer": "005", "err": "000"}
 
 buffer_size = 2048
 timeout_limit = 15
 
+BUSY = 0
 
 def init_call(username, client, addr):
     global buffer_size
     waittime = 0
-    print(f"moved {username}:{addr} to calling thread")
+    print(f"({username}) moved {username}:{addr} to calling thread")
+    locks[f"{username}-busy"] = 0
+    locks[f"{username}-blocking"] = 0
     try:
         while True:
+            if not locks[f"{username}-busy"]:
+                try:
+                    print(f"({username}) waiting for call request from {username}")
+                    listener_username = receive(client) #HEY: When a client is responding to a call request, it responds to its own thread FIRST,
+                    # and then sends audio data to the callers thread making it look like the servers receiving two headers at once
+                except:
+                    print(f"{username} disconnected")
+                    break
+            else:
+                time.sleep(1)
             listener = None
-            print(f"waiting for call request from {username}")
-            
-            try:
-                listener_username = receive(client)
-            except:
-                print(f"{username} disconnected")
-                break
+            if listener_username == codes["wait-buffer"]:
+                print(f"({username}) BUSY flag receivied, pausing all data I/O - other thread will have to unpause this manually")
+                locks[f"{username}-busy"] = 1
                 
             if not listener_username:
-                print(f"{username} disconnected or sent empty request")
+                print(f"({username}) {username} disconnected or sent empty request")
                 break
                 
             listener_username += "-call"
-            print(f"call request from {username} to {listener_username}")
+            print(f"({username}) call request from {username} to {listener_username}")
 
             waittime = 0
             while not check_for_listener(listener_username):
-                print(f"waiting for {listener_username}. time waited = {waittime} & timeout limit = {timeout_limit}")
+                print(f"({username}) waiting for {listener_username}. time waited = {waittime} & timeout limit = {timeout_limit}")
                 time.sleep(1)
                 waittime += 1
                 if waittime >= timeout_limit:
                     send(client, codes["call-timeout"])
-                    print("call timed out")
+                    print(f"({username}) call timed out")
                     break
                     
             if check_for_listener(listener_username):
@@ -520,15 +580,17 @@ def init_call(username, client, addr):
                 confirm = send_call_request(username, listener_socket, buffer_size)
                 if confirm:
                     send(client, codes["call-confirmation"])
-                    start_call(ussername, listener_username, buffer_size)
+                    print(f"({username}) starting call")
+                    start_call(username, listener_username, buffer_size)
                 else:
                     send(client, codes["call-end"])
-                    print("call rejected")
+                    print(f"({username}) call rejected")
             else:
+                print(f"({username}) sending timeout")
                 send(client, codes["call-timeout"])
                         
     except Exception as e:
-        print(f"Error with client {username}: {e}")
+        print(f"({username}) Error with client {username}: {e}")
     finally:
         client_end(client)
 
@@ -548,29 +610,30 @@ def get_socket(name):
 def send_call_request(caller_name, listener, buffer_size):
     if not listener:
         return 0
-        
+    print(f"({caller_name}) Sending call request to target")
     send(listener, codes["call-start"]+":"+caller_name)
-    
     confirm = None
     wait = 0
     while not confirm and wait < timeout_limit:
+        print(f"({caller_name}) Recv response from target")
         confirm = receive(listener)
         if not confirm:
             time.sleep(0.5)
             wait += 0.5
-            
+        
     if confirm == codes["call-confirmation"]:
+        print(f"({caller_name}) Call confirmed")
         return 1
-    elif confirm == codes["call-end"]:
+    else:
+        print(f"({caller_name}) Call rejected")
         return 0
-    return 0
 
 def start_call(caller_name, listener_name, buffer):
     caller = usernames.get(caller_name)
     listener = usernames.get(listener_name)
     
     if not caller or not listener:
-        print("caller or listener not found")
+        print(f"({caller_name}) caller or listener not found")
         return
         
     call_active = [True]
@@ -581,7 +644,7 @@ def start_call(caller_name, listener_name, buffer):
     try:
         caller_thread.start()
         listener_thread.start()
-        print(f"call started between {caller_name} and {listener_name}")
+        print(f"({caller_name}) call started between {caller_name} and {listener_name}")
         
         while caller_thread.is_alive() and listener_thread.is_alive() and call_active[0]:
             time.sleep(0.5)
@@ -589,12 +652,13 @@ def start_call(caller_name, listener_name, buffer):
         call_active[0] = False
         
     except Exception as e:
-        print(f"Call error: {e}")
+        print(f"({caller_name}) Call error: {e}")
         call_active[0] = False
     finally:
-        print(f"call ended between {caller_name} and {listener_name}")
+        print(f"({caller_name}) call ended between {caller_name} and {listener_name}")
 
 def send_audio_to_caller(caller, listener):
+    print("sending auto to caller")
     try:
         while call_active[0]:
             send_to_caller = listener.recv(buffer)
@@ -603,6 +667,7 @@ def send_audio_to_caller(caller, listener):
         call_active[0] = False
 
 def send_audio_to_listener(listener, caller):
+    print("sending audio to listener")
     try:
         while call_active[0]:
             send_to_listener = caller.recv(buffer)
