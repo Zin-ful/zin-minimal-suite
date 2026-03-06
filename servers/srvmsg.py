@@ -630,15 +630,19 @@ def start_call(caller_name, listener_name, buffer):
     listener_thread = task.Thread(target=send_audio_to_caller, args=(caller, listener), daemon=True)
     
     try:
+        print(f"({caller_name}) call started between {caller_name} and {listener_name}")
         caller_thread.start()
         listener_thread.start()
-        print(f"({caller_name}) call started between {caller_name} and {listener_name}")
-        
         while caller_thread.is_alive() and listener_thread.is_alive() and call_active:
-            time.sleep(0.5)
-            
-        call_active = False
+            print(f"({caller_name}) active call, waiting")
+            time.sleep(2)
         
+        print(f"({caller_name}) one or more threads terminated, joining")
+        caller_thread.join()
+        listener_thread.join()   
+        call_active = False
+        print(f"({caller_name}) setting {listener_name} BUSY flag to false")
+        locks[f"{listener_name}-busy"] = False
     except Exception as e:
         print(f"({caller_name}) Call error: {e}")
         call_active = False
@@ -652,7 +656,8 @@ def send_audio_to_caller(caller, listener):
         while call_active:
             send_to_caller = listener.recv(buffer)
             caller.send(send_to_caller)
-    except:
+    except Exception as e:
+        print(f"({caller_name}) Error in send_audio_to_caller:\n{str(e)}")
         call_active = False
 
 def send_audio_to_listener(listener, caller):
@@ -662,7 +667,8 @@ def send_audio_to_listener(listener, caller):
         while call_active:
             send_to_listener = caller.recv(buffer)
             listener.send(send_to_listener)
-    except:
+    except Exception as e:
+        print(f"({caller_name}) Error in send_audio_to_listener:\n{str(e)}")
         call_active = False
 
 

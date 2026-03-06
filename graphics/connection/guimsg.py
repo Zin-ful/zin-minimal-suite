@@ -2151,8 +2151,13 @@ if ".zinapp" not in os.listdir(curusr):
 if "call" not in os.listdir(curusr + "/.zinapp"):
     os.mkdir(call_conf_path)
 if allow_calling:
-    call_data = {"in-call": 0, "incoming-call": 0, "input-name": None, "output-name": None, "input": None, "output": None, "input-devices": None, "output-devices": None, "audio": None}
+    call_data = {"sync-listening": 0,"in-call": 0, "incoming-call": 0, "input-name": None, "output-name": None, "input": None, "output": None, "input-devices": None, "output-devices": None, "audio": None}
 
+def sync_listen():
+    call_data["sync-listening"] = 1
+
+def unsync_listen():
+    call_data["sync-listening"] = 0
 
 def test_audio():
     if not call_data["audio"]:
@@ -2340,10 +2345,15 @@ def start_call(call_server, name):
     track(f"{get_time()} | dialing user")
     print_text(0, 0, (f"dialing {name} - (15 second timeout)",))
     time.sleep(0.2)
-    track(f"{get_time()} | sending name to server")
+    track(f"{get_time()} | sending target name to server")
     send(call_server, name)
     track(f"{get_time()} | waiting for confirmation that the call has started")
+    while not call_data["sync-listening"]:
+        track(f"{get_time()} | waiting for listening to sync. Status = {bool(call_data["sync-listening"])}")
+        time.sleep(2)
+    track(f"{get_time()} | listening is sync. Status = {bool(call_data["sync-listening"])}")
     confirm = receive(call_server)
+    unsync_listen()
     track(f"{get_time()} | confirmation received")
     ref(screens["source"])
     if confirm == codes["call-confirmation"]: 
@@ -2413,7 +2423,8 @@ def listen_for_call(call_server):
             track(f"{get_time()} | listening for call...")
             call_attempt = receive(call_server)
             if call_attempt == codes["wait-buffer"]:
-                track(f"{get_time()} | wait buffer received, letting thread naturally pause (setting no variables)")
+                track(f"{get_time()} | wait buffer received, letting thread naturally pause; setting sync-listening")
+                sync_listen()
                 continue
             if call_attempt and ":" in call_attempt:
                 code, caller = call_attempt.split(":", 1)
