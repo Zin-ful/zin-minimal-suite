@@ -67,6 +67,9 @@ receiving = 1
 threads_started = 0
 file_io = 0
 header_size = 10
+packets_sent = 0
+packets_received = 0
+
 
 data_name = ""
 data_path = ""
@@ -398,6 +401,8 @@ def print_text(pos_y, pos_x, msg, color=None):
         i += 1
     screens["chat"].refresh()
 
+def get_time():
+    return datetime.now().strftime("%H:%M:%S")
 
 def print_list(y, x, menu):
     i = 0
@@ -414,6 +419,10 @@ def errlog(error):
         for name, value in attr_dict.items():
             file.write(f"{name}:{value}\n")
         file.write(error)
+
+def track(string):
+    with open(attr_dict["name"]+".log", "a") as file:
+        file.write(string)
 
 def log(string):
     i = 0
@@ -497,11 +506,15 @@ def clearchk(num):
         screens["chat"].refresh()
 
 def send(client, data):
+    global packets_sent
     head = str(len(data)).zfill(header_size)
     data = head + data
     client.send(data.encode("utf-8"))
+    packets_sent += 1
+    track(f"S|#{packets_sent}:{get_time()} @{attr_dict["name"]}\n{data}\n")
 
 def receive(client):
+    global packets_received
     data_received = b''
     packet_size = client.recv(header_size).decode("utf-8")
     if not packet_size:
@@ -510,6 +523,8 @@ def receive(client):
     while len(data_received) < packet_size:
         data_received += client.recv(packet_size - len(data_received))
     data_received = data_received.decode("utf-8")
+    packets_received += 1
+    track(f"R|#{packets_received}:{get_time()} @{attr_dict["name"]}\n{data_received}\n")
     return data_received
         
 def autocaps(phrase):
@@ -2184,6 +2199,7 @@ def call_menu():
     call_server, in_call = init_to_call()
     if call_server:
         discover()
+        track(f"{get_time()} | starting call listener thread")
         call_check_thread = task.Thread(target=listen_for_call, args=(call_server,), daemon=True)
         call_check_thread.start()
     
@@ -2210,7 +2226,9 @@ def call_menu():
             if "Y" not in choice:
                 continue
             call_data["in-call"] = True
+            call_data["incoming-call"] = False
             ref(screens["source"])
+            track(f"{get_time()} | starting call")
             confirm = start_call(call_server, name) 
             if not confirm:
                 end_call(call_server)
@@ -2227,12 +2245,18 @@ def call_menu():
                 continue
             send(call_server, codes["wait-buffer"]) #server will set a flag if this is received in call thread to wait until its unset again.
                                                     #prevents the server from receiving packets.
+            track(f"{get_time()} | sending wait buffer")
             send(call_server, codes["call-confirmation"])
-            call_data["incoming-call"] = False
+            track(f"{get_time()} | sending confirm")
             call_data["in-call"] = True
+            call_data["incoming-call"] = False
+            track(f"{get_time()} | starting audio threads")
             failed = init_audio_threads(call_server)
             if failed:
                 close_audio()
+                track(f"{get_time()} | threads failed")
+                continue
+            track(f"{get_time()} | moving to active call")
             active_call(call_server)
         elif choice == "Reject Call":
             if not call_data["incoming-call"]:
@@ -2261,11 +2285,12 @@ def active_call(call_server):
 
 def init_audio_threads(call_server):
     failed = False
-    print_text(0, 0, ("Call accepted.. Starting audio threads",))
+    print_text(0, 0, ("Call accepted: Starting audio threads",))
     time.sleep(0.4)
     print_text(2, width // 2, ("Input: ",))
     print_text(3, width // 2, ("Output: ",))
     time.sleep(0.4)
+    track(f"{get_time()} | starting audio in")
     audin_thread = task.Thread(target=record, args=(call_server,), daemon=True)
     print_text(2, width // 2, ("Input: Thread created",))
     time.sleep(0.4)
@@ -2279,7 +2304,8 @@ def init_audio_threads(call_server):
             failed = True
             print_text(2, width // 2, ("Input: FAILED: Audio input thread has failed. Error logged in current directory",))
             time.sleep(1)
-            log(str(e))
+            errlog(str(e))
+    track(f"{get_time()} | starting audio out")
     audout_thread = task.Thread(target=playback, args=(call_server,), daemon=True)
     print_text(3, width // 2, ("Output: Thread created",))
     time.sleep(0.4)
@@ -2293,17 +2319,20 @@ def init_audio_threads(call_server):
             failed = True
             print_text(3, width // 2, ("Output: FAILED: Audio input thread has failed. Error logged in current directory",))
             time.sleep(1)
-            log(str(e))
+            errlog(str(e))
     return failed
 
 def start_call(call_server, name):
     if not name:
         return codes["call-err"]
+    track(f"{get_time()} | dialing user")
     print_text(0, 0, (f"dialing {name} - (15 second timeout)",))
     time.sleep(0.2)
+    track(f"{get_time()} | sending name to server")
     send(call_server, name)
+    track(f"{get_time()} | waiting for confirmation that the call has started")
     confirm = receive(call_server)
-    print_text(0, 0, ("response received                     ",))
+    track(f"{get_time()} | confirmation received")
     ref(screens["source"])
     if confirm == codes["call-confirmation"]: 
         failed = init_audio_threads(call_server)
@@ -2363,36 +2392,37 @@ def discover():
             call_data["output-name"] = "None"
         
 def listen_for_call(call_server):
-    global shutdown
-    while not shutdown:
+    while True:
+        if call_data["incoming-call"] or call_data["in-call"]:
+            track(f"{get_time()} | listening for call is paused")
+            time.sleep(8)
+            continue
         try:
+            track(f"{get_time()} | listening for call...")
             call_attempt = receive(call_server)
             if call_attempt and ":" in call_attempt:
                 code, caller = call_attempt.split(":", 1)
                 if code == codes["call-start"]:
                     call_data["incoming-call"] = True
+                    track(f"{get_time()} | incoming call is flagged true")
                     screens["source"].addstr(height // 3, (width // 2) - (len(f"incoming call from {caller.strip("-call")}") // 2), f"incoming call from {caller.strip("-call")}", colors["high"])
                     screens["source"].refresh()
         except Exception as e:
-            if not shutdown:
-                time.sleep(0.5)
+            pass
 
 def send_audio(call_server, data):
     try:
         call_server.send(data)
     except (BrokenPipeError, ConnectionResetError):
-         call_data["in-call"] = False
          close_audio()
 
 def get_audio(call_server):
     try:
         return call_server.recv(CHUNK)
     except (BrokenPipeError, ConnectionResetError):
-        call_data["in-call"] = False
         close_audio()
         call_status = "Ended"
     except socket.timeout:
-        call_data["in-call"] = False
         close_audio()
         call_status = "Timed Out"
     
@@ -2404,21 +2434,23 @@ def record(call_server):
             send_audio(call_server, audio_buffer)
             print_text(height // 3, width - 1 - len("In: Sending"), ("In: Sending",))
     except Exception as e:
-        call_data["in-call"] = 0
+        pass
+    call_data["in-call"] = False
     close_audio()
 
 def playback(call_server):
     call_server.settimeout(15)
     try:
         while call_data["in-call"]:
-            print_text(height // 3, width - 1 - len("Out: Getting"), ("Out: Getting",))
+            print_text(height // 3 - 1, width - 1 - len("Out: Getting"), ("Out: Getting",))
             audio_buffer = get_audio(call_server)
             if not audio_buffer:
                 continue
-            print_text(height // 3, width - 1 - len("Out: Writing"), ("Out: Writing",))
+            print_text(height // 3 - 1, width - 1 - len("Out: Writing"), ("Out: Writing",))
             call_data["output"].write(audio_buffer)
     except Exception as e:
-        call_data["in-call"] = 0
+        pass
+    call_data["in-call"] = False
     call_server.settimeout(None)
     close_audio()
 

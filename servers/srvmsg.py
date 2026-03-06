@@ -9,36 +9,6 @@ import time
 """
 FIX
 
-after call is started, server is stuck on receiving... and gets
-header size is: 3
-with no data content follow-up
-the client may be sending improperly formatted data when confirming the call acception by skipping the send() function and using socket.send() directly
-
-lets break this down into steps:
-
-----------REQUEST PHASE----------
-
-sending data to test-call: 0000000012001:zin-call <<< Call request
-
-receiving header from test-call <<< Waiting for confermation
-header size is: 3 <<< Unknown what this is  -
-header size is: 2 <<< Unknown what this is  - Headersize being received twice should be impossible, unsure of why this happens
-data being received from test-call: 2 | 2 = b't\x00' <<< Sending audio data early, likely before sending confirmation as its threaded. 
-^^^ Confirmation packet is sent before the client audio threads, 1.2 seconds to be exact, so why?
-
-----------END OF REQUEST PHASE----------
-
-----------CALL PHASE----------
-
-call request from test-call to t-call <<< WTF??
-waiting for t-call. time waited = 0 & timeout limit = 15 <<< WTF?? 
-
-data being received from test-call: 3 | 3 = b'\x92\x00\x93' <<< Sending more audio data
-Error with client zin-call: 'utf-8' codec can't decode byte 0x92 in position 0: invalid start byte <<< We are receiving this normally, why?
-
-----------END CALL PHASE----------
-
-The request phase and call phase are completely out of sync.
 
 """
 
@@ -422,6 +392,8 @@ def messenger(client_socket, addr):
     username = receive(client_socket)
     if username:
         users_name.update({client_socket: username})
+        locks[f"{username}-busy"] = 0
+        locks[f"{username}-blocking"] = 0
     print(f"user: {username} connected from {client_socket}")
     type = receive(client_socket) 
     print(f"User type is: {type}")
@@ -538,26 +510,33 @@ BUSY = 0
 def init_call(username, client, addr):
     global buffer_size
     waittime = 0
+    listener = None
     print(f"({username}) moved {username}:{addr} to calling thread")
-    locks[f"{username}-busy"] = 0
-    locks[f"{username}-blocking"] = 0
     try:
+        count = 0
         while True:
-            if not locks[f"{username}-busy"]:
+            while not locks[f"{username}-busy"]:  
                 try:
                     print(f"({username}) waiting for call request from {username}")
                     listener_username = receive(client) #HEY: When a client is responding to a call request, it responds to its own thread FIRST,
                     # and then sends audio data to the callers thread making it look like the servers receiving two headers at once
+                    break #now in loop
                 except:
-                    print(f"{username} disconnected")
-                    break
+                    print(f"({username}) disconnected")
+                    client_end(client)
+                    return
             else:
-                time.sleep(1)
-            listener = None
+                while locks[f"{username}-busy"]:
+                    if count % 10 == 0:
+                        print(f"({username}) waiting BUSY")
+                    time.sleep(1)
+                    count += 1
+            
             if listener_username == codes["wait-buffer"]:
                 print(f"({username}) BUSY flag receivied, pausing all data I/O - other thread will have to unpause this manually")
                 locks[f"{username}-busy"] = 1
-                
+                continue
+
             if not listener_username:
                 print(f"({username}) {username} disconnected or sent empty request")
                 break
@@ -579,8 +558,10 @@ def init_call(username, client, addr):
                 listener_socket = get_socket(listener_username)
                 confirm = send_call_request(username, listener_socket, buffer_size)
                 if confirm:
-                    send(client, codes["call-confirmation"])
                     print(f"({username}) starting call")
+                    print(f"({username}) sending call confirm to client")
+                    send(client, codes["call-confirmation"])
+                    print(f"({username}) sent")
                     start_call(username, listener_username, buffer_size)
                 else:
                     send(client, codes["call-end"])
@@ -629,14 +610,19 @@ def send_call_request(caller_name, listener, buffer_size):
         return 0
 
 def start_call(caller_name, listener_name, buffer):
-    caller = usernames.get(caller_name)
-    listener = usernames.get(listener_name)
+    global call_active
+    caller = get_socket(caller_name)
+    listener = get_socket(listener_name)
     
+    print(f"({caller_name}) getting socket values for\ncaller: {caller_name} | {caller}\nlistener: {listener_name} | {listener}")
+
     if not caller or not listener:
-        print(f"({caller_name}) caller or listener not found")
+        print(f"({caller_name}) caller or listener not found, dumping table")
+        for name, addr in users_name.items():
+            print(f"{name} = {addr}")
         return
         
-    call_active = [True]
+    call_active = True
 
     caller_thread = task.Thread(target=send_audio_to_listener, args=(listener, caller), daemon=True)
     listener_thread = task.Thread(target=send_audio_to_caller, args=(caller, listener), daemon=True)
@@ -646,34 +632,36 @@ def start_call(caller_name, listener_name, buffer):
         listener_thread.start()
         print(f"({caller_name}) call started between {caller_name} and {listener_name}")
         
-        while caller_thread.is_alive() and listener_thread.is_alive() and call_active[0]:
+        while caller_thread.is_alive() and listener_thread.is_alive() and call_active:
             time.sleep(0.5)
             
-        call_active[0] = False
+        call_active = False
         
     except Exception as e:
         print(f"({caller_name}) Call error: {e}")
-        call_active[0] = False
+        call_active = False
     finally:
         print(f"({caller_name}) call ended between {caller_name} and {listener_name}")
 
 def send_audio_to_caller(caller, listener):
+    global call_active
     print("sending auto to caller")
     try:
-        while call_active[0]:
+        while call_active:
             send_to_caller = listener.recv(buffer)
             caller.send(send_to_caller)
     except:
-        call_active[0] = False
+        call_active = False
 
 def send_audio_to_listener(listener, caller):
+    global call_active
     print("sending audio to listener")
     try:
-        while call_active[0]:
+        while call_active:
             send_to_listener = caller.recv(buffer)
             listener.send(send_to_listener)
     except:
-        call_active[0] = False
+        call_active = False
 
 
 load()
