@@ -559,6 +559,8 @@ def init_call(username, client, addr):
                 confirm = send_call_request(username, listener_socket, buffer_size)
                 if confirm:
                     print(f"({username}) starting call")
+                    print(f"({username}) sending blocking packet to client")
+                    send(client, codes["wait-buffer"])
                     print(f"({username}) sending call confirm to client")
                     send(client, codes["call-confirmation"])
                     print(f"({username}) sent")

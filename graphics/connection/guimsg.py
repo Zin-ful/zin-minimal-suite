@@ -14,6 +14,17 @@ from curses.textpad import Textbox
 import sys
 from datetime import datetime
 
+
+"""
+TO FIX:
+
+pausing the call receiving thread doesnt solve the fact that its still trying to receive, like its already there 
+and interacting with data its not supposed to
+The only two solutions i can find is somehow making our thread wait for confirmation until the block flag has been received and
+the call receiving thread is paused or force terminate it. Somehow, maybe timeout?
+
+"""
+
 try:
     import pyaudio
     allow_calling = 1
@@ -130,6 +141,7 @@ if allow_calling:
 colors = {}
 win = {}
 screens = {}
+locks = {"block": False, "busy": False}
 
 if ".zinapp" not in os.listdir(curusr):
     os.mkdir(curusr+"/.zinapp")
@@ -422,7 +434,7 @@ def errlog(error):
 
 def track(string):
     with open(attr_dict["name"]+".log", "a") as file:
-        file.write(string)
+        file.write(string + "\n")
 
 def log(string):
     i = 0
@@ -511,7 +523,7 @@ def send(client, data):
     data = head + data
     client.send(data.encode("utf-8"))
     packets_sent += 1
-    track(f"S|#{packets_sent}:{get_time()} @{attr_dict["name"]}\n{data}\n")
+    track(f"S|#{packets_sent}:{get_time()} @{attr_dict["name"]}\n{data}")
 
 def receive(client):
     global packets_received
@@ -524,7 +536,7 @@ def receive(client):
         data_received += client.recv(packet_size - len(data_received))
     data_received = data_received.decode("utf-8")
     packets_received += 1
-    track(f"R|#{packets_received}:{get_time()} @{attr_dict["name"]}\n{data_received}\n")
+    track(f"R|#{packets_received}:{get_time()} @{attr_dict["name"]}\n{data_received}")
     return data_received
         
 def autocaps(phrase):
@@ -2390,16 +2402,19 @@ def discover():
                                     output_device_index=int(outlist[0]), frames_per_buffer=CHUNK)
         else:
             call_data["output-name"] = "None"
-        
+  
 def listen_for_call(call_server):
     while True:
         if call_data["incoming-call"] or call_data["in-call"]:
-            track(f"{get_time()} | listening for call is paused")
+            track(f"{get_time()} | incoming call or in call set to true. listening for call is paused")
             time.sleep(8)
             continue
         try:
             track(f"{get_time()} | listening for call...")
             call_attempt = receive(call_server)
+            if call_attempt == codes["wait-buffer"]:
+                track(f"{get_time()} | wait buffer received, letting thread naturally pause (setting no variables)")
+                continue
             if call_attempt and ":" in call_attempt:
                 code, caller = call_attempt.split(":", 1)
                 if code == codes["call-start"]:
