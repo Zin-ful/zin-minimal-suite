@@ -319,7 +319,8 @@ def main(stdscr):
         ref(stdscr)
         if choice == "Messenger":
             screens["bar"].refresh()
-            if not contact_selection():
+            choice = contact_selection()
+            if not choice:
                 ref(screens["chat"])
                 ref(screens["bar"])
                 screens["chat"].addstr(5, 0, "No contacts found, add users to your contacts in group chat")
@@ -327,6 +328,7 @@ def main(stdscr):
                 screens["chat"].refresh()
                 screens["chat"].getch()
                 continue
+            direct_message(choice)
         elif choice == "Group Chat":
             group_message()
         elif choice == "Contacts":
@@ -1126,7 +1128,11 @@ def direct_message(name):
     global y, pause, threads_started, network, receiving
     network = f"Messaging {name}"
     server = gc_config_init("d")
+    running = 1
     if not server:
+        ref(screens["source"])
+        print_text(0, 0, ("There has been an error connecting to the server. Press any key to continue",))
+        screens["source"].getch()
         return
     if not threads_started:
         screens["bar"].refresh()
@@ -2246,10 +2252,7 @@ def call_menu():
             call_data["incoming-call"] = False
             ref(screens["source"])
             track(f"{get_time()} | starting call")
-            confirm = start_call(call_server, name) 
-            if not confirm:
-                end_call(call_server)
-            active_call(call_server)
+            start_call(call_server, name) 
             ref(screens["source"])
             continue
         elif choice == "Audio Devices":
@@ -2289,15 +2292,22 @@ def call_menu():
     close_audio()
     shutdown = 1
 
-def end_call(call_server):
+def end_call(call_server, aioin, aioout):
+    global active_call
+    track(f"{get_time()} | ending call")
     send(call_server, codes["call-end"])
+    active_call = False
+    track(f"{get_time()} | send end-call code. Stopping threads")
+    aioin.join()
+    aioout.join()
+    while caller_thread.is_alive() and listener_thread.is_alive():
+        track(f"{get_time()} | waiting for threads to end...\nInput is alive: {caller_thread.is_alive()}\nOutput is alive:{caller_thread.is_alive()}")
+    track(f"{get_time()} | threads ended")
 
 def active_call(call_server):
     ref(screens["source"])
     while True:
         choice = dynamic_inps(["End Call"], 2)
-        close_audio()
-        send(call_server, codes["call-end"])
         break
 
 def init_audio_threads(call_server):
@@ -2337,6 +2347,7 @@ def init_audio_threads(call_server):
             print_text(3, width // 2, ("Output: FAILED: Audio input thread has failed. Error logged in current directory",))
             time.sleep(1)
             errlog(str(e))
+    active_call(audin_thread, audout_thread)
     return failed
 
 def start_call(call_server, name):
@@ -2455,10 +2466,8 @@ def get_audio(call_server):
 def record(call_server):
     try:
         while call_data["in-call"]:
-            print_text(height // 3, width - 1 - len("In: Reading"), ("In: Reading",))
             audio_buffer = call_data["input"].read(CHUNK, exception_on_overflow=False)
             send_audio(call_server, audio_buffer)
-            print_text(height // 3, width - 1 - len("In: Sending"), ("In: Sending",))
     except Exception as e:
         pass
     call_data["in-call"] = False
@@ -2468,11 +2477,9 @@ def playback(call_server):
     call_server.settimeout(15)
     try:
         while call_data["in-call"]:
-            print_text(height // 3 - 1, width - 1 - len("Out: Getting"), ("Out: Getting",))
             audio_buffer = get_audio(call_server)
             if not audio_buffer:
                 continue
-            print_text(height // 3 - 1, width - 1 - len("Out: Writing"), ("Out: Writing",))
             call_data["output"].write(audio_buffer)
     except Exception as e:
         pass

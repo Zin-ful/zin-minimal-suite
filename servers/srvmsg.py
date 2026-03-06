@@ -23,7 +23,7 @@ def gen_update():
 
 server_version = 3.5
 
-updatemsg = f"server.message.from.server." + "Server Compatability: 4.0 - 4.2\nTo-Do List: " + gen_update()
+updatemsg = f"server.message.from.server." + "Server Compatability: 5.5 - 6.0\nTo-Do List: " + gen_update()
 
 
 conf_path = "/opt/zinapp/ztext_srvr"
@@ -346,31 +346,35 @@ def log(client_socket, msg):
         with open(f"{conf_path}/log.txt", "a") as file:
             file.write(f"from {client_socket}: {msg}\n")
 
-def save_missed(name, message):
+def save_missed(name, target, message):
+    print("saving message")
     with open(missed_path+f"{name}.txt", "a") as file:
-        file.write(message+"\n")
+        file.write(f"@{target} (direct): {message}\n")
 
 def check_missed(name):
     missed = None
-    if f"{name}.txt" not in missed_path:
+    if f"{name}.txt" not in os.listdir(missed_path):
         return None
     with open(missed_path+f"{name}.txt", "r") as file:
         check = file.readlines()
-        while True:
-            if len(check) < 15:
-                for item in check:
-                    missed += item
-            else:
-                i = 0
-                while i < 10:
-                    check.pop(i)
-                    i += 1
+    if check:
+        return check
+
+def send_missed(client, name):
+    missed = check_missed(name)
     if missed:
-        return missed
+        send(client_socket, "server.message.from.server.MISSED MESSAGES")
+        for item in missed:
+            time.sleep(0.1)
+            send(client_socket, item)
+        with open(missed_path+f"{name}.txt", "w") as file:
+            file.write("")
+        send(client_socket, "server.message.from.server.END OF MISSED MESSAGES")
     else:
-        return None
+        send(client_socket, "server.message.from.server.NO MESSAGES")
 
 def direct_send(message, source_user):
+    sent = 0
     try:
         username, message = message.split(":", 1)
     except:
@@ -380,8 +384,10 @@ def direct_send(message, source_user):
         if username.lower().strip() == user.lower().strip():
             print(f"sending DM to {source_user}")
             send(id, f"\n@{source_user} (direct): {message}\n")
-            break
-    save_missed(username, message)
+            sent = 1
+            return
+    save_missed(username, source_user, message)
+    
             
 def messenger(client_socket, addr):
     addr_id = str(addr)
@@ -430,9 +436,9 @@ def messenger(client_socket, addr):
         if not send(client_socket, updatemsg):
             return
     print("Sent")
-    missed = check_missed(username)
-    if missed:
-        client.send("SYSTEM MISSED MESSAGES\n{missed}")
+
+    if client_socket in user_direct:
+        send_missed(client_socket, username)
     while True:
         message = receive(client_socket)
         if not message:
@@ -654,10 +660,10 @@ def send_audio_to_caller(caller, listener):
     print("sending auto to caller")
     try:
         while call_active:
-            send_to_caller = listener.recv(buffer)
+            send_to_caller = listener.recv(buffer_size)
             caller.send(send_to_caller)
     except Exception as e:
-        print(f"({caller_name}) Error in send_audio_to_caller:\n{str(e)}")
+        print(f"({users_name[caller]}) Error in send_audio_to_caller:\n{str(e)}")
         call_active = False
 
 def send_audio_to_listener(listener, caller):
@@ -665,10 +671,10 @@ def send_audio_to_listener(listener, caller):
     print("sending audio to listener")
     try:
         while call_active:
-            send_to_listener = caller.recv(buffer)
+            send_to_listener = caller.recv(buffer_size)
             listener.send(send_to_listener)
     except Exception as e:
-        print(f"({caller_name}) Error in send_audio_to_listener:\n{str(e)}")
+        print(f"({users_name[caller]}) Error in send_audio_to_listener:\n{str(e)}")
         call_active = False
 
 
