@@ -498,7 +498,40 @@ def alert_inps():
                 alert_list, alert_details, alert_link = alt_alert("*") 
             print_list(alert_list, 1)
         elif key == ord("T"):
-            pass #put auto refresh here
+            refresh_count = 0
+            current_time = 120
+            refresh_time = 120
+            sleep_amount = 5
+            try:
+                while True:
+                    if current_time == refresh_time:
+                        screens["source"].clear()
+                        screens["source"].refresh()
+                        if parameters["alternate server"] == "false":
+                            alert_list, alert_details, alert_link = get_alert(None)
+                        else:
+                            if not connected and parameters["alternate server"] != "false":
+                                connected = init()
+                            alert_list, alert_details, alert_link = alt_alert("*") 
+                        print_list(alert_list, 1)
+                        current_time = 0
+                    else:
+                        screens["source"].addstr(height - 3, width // 3, f"(AUTO) Refreshing in {refresh_time - current_time} seconds.")
+                        screens["source"].addstr(height - 2, width // 3, f"Ctrl+C to stop auto and access alert details")
+                        screens["source"].refresh()
+                        time.sleep(sleep_amount)
+                        current_time += sleep_amount
+            except KeyboardInterrupt:
+                screens["source"].clear()
+                screens["source"].refresh()
+                if parameters["alternate server"] == "false":
+                    alert_list, alert_details, alert_link = get_alert(None)
+                else:
+                    if not connected and parameters["alternate server"] != "false":
+                        connected = init()
+                    alert_list, alert_details, alert_link = alt_alert("*") 
+                print_list(alert_list, 1)
+
         elif key == ord("A"):
             temp_al, temp_ad, temp_ak = archive()
             if temp_al:

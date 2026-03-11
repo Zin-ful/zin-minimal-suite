@@ -491,6 +491,8 @@ def client_end(client):
         if client in user_file:
             user_file.remove(client)
         if client in user_call:
+            locks[f"{username}-busy"] = 0
+            locks[f"{username}-blocking"] = 0
             user_call.remove(client)
     try:
         client.close()
@@ -535,8 +537,12 @@ def init_call(username, client, addr):
                 while locks[f"{username}-busy"]:
                     if count % 10 == 0:
                         print(f"({username}) waiting BUSY")
-                    time.sleep(1)
-                    count += 1
+                else:
+                    if not client:
+                        print("WARN: Client ended while busy")
+                        return
+                        time.sleep(1)
+                        count += 1
             
             if listener_username == codes["wait-buffer"]:
                 print(f"({username}) BUSY flag receivied, pausing all data I/O - other thread will have to unpause this manually")
