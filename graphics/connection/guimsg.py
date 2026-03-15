@@ -13,7 +13,7 @@ from curses import wrapper
 from curses.textpad import Textbox
 import sys
 from datetime import datetime
-
+import zlib
 
 """
 TO FIX:
@@ -24,6 +24,8 @@ The only two solutions i can find is somehow making our thread wait for confirma
 the call receiving thread is paused or force terminate it. Somehow, maybe timeout?
 
 """
+
+debug = True #UNSET FOR RELEASE
 
 try:
     import pyaudio
@@ -130,7 +132,7 @@ f"------{client_version} patches:------",
 
 ]
 attr_dict = {"ipaddr": ip, "name": username, "autoconnect": autoconn, 
-"idaddr": ipid, "alias":alias, "mode":mode, "file path":  os.path.expanduser("~"), 
+"idaddr": ipid, "alias":alias, "compression": "false", "compression level": "","mode":mode, "file path":  os.path.expanduser("~"), 
 "theme": color_choice, "saved-input":"none", "saved-output":"none"}
 
 if allow_calling:
@@ -435,6 +437,8 @@ def errlog(error):
         file.write(error)
 
 def track(string):
+    if not debug:
+        return
     with open(attr_dict["name"]+".log", "a") as file:
         file.write(string + "\n")
 
@@ -519,10 +523,46 @@ def clearchk(num):
         y = 0
         screens["chat"].refresh()
 
+def compress_message(msg, level=attr_dict["compression level"]):
+    try:
+        level = int(level)
+    except:
+        level = 6
+    if level > 9:
+        level = 9
+    elif level < 1:
+        level = 1
+    size_1 = len(msg)
+    if size_1 > 100:
+        msg = zlib.compress(msg, level)
+    size_2 = len(msg)
+    track(f"S|#{packets_sent}:{get_time()} @{attr_dict["name"]}\nUncompressed size: {size_1} & Compressed size: {size_2}")
+    return msg
+
+def uncompress_message(msg, level=attr_dict["compression level"]):
+    try:
+        if len(msg) > 100:
+            msg = zlib.decompress(msg)
+    except:
+        track(f"S|#{packets_sent}:{get_time()} @{attr_dict["name"]}\nDecompression failed")
+    return msg
+    
 def send(client, data):
     global packets_sent
+    if attr_dict["compression"] == "true":
+        data = compress_message(data.encode("utf-8"))
+    else:
+        data = data.encode("utf-8")
     head = str(len(data)).zfill(header_size)
-    data = head + data
+    client.send(head.encode("utf-8"))
+    client.send(data)
+    packets_sent += 1
+    track(f"S|#{packets_sent}:{get_time()} @{attr_dict["name"]}\n{data}")
+
+def clean_send(client, data):
+    global packets_sent
+    head = str(len(data)).zfill(header_size)
+    client.send(head.encode("utf-8"))
     client.send(data.encode("utf-8"))
     packets_sent += 1
     track(f"S|#{packets_sent}:{get_time()} @{attr_dict["name"]}\n{data}")
@@ -536,11 +576,27 @@ def receive(client):
     packet_size = int(packet_size)
     while len(data_received) < packet_size:
         data_received += client.recv(packet_size - len(data_received))
+    if attr_dict["compression"] == "true":
+        data_received = uncompress_message(data_received)
     data_received = data_received.decode("utf-8")
     packets_received += 1
     track(f"R|#{packets_received}:{get_time()} @{attr_dict["name"]}\n{data_received}")
     return data_received
-        
+
+def clean_receive(client):
+    global packets_received
+    data_received = b''
+    packet_size = client.recv(header_size).decode("utf-8")
+    if not packet_size:
+        return 0
+    packet_size = int(packet_size)
+    while len(data_received) < packet_size:
+        data_received += client.recv(packet_size - len(data_received))
+    data_received = data_received.decode("utf-8")
+    packets_received += 1
+    track(f"R|#{packets_received}:{get_time()} @{attr_dict["name"]}\n{data_received}")
+    return data_received
+      
 def autocaps(phrase):
     if "." and " " not in phrase.strip():
         return phrase
@@ -1070,6 +1126,8 @@ def group_message():
     pause = 0
     x = 0
     update()
+    if attr_dict["compression"] == "true":
+        clean_send(server, "server.main.set-compression true")
     running = 1
     while running:
         try:
@@ -1142,6 +1200,8 @@ def direct_message(name):
     pause = 0
     x = 0
     update()
+    if attr_dict["compression"] == "true":
+        send(server, "server.main.set-compression true")
     while running:
         try:
             inp = screens["text"].edit().strip()
@@ -1264,10 +1324,10 @@ def manual_conf(state, type):
     server = netcom.socket(ipv4, tcp)
     server.connect((attr_dict["ipaddr"], port))
     if type == "c":
-        send(server, attr_dict["name"]+"-call")
+        clean_send(server, attr_dict["name"]+"-call")
     else:
-        send(server, attr_dict["name"])
-    send(server, type)
+        clean_send(server, attr_dict["name"])
+    clean_send(server, type)
     if attr_dict["mode"] != "performance":
         ref(screens["chat"])
         msg = ("Connection accepted! Moving to shell..",)
@@ -1275,7 +1335,7 @@ def manual_conf(state, type):
         time.sleep(0.1)
     ref(screens["chat"])
     if type != "c":
-        users = int(receive(server))
+        users = int(clean_receive(server))
     return server
 
 def save_conf():
@@ -1308,17 +1368,17 @@ def autoconnect(type):
     server = netcom.socket(ipv4, tcp)
     server.connect((attr_dict["ipaddr"].strip(), port))
     if type == "c":
-        send(server, attr_dict["name"]+"-call")
+        clean_send(server, attr_dict["name"]+"-call")
     else:
-        send(server, attr_dict["name"])
-    send(server, type)
+        clean_send(server, attr_dict["name"])
+    clean_send(server, type)
     if attr_dict["mode"] != "performance":
         ref(screens["chat"])
         msg = "Connection accepted! Moving to shell.."
         print_text(2, 0, (msg,), colors["hl3"])
         time.sleep(0.1)
     if type != "c":
-        users = int(receive(server))
+        users = int(clean_receive(server))
     ref(screens["chat"])
     return server
   

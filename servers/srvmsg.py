@@ -5,7 +5,7 @@ import threading as task
 import datetime
 import os
 import time
-
+import zlib
 """
 FIX
 
@@ -78,16 +78,37 @@ users = []
 user_direct = []
 user_file = []
 user_call = []
+user_compress = []
 users_name = {}
 clients_lock = task.Lock()
 locks = {}
+comp_level = 9 #9 is highest
+
+def compress_message(msg, level=comp_level):
+    print("Compressing message")
+    if len(msg) > 100:
+        return zlib.compress(msg, level)
+    else:
+        return msg
+
+
+def uncompress_message(msg, level=comp_level):
+    try:
+        if len(msg) > 100:
+            msg = zlib.decompress(msg)
+    except:
+        print("Decompression failed")
+    return msg
 
 def send(client, data):
     try:
+        if client in user_compress:
+            data = compress_message(data.encode("utf-8"))
+        else:
+            data = data.encode("utf-8")
         head = str(len(data)).zfill(header_size)
-        data = head + data
-        print(f"sending data to {users_name.get(client)}: {data}")
-        client.send(data.encode("utf-8"))
+        client.send(head.encode("utf-8"))
+        client.send(data)
         return 1
     except (BrokenPipeError, ConnectionResetError):
         client_end(client)
@@ -130,6 +151,8 @@ def receive(client):
                 print(f"({name}) unsetting block")
                 locks[f"{name}-blocking"] = 0
             return 0
+        if client in user_compress:
+            data_received = uncompress_message(data_received)
         data_received = data_received.decode("utf-8")
         if name != "Unknown":
             print(f"({name}) unsetting block")
@@ -339,7 +362,24 @@ def list_files(client_socket, msg):
         files += item + " "
     return files
 
-commands = {"get-file":handle_download, "list-file":list_files,"send-file":handle_upload, "bug-report":bug_report,"get-users": list_users,"get-link": link, "get-contact": contact, "help":helpy, "set-link": updlink, "set-contact": updcontact, "set-password": updpasswd}
+def add_compression(client, msg):
+    cache, msg = msg.split(" ", 1)
+    msg = msg.strip()
+    print(msg)
+    user_compress.append(client)
+    if msg == "true":
+        print("Adding user to compression")
+        if client not in user_compress:
+            print("user added")
+            user_compress.append(client)
+    else:
+        print("Removing user from compress")
+        if client in user_compress:
+            print("User removed")
+            user_compress.remove(client)
+    return "server.message.from.server.Compression is enabled."
+
+commands = {"set-compression": add_compression, "get-file":handle_download, "list-file":list_files,"send-file":handle_upload, "bug-report":bug_report,"get-users": list_users,"get-link": link, "get-contact": contact, "help":helpy, "set-link": updlink, "set-contact": updcontact, "set-password": updpasswd}
 
 def log(client_socket, msg):
     if msg:
@@ -453,12 +493,20 @@ def messenger(client_socket, addr):
         if client_socket in user_direct:
             continue
         if "server.main." in message and '"' not in message:
+            print("Command received.")
             cmd = message.replace("server.main.", "")
             log(client_socket, cmd)
+            if " " in cmd:
+                cmd, data = cmd.split(" ", 1)
+            else:
+                data = None
             xcute = commands.get(cmd.strip())
             print("Getting command..")
             if xcute:
-                message = xcute(client_socket, message)
+                if data:
+                    message = xcute(client_socket, message)
+                else:
+                    message = xcute(client_socket, message)
             else:
                 message = "server.message.from.server.invalid"
             log(client_socket, message)
@@ -494,6 +542,8 @@ def client_end(client):
             locks[f"{username}-busy"] = 0
             locks[f"{username}-blocking"] = 0
             user_call.remove(client)
+        if client in user_compress:
+            user_compress.remove(client)
     try:
         client.close()
     except:
