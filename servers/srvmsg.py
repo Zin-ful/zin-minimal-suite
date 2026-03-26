@@ -132,7 +132,7 @@ def receive(client):
                 packet_size = client.recv(header_size).decode("utf-8")
                 break
             else:
-                time.sleep(0.01)
+                time.sleep(0.1)
                 continue
         if not packet_size:
             client_end(client)
@@ -550,11 +550,12 @@ def client_end(client):
         pass
     print(f"client disconnected: {username}")
     end_msg = f"server.message.from.server.users: {len(users)} !SYSTEM MESSAGE: user DISconnected: {username}"
-    for user in users[:]:
-        try:
-            send(user, end_msg)
-        except:
-            pass
+    if users:
+        for user in users[:]:
+            try:
+                send(user, end_msg)
+            except:
+                pass
 
 """Pasting in the logic from the old calling server"""
 
@@ -576,15 +577,17 @@ def init_call(username, client, addr):
             while not locks[f"{username}-busy"]:  
                 try:
                     print(f"({username}) waiting for call request from {username}")
-                    listener_username = receive(client) #HEY: When a client is responding to a call request, it responds to its own thread FIRST,
-                    # and then sends audio data to the callers thread making it look like the servers receiving two headers at once
-                    break #now in loop
+                    listener_username = receive(client) #HEY: When a client is responding to a call request, it responds to its own thread FIRST, and then sends audio data to the callers thread making it look like the servers receiving two headers at once
+                    if not listener_username:
+                        client_end(client)
+                    break
                 except:
                     print(f"({username}) disconnected")
                     client_end(client)
                     return
             else:
                 while locks[f"{username}-busy"]:
+                    time.sleep(1)
                     if count % 10 == 0:
                         print(f"({username}) waiting BUSY")
                 else:
@@ -592,11 +595,12 @@ def init_call(username, client, addr):
                         print("WARN: Client ended while busy")
                         return
                         time.sleep(1)
-                        count += 1
+                    count += 1
             
             if listener_username == codes["wait-buffer"]:
                 print(f"({username}) BUSY flag receivied, pausing all data I/O - other thread will have to unpause this manually")
                 locks[f"{username}-busy"] = 1
+                listener_username = None
                 continue
 
             if not listener_username:
@@ -674,65 +678,99 @@ def send_call_request(caller_name, listener, buffer_size):
         return 0
 
 def start_call(caller_name, listener_name, buffer):
-    global call_active
     caller = get_socket(caller_name)
     listener = get_socket(listener_name)
-    
-    print(f"({caller_name}) getting socket values for\ncaller: {caller_name} | {caller}\nlistener: {listener_name} | {listener}")
 
     if not caller or not listener:
-        print(f"({caller_name}) caller or listener not found, dumping table")
-        for name, addr in users_name.items():
-            print(f"{name} = {addr}")
+        print(f"({caller_name}) caller or listener not found")
         return
-        
-    call_active = True
 
-    caller_thread = task.Thread(target=send_audio_to_listener, args=(listener, caller), daemon=True)
-    listener_thread = task.Thread(target=send_audio_to_caller, args=(caller, listener), daemon=True)
-    
+    stop_event = task.Event()  # scoped per call, no global needed
+
+    caller_thread = task.Thread(target=send_audio_to_listener, args=(listener, caller, stop_event), daemon=True)
+    listener_thread = task.Thread(target=send_audio_to_caller, args=(caller, listener, stop_event), daemon=True)
+
     try:
         print(f"({caller_name}) call started between {caller_name} and {listener_name}")
         caller_thread.start()
         listener_thread.start()
-        while caller_thread.is_alive() and listener_thread.is_alive() and call_active:
-            print(f"({caller_name}) active call, waiting")
+
+        while caller_thread.is_alive() and listener_thread.is_alive() and not stop_event.is_set():
             time.sleep(2)
-        
+
         print(f"({caller_name}) one or more threads terminated, joining")
-        caller_thread.join()
-        listener_thread.join()   
-        call_active = False
-        print(f"({caller_name}) setting {listener_name} BUSY flag to false")
+        stop_event.set()
+        caller.settimeout(1)    # unblock any recv in the threads
+        listener.settimeout(1)
+        caller_thread.join(timeout=3)
+        listener_thread.join(timeout=3)
+        caller.settimeout(None)
+        listener.settimeout(None)
+
+        time.sleep(0.2)
+        try:
+            send(listener, codes["call-end"])
+        except:
+            client_end(listener)
+        try:
+            send(caller, codes["call-end"])
+        except:
+            client_end(caller)
+
         locks[f"{listener_name}-busy"] = False
     except Exception as e:
         print(f"({caller_name}) Call error: {e}")
-        call_active = False
+        stop_event.set()
     finally:
         print(f"({caller_name}) call ended between {caller_name} and {listener_name}")
 
-def send_audio_to_caller(caller, listener):
-    global call_active
-    print("sending auto to caller")
+
+def send_audio_to_caller(caller, listener, stop_event):
+    timeout_limit = 15
+    current_timeout = 0
     try:
-        while call_active:
+        while not stop_event.is_set():
             send_to_caller = listener.recv(buffer_size)
+            if not send_to_caller:
+                current_timeout += 0.2
+                time.sleep(0.2)
+                if current_timeout > timeout_limit:
+                    stop_event.set()
+                continue
+            current_timeout = 0
             caller.send(send_to_caller)
     except Exception as e:
-        print(f"({users_name[caller]}) Error in send_audio_to_caller:\n{str(e)}")
-        call_active = False
+        print(f"Error in send_audio_to_caller: {e}")
+        stop_event.set()
+    print("setting blocking")
+    locks[f"{users_name[caller]}-busy"] = 0
+    locks[f"{users_name[caller]}-blocking"] = 0
+    locks[f"{users_name[listener]}-busy"] = 0
+    locks[f"{users_name[listener]}-blocking"] = 0
 
-def send_audio_to_listener(listener, caller):
-    global call_active
-    print("sending audio to listener")
+
+def send_audio_to_listener(listener, caller, stop_event):
+    timeout_limit = 15
+    current_timeout = 0
     try:
-        while call_active:
+        while not stop_event.is_set():
             send_to_listener = caller.recv(buffer_size)
+            if not send_to_listener:
+                current_timeout += 0.2
+                time.sleep(0.2)
+                if current_timeout > timeout_limit:
+                    stop_event.set()
+                continue
+            current_timeout = 0
             listener.send(send_to_listener)
     except Exception as e:
-        print(f"({users_name[caller]}) Error in send_audio_to_listener:\n{str(e)}")
-        call_active = False
-
+        print(f"Error in send_audio_to_listener: {e}")
+        stop_event.set()
+    print("setting blocks")
+    locks[f"{users_name[caller]}-busy"] = 0
+    locks[f"{users_name[caller]}-blocking"] = 0
+    locks[f"{users_name[listener]}-busy"] = 0
+    locks[f"{users_name[listener]}-blocking"] = 0
 
 load()
 server.listen(10)

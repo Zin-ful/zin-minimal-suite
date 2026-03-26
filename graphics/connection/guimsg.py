@@ -47,7 +47,7 @@ except:
 old_versions = ["The Curses Update", "The Settings Update", "The Contacts Update", 
 "The Performance Update", "The Files Update", "The Themes Update", "The Calling Update"]
 
-client_version = "5.6 - The Themes Update"
+client_version = "6.0 - The Calling Update"
 
 curusr = os.path.expanduser("~")
 
@@ -104,31 +104,33 @@ hidden = 1
 bugs = [
 "-------Known Bugs:-------"
 " ",
-"When exiting the messenger and restarting the recv thread it wont display",
 " ",
+"Some display issues in caller - non breaking",
+"Cannot end calls without restarting the application",
+"OLD: When exiting the messenger and restarting the recv thread it wont display",
+"OLD: Users with different screen sizes encounter message display issues",
+"OLD: The file upload messages can overwrite the one on the screen",
 " ",
-"The file upload messages can overwrite the one on the screen",   
 "----Features coming soon:----",
 " ",
-"Refreshing audio devices",
-"New performance modes - half done",
-"Emojis",
-"In-build simple games",
-"Custom text box for arrow key usage and saving recent messages",
-"Keybings for quick responses"
+"NEXT: Custom text box for arrow key usage and saving recent messages",
+"NEXT: Audio compression",
+"NEXT: Secondary saved audio device selection",
+"ARCHIVED: New performance modes - half done",
+"ARCHIVED: Emojis",
+"ARCHIVED: In-build simple games",
+"ARCHIVED: Keybinds for quick responses"
+" "
 ]
 
 patches = [
 f"------{client_version} patches:------",
 " ",
-"Added seperate colors for battery percents",
-"Added calling mode",
-"Uploading now doesnt break CLI",
-"Battery percents now work with multiple batteries.",
-"Calling now can negotiate with servers",
-"Fixed issues when adding contacts",
-"Calling variables switched from global to dictionary based",
-"Leaving and reopening caller no longer breaks audio devices"
+"Added compression levels, 0 and > 9 get auto corrected.",
+"Added saving selected audio devices",
+"Saved audio devices that are not present now default to devices 0,0",
+"Leaving and reopening caller no longer breaks audio devices",
+"Switched from global bool to thread events to control audio threads"
 
 ]
 attr_dict = {"ipaddr": ip, "name": username, "autoconnect": autoconn, 
@@ -2287,6 +2289,7 @@ def call_menu():
         call_check_thread.start()
     
     while True:
+        ref(screens["source"])
         if call_server:
             screens["bar"].addstr(0, 0, "Connected to Server")
             screens["source"].addstr(0, width - (len(f"Input device: {call_data["input-name"]} | Output device: {call_data["output-name"]}") + 1), f"Input device: {call_data["input-name"]} | Output device: {call_data["output-name"]}")
@@ -2337,7 +2340,6 @@ def call_menu():
                 track(f"{get_time()} | threads failed")
                 continue
             track(f"{get_time()} | moving to active call")
-            active_call(call_server)
         elif choice == "Reject Call":
             if not call_data["incoming-call"]:
                 ref(screens["source"])
@@ -2348,26 +2350,35 @@ def call_menu():
             send(call_server, codes["call-end"])
         else:
             return 0
-        ref(screens["source"])
+        
     close_audio()
     shutdown = 1
 
 def end_call(call_server, aioin, aioout):
-    global active_call
     track(f"{get_time()} | ending call")
+    call_data["in-call"] = False
+    stop_event.set()
+    stop_audio()
+    call_server.settimeout(1)
+    if aioin:
+        aioin.join(timeout=3)
+    if aioout:
+        aioout.join(timeout=3)
+    while aioin.is_alive() or aioout.is_alive():
+        track(f"{get_time()} | waiting for threads to end...\nInput is alive: {aioin.is_alive()}\nOutput is alive:{aioout.is_alive()}")
+        time.sleep(0.5)
+    stop_event.clear()         # reset for next call
+    call_server.settimeout(None)
+    time.sleep(0.1)
     send(call_server, codes["call-end"])
-    active_call = False
-    track(f"{get_time()} | send end-call code. Stopping threads")
-    aioin.join()
-    aioout.join()
-    while caller_thread.is_alive() and listener_thread.is_alive():
-        track(f"{get_time()} | waiting for threads to end...\nInput is alive: {caller_thread.is_alive()}\nOutput is alive:{caller_thread.is_alive()}")
     track(f"{get_time()} | threads ended")
-
-def active_call(call_server):
+    
+def active_call(call_server, aioin, aioout):
     ref(screens["source"])
     while True:
         choice = dynamic_inps(["End Call"], 2)
+        if choice == "End Call":
+            end_call(call_server, aioin, aioout)
         break
 
 def init_audio_threads(call_server):
@@ -2407,7 +2418,7 @@ def init_audio_threads(call_server):
             print_text(3, width // 2, ("Output: FAILED: Audio input thread has failed. Error logged in current directory",))
             time.sleep(1)
             errlog(str(e))
-    active_call(audin_thread, audout_thread)
+    active_call(call_server, audin_thread, audout_thread)
     return failed
 
 def start_call(call_server, name):
@@ -2511,41 +2522,57 @@ def send_audio(call_server, data):
     try:
         call_server.send(data)
     except (BrokenPipeError, ConnectionResetError):
-         close_audio()
+         stop_audio()
 
 def get_audio(call_server):
     try:
         return call_server.recv(CHUNK)
     except (BrokenPipeError, ConnectionResetError):
-        close_audio()
+        stop_audio()
         call_status = "Ended"
     except socket.timeout:
-        close_audio()
+        stop_audio()
         call_status = "Timed Out"
-    
+
+stop_event = task.Event()
+
 def record(call_server):
     try:
-        while call_data["in-call"]:
+        while call_data["in-call"] and not stop_event.is_set():
             audio_buffer = call_data["input"].read(CHUNK, exception_on_overflow=False)
             send_audio(call_server, audio_buffer)
     except Exception as e:
         pass
     call_data["in-call"] = False
-    close_audio()
+    stop_audio()
 
 def playback(call_server):
-    call_server.settimeout(15)
+    timeout_limit = 15
+    current_timeout = 0
+    call_server.settimeout(timeout_limit)
     try:
-        while call_data["in-call"]:
+        while call_data["in-call"] and not stop_event.is_set():
+            if current_timeout:
+                try:
+                    msg = receive(call_server)
+                    if msg == codes["call-end"]:
+                        msg = "Call has ended. Audio has been turned off"
+                        print_text(height // 3, (widht // 2) - (len(msg) // 2), (msg,))
+                        break
+                except:
+                    current_timeout = 0
             audio_buffer = get_audio(call_server)
             if not audio_buffer:
-                continue
+                time.sleep(0.2)
+                current_timeout += 0.2
+                if current_timeout > timeout_limit:
+                    break
             call_data["output"].write(audio_buffer)
     except Exception as e:
         pass
     call_data["in-call"] = False
     call_server.settimeout(None)
-    close_audio()
+    stop_audio()
 
 def play_self():
     print_text(7, 0, (f"play_self started, live={call_data["in-call"]}",))
@@ -2595,6 +2622,8 @@ def audio_config(call_server):
     inpset = 0
     outpset = 0
     screens["source"].addstr(0, 0, f"Input device: {call_data["input-name"]} | Output device: {call_data["output-name"]}")
+
+
     while True:
         if call_data["input-devices"]:
             name_to_index = {name: index for index, name in call_data["input-devices"].items()}
@@ -2631,6 +2660,7 @@ def audio_config(call_server):
             name_to_index = {name: index for index, name in call_data["output-devices"].items()}
             names = list(name_to_index.keys())
             screens["source"].addstr(1, 0, "Select output device (q to skip):")
+            screens["source"].addstr(height - 2, 0, "***It is a good idea to select your audio engine for your output, (pipewire, pulse, etc)")
             selected = dynamic_inps(names, 3)
             if selected and selected in name_to_index:
                 chosen_index = name_to_index[selected]
@@ -2721,6 +2751,23 @@ def load_audio():
     else:
         return 0
     return 1
+
+def stop_audio(choice="both"):
+    if choice == "in" or choice == "both":
+        if call_data["input"]:
+            try:
+                call_data["input"].stop_stream()
+            except Exception as e:
+                log(str(e))
+    if choice == "out" or choice == "both":
+        if call_data["output"]:
+            try:
+                call_data["output"].stop_stream()
+            except Exception as e:
+                log(str(e))
+    
+    call_data["input"] = None
+    call_data["output"] = None
 
 def close_audio(choice="both"):
     if choice == "in" or choice == "both":
