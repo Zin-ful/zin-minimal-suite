@@ -21,7 +21,7 @@ def gen_update():
         msg += item + "\n"
     return msg
 
-server_version = 3.5
+server_version = 4.8
 
 updatemsg = f"server.message.from.server." + "Server Compatability: 5.5 - 6.0\nTo-Do List: " + gen_update()
 
