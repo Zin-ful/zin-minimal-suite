@@ -16,8 +16,15 @@ LADDR = "0.0.0.0"
 PORT = 25415
 ACK = "ack"
 home = "/opt/os_storage/"
+
+init_system = {"misc": "Misc", "orc": "OpenRC", "r6": "R6", "runit": "Runit", "sysd - warning: SystemD has decided to implement age verification.": "SystemD"}
+
 if "os_storage" not in os.listdir("/opt"):
     os.mkdir("/opt/os_storage")
+
+for i, j in init_system.items():
+    if j not in os.listdir(home):
+        os.mkdir(home+j)
 
 server = netcom.socket(ipv4, tcp)
 
@@ -34,73 +41,58 @@ def init_server():
     while True:
         server.listen()
         srvcon, srvcon_ip = server.accept()
-        ack(srvcon, 0)
-#        client_list.append(srvcon)
         thread_client = task.Thread(target=client_start, args=[srvcon])
         thread_client.start()
 
 
 def client_start(client):
+    
     while True:
-        try:
-            path = client.recv(1024).decode("utf-8")
-        except:
-            break
-        if path:
-            if "#list" in path:
-                if " " in path:
-                    temp, path = path.split(" ")
-                    if path[len(path) - 1] != "/":
-                        path += "/"
-                else:
-                    path = ""
-                try:
-                    reply = "!"
-                    for item in os.listdir(home+path):
-                        reply += item+"\n"
-                    client.send(reply.encode("utf-8"))
-                except:
-                    client.send("!Directory does not exist".encode("utf-8"))
+        msg = ""
+        choices = []
+        for key, value in init_system.items():
+            msg += f"{key}\n"
+            choices.append(key)
+        msg = "Choose your init system:\n" + msg
+        send(client, msg)
+        while True:
+            choice = receive(client)
+            if choice not in choices:
+                send(client, "Invalid choice, choose from the list.")
                 continue
             else:
-                try:
-                    send_file(client, path)
-                except Exception as e:
-                    print(f"error sending file to requestor: {e}")
-                    client.send("!File not found".encode("utf-8"))
-                time.sleep(0.5)
-        else:
-            break
-
-def receive_file(client, path):
-    data_received = 0
-    part_size = 4096
-    check = client.recv(1).decode("utf-8")
-    if check == "!":
-        data = client.recv(part_size).decode("utf-8")
-        print(data)
-        return
-    else:
-        packet_size = check
-    packet_size += client.recv(header_size).decode("utf-8")
-    packet_size = int(packet_size)
-    ack(client, 1)
-    if not path:
-        path = input("file name? >>> ")
-    with open(download+path, "wb") as file:
-        print(f"opening file at {download}{path}")
-        while data_received < packet_size:
-            remaining_data = packet_size - data_received
-            print(f"starting download. chunk size: {part_size}")
-            remaining_data = min(part_size, remaining_data)
-            part = client.recv(remaining_data)
-            print(f"receiving {len(part)} bytes")
-            if not part:
                 break
-            file.write(part)
-            data_received += len(part)
-    print("file downloaded\nfile written to path")
-    ack(client, 1)
+        print("os choosen")
+        msg = ""
+        i = 0
+        choices = []
+        path = init_system[choice]
+        for item in os.listdir(home + path):
+            msg += f"{i}. {item}\n"
+            choices.append(item)
+            i += 1
+        msg = "Choose operating system:\n" + msg
+        send(client, msg)
+        while True:
+            choice = receive(client)
+            try:
+                choice = int(choice.strip())
+                name = choices[choice]
+                break
+            except Exception as e:
+                print(str(e))
+                name = choice
+                if name not in choices:
+                    send(client, "Invalid choice.")
+                    continue
+                break
+            print("os choosen")
+            break
+        path = path + "/" + name
+        send(client, "!")
+        time.sleep(0.1)
+        send_file(client, path)
+        print("ending looping")
 
 def send_file(client, path):
     with open(home+path, "rb") as file:
@@ -109,7 +101,6 @@ def send_file(client, path):
     head = str(file_size).zfill(header_size)
     print(f"file size {header_size}, sending...")
     client.send(str(head).encode("utf-8"))
-    ack(client, 0)
     with open(home+path, "rb") as file:
         i = 0
         while True:
@@ -120,31 +111,24 @@ def send_file(client, path):
             client.send(part)
             i += 1
     print("file sent")
-    ack(client, 0)
+    send(client, "Returning to main menu")
 
 def send(client, data):
-    head = str(len(data + is_flagged)).zfill(header_size)
-    data = head + is_flagged + data
+    print(f"sending:\n{data}")
+    head = str(len(data)).zfill(header_size)
+    data = head + data
     client.send(data.encode("utf-8"))
-    ack(client, 0)
 
 def receive(client):
     data_received = b''
     print("receiving header..")
-    packet_size = server.recv(header_size).decode("utf-8")
+    packet_size = client.recv(header_size).decode("utf-8")
     packet_size = int(packet_size)
     print(f"header size is: {packet_size}")
     while len(data_received) < packet_size:
-        data_received += server.recv(packet_size - len(data_received))
+        data_received += client.recv(packet_size - len(data_received))
         print(f"data being received: {packet_size} | {len(data_received)} = {data_received}")
-    ack(client, 1)
     data_received = data_received.decode("utf-8")
     return data_received
-
-def ack(client, state):
-    if not state:
-        ack_acpt = client.recv(3).decode("utf-8")
-    else:
-        client.send(ACK.encode('utf-8'))
 
 init_server()

@@ -10,6 +10,7 @@ import time
 """default vars"""
 header_size = 100
 IP = input("Ip addr? (enter for localhost)\n>>> ")
+PORT = 25415
 ACK = "ack"
 home = "/home/"
    
@@ -21,9 +22,8 @@ if download[len(download) - 1] != "/":
     print("no / added to the end of the directory.")
     print("if you dont add one, youll need to add one when downloading a file.")
     tmp = input("add one? >>> ")
-    if "y" in tmp:
+    if "y" in tmp or not tmp:
         download += "/"
-    del tmp
 elif not download:
     download = home
 if not IP:
@@ -31,11 +31,13 @@ if not IP:
 
 def client_shell(client):
     while True:
-        print("input the path of a file to download it")
-        print("The path starts from '/home/'\n\n")
-        inp = input("(#list to check directories) >>> ")        
-        client.send(inp.encode("utf-8"))
-        receive_file(client, None)
+        data = receive(client)
+        if data[0] == "!":
+            receive_file(client, None)
+        else:
+            print(data)
+        inp = input(">>> ")        
+        send(client, inp)
 
 def init_client():
     global client
@@ -45,39 +47,19 @@ def init_client():
     try:
         client.connect((IP, PORT))
         print("connected, moving to shell..")
-        client.send(ACK.encode("utf-8"))
         client_shell(client)
     except Exception as e:
         print(f"error: {e}")
-        print("lost connection to server. do you want to retry?")
-        inp = input(">>> ")
-        if "y" in inp:
-            if client.fileno() != -1:
-                print("attempting shutdown...")
-                try:
-                    client.shutdown(netcom.SHUT_RDWR)
-                except OSError:
-                    print("No endpoint to shutdown. Closing server")
-                client.close()
-            print("retrying... (waiting for server, be patient)")
-            init_client()
-        else:
-            client.close()
-            exit()
+        print("lost connection to server.")
+        exit()
+        
 
 def receive_file(client, path):
     data_received = 0
     part_size = 4096
-    check = client.recv(1).decode("utf-8")
-    if check == "!":
-        data = client.recv(part_size).decode("utf-8")
-        print(data)
-        return
-    else:
-        packet_size = check
-    packet_size += client.recv(header_size).decode("utf-8")
+    packet_size = client.recv(header_size).decode("utf-8")
     packet_size = int(packet_size)
-    ack(client, 1)
+    print(f"Packet Size: {packet_size}")
     if not path:
         path = input("file name? >>> ")
     with open(download+path, "wb") as file:
@@ -92,51 +74,20 @@ def receive_file(client, path):
                 break
             file.write(part)
             data_received += len(part)
-    print("file downloaded\nfile written to path")
-    ack(client, 1)
-
-def send_file(client, path):
-    with open(home+path, "rb") as file:
-        file.seek(0, 2)
-        file_size = file.tell()
-    head = str(file_size).zfill(header_size)
-    print(f"file size {header_size}, sending...")
-    client.send(str(head).encode("utf-8"))
-    ack(client, 0)
-    with open(home+path, "rb") as file:
-        i = 0
-        while True:
-            part = file.read(4096)
-            if not part:
-                break
-            print(f"sending part {i}")
-            client.send(part)
-            i += 1
-    print("file sent")
-    ack(client, 0)
+    print(f"file downloaded\nfile written to path.\nData expected: {packet_size}\nData received: {data_received}")
 
 def send(client, data):
-    head = str(len(data + is_flagged)).zfill(header_size)
-    data = head + is_flagged + data
+    head = str(len(data)).zfill(header_size)
+    data = head + data
     client.send(data.encode("utf-8"))
-    ack(client, 0)
 
 def receive(client):
     data_received = b''
-    print("receiving header..")
-    packet_size = server.recv(header_size).decode("utf-8")
+    packet_size = client.recv(header_size).decode("utf-8")
     packet_size = int(packet_size)
-    print(f"header size is: {packet_size}")
     while len(data_received) < packet_size:
-        data_received += server.recv(packet_size - len(data_received))
-        print(f"data being received: {packet_size} | {len(data_received)} = {data_received}")
-    ack(client, 1)
+        data_received += client.recv(packet_size - len(data_received))
     data_received = data_received.decode("utf-8")
     return data_received
 
-def ack(client, state):
-    if not state:
-        ack_acpt = client.recv(3).decode("utf-8")
-    else:
-        client.send(ACK.encode('utf-8'))
-oinit_client()
+init_client()
