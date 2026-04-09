@@ -1,3 +1,4 @@
+#!/bin/env python3
 from socket import SOCK_STREAM as tcp
 from socket import AF_INET as ipv4
 import socket as netcom
@@ -94,10 +95,9 @@ def compress_message(msg, level=comp_level):
 
 def uncompress_message(msg, level=comp_level):
     try:
-        if len(msg) > 100:
-            msg = zlib.decompress(msg)
+        msg = zlib.decompress(msg)
     except:
-        print("Decompression failed")
+        print("Decompression failed") #just brute forcing for now to avoid the client sending an extra packet. Servers arent ran on laptops usually
     return msg
 
 def send(client, data):
