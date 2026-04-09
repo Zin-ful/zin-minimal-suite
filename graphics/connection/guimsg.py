@@ -25,7 +25,7 @@ the call receiving thread is paused or force terminate it. Somehow, maybe timeou
 
 """
 
-debug = True #UNSET FOR RELEASE
+debug = False #UNSET FOR RELEASE
 
 try:
     import pyaudio
